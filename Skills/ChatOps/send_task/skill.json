@@ -1,0 +1,7 @@
+{
+  "name": "ChatOps.send_task",
+  "version": "0.1.0",
+  "description": "Sends task to inbox.",
+  "entry": "skill.py"
+}
+

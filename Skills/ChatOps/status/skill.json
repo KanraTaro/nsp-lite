@@ -1,0 +1,6 @@
+{
+  "name": "ChatOps.queue_status",
+  "version": "0.1.0",
+  "description": "Display counts of ChatOps tasks in Inbox, Claimed, Done and Failed.",
+  "entry": "skill.py"
+}

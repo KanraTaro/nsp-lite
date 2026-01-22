@@ -1,0 +1,7 @@
+{
+  "name": "ChatOps.run_worker",
+  "version": "0.1.0",
+  "description": "Process ChatOps tasks from the Inbox, execute them via SkillCLI, and write results.",
+  "entry": "skill.py"
+}
+

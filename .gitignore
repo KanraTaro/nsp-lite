@@ -1,0 +1,47 @@
+# -----------------------------
+# Runtime state is generated, never committed
+# -----------------------------
+State/
+**/*.events.jsonl
+**/*.events.jsonl.*
+
+nsp-project-log-*.txt
+
+# -----------------------------
+# Obsidian (vault-local noise)
+# -----------------------------
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/plugins/*/data.json
+.obsidian/plugins/*/main.js.map
+
+# If you accidentally created a non-dot folder, ignore it too:
+obsidian/
+
+# -----------------------------
+# Python cache / build outputs
+# -----------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# -----------------------------
+# OS/editor junk
+# -----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+

@@ -1,0 +1,6 @@
+{
+  "name": "ImportError.explode",
+  "version": "0.0.1",
+  "description": "A skill designed to explode on import for testing",
+  "entry": "skill.py"
+}
