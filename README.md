@@ -146,5 +146,5 @@ run_tests.py       test runner
 
 ## License
 
-Not set yet.
+MIT License.
 
