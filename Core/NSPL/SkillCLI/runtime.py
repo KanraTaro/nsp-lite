@@ -8,8 +8,8 @@ needing to know internal file boundaries.
 
 from __future__ import annotations
 
-from Core.SkillCLI.ctx import SkillContext, create_ctx
-from Core.SkillCLI.loader import discover_skills, load_skill_module, resolve_skill
+from Core.NSPL.SkillCLI.ctx import SkillContext, create_ctx
+from Core.NSPL.SkillCLI.loader import discover_skills, load_skill_module, resolve_skill
 
 __all__: list[str] = [
     "SkillContext",

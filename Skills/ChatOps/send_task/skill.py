@@ -9,7 +9,7 @@ Example usage:
 
 .. code-block:: shell
 
-    python -m Core.SkillCLI skill ChatOps.send_task \
+    python -m Core.NSPL.SkillCLI skill ChatOps.send_task \
         --instance main \
         --skill Dummy.echo \
         --target workerA \
@@ -29,8 +29,8 @@ import json
 import uuid
 from typing import Any, Dict, List, Optional
 
-from Core.ChatOps import task_schema as _task_schema
-from Core.ChatOps import store as _store
+from Core.NSPL.ChatOps import task_schema as _task_schema
+from Core.NSPL.ChatOps import store as _store
 
 
 def _now_utc_iso() -> str:

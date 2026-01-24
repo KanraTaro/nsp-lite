@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Core.ChatOps.task_schema import validate_task
-from Core.ChatOps.claim import claim_task
+from Core.NSPL.ChatOps.task_schema import validate_task
+from Core.NSPL.ChatOps.claim import claim_task
 
 
 class ChatOpsCoreTests(unittest.TestCase):

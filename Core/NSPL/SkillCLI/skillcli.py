@@ -3,12 +3,12 @@
 This module parses arguments, delegates discovery and dispatch to the
 loader and context helpers, and handles user-facing error messages.
 It is the primary entry point for the ``skill`` and ``list`` subcommands
-when invoked via ``python -m Core.SkillCLI`` or directly as a script.
+when invoked via ``python -m Core.NSPL.SkillCLI`` or directly as a script.
 
 Notes
 -----
 * All disk I/O, including reading ``skill.json``, happens through
-  NodeCTX functions in :mod:`Core.SkillCLI.loader`.
+  NodeCTX functions in :mod:`Core.NSPL.SkillCLI.loader`.
 * SkillCLI itself does not write to disk during normal operation.
 * To override the location of the ``Skills`` tree, set the
   ``SKILLS_ROOT`` environment variable.  This is primarily intended
@@ -182,7 +182,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     command = argv[0]
 
     # Determine skills directory based on project root and environment
-    from Core.ProjectRoot import get_effective_root
+    from Core.NSPL.ProjectRoot import get_effective_root
     project_root = get_effective_root()
     skills_dir = _get_skills_root(project_root)
 

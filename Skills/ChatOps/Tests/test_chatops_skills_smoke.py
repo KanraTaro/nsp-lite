@@ -4,12 +4,12 @@ import uuid
 import unittest
 from pathlib import Path
 
-from Core.ProjectRoot import get_effective_root
+from Core.NSPL.ProjectRoot import get_effective_root
 
 
 def _run_skillcli(args: list[str], timeout: int = 20) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "Core.SkillCLI"] + args,
+        [sys.executable, "-m", "Core.NSPL.SkillCLI"] + args,
         capture_output=True,
         text=True,
         timeout=timeout,

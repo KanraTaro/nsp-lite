@@ -48,11 +48,11 @@ from typing import Any
 # Import NodeCTX and ProjectRoot relative to the Core package.  Using
 # fully-qualified names avoids reliance on the bootstrap snippet when
 # these modules are imported directly during unit tests.  When run via
-# ``python -m Core.SkillCLI`` the bootstrap will add the project root
+# ``python -m Core.NSPL.SkillCLI`` the bootstrap will add the project root
 # to sys.path so these imports continue to work.
-from Core.NodeCTX import get_default_instance_id, get_default_node_tag
-import Core.NodeCTX as _node_ctx  # import alias for convenience
-from Core.ProjectRoot import get_effective_root
+from Core.NSPL.NodeCTX import get_default_instance_id, get_default_node_tag
+import Core.NSPL.NodeCTX as _node_ctx  # import alias for convenience
+from Core.NSPL.ProjectRoot import get_effective_root
 
 
 @dataclass
