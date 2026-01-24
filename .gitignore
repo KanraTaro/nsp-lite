@@ -4,6 +4,7 @@
 State/
 **/*.events.jsonl
 **/*.events.jsonl.*
+/.stfolder
 
 nsp-project-log-*.txt
 
