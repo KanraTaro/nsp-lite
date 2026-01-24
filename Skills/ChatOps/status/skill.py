@@ -11,7 +11,7 @@ import argparse
 import json
 from typing import Any, Dict
 
-from Core.ChatOps import store as _store
+from Core.NSPL.ChatOps import store as _store
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:

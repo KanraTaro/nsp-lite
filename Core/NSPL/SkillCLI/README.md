@@ -57,7 +57,7 @@ It is framework infrastructure that skills depend on indirectly via the context 
 SkillCLI is invoked as a Python module:
 
 ```sh
-python -m Core.SkillCLI <command>
+python -m Core.NSPL.SkillCLI <command>
 ```
 
 This ensures the repository root is bootstrapped correctly and all `Core.*` imports resolve consistently.
@@ -69,7 +69,7 @@ This ensures the repository root is bootstrapped correctly and all `Core.*` impo
 ### List available skills
 
 ```sh
-python -m Core.SkillCLI list [--detailed]
+python -m Core.NSPL.SkillCLI list [--detailed]
 ```
 
 * Recursively scans `Skills/` for `skill.json`
@@ -95,7 +95,7 @@ ImportError.explode	0.0.1	A skill designed to explode on import for testing
 ### Run a skill
 
 ```sh
-python -m Core.SkillCLI skill <SkillName> [skill arguments...]
+python -m Core.NSPL.SkillCLI skill <SkillName> [skill arguments...]
 ```
 
 Execution flow:
@@ -201,7 +201,7 @@ The context exposes:
   Boolean flag from `--global`
 
 * `node_ctx`
-  Reference to the `Core.NodeCTX` module
+  Reference to the `Core.NSPL.NodeCTX` module
   **All durable writes and canonical paths must go through this**
 
 * `debug`

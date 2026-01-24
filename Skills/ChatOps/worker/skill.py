@@ -8,11 +8,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from Core.ChatOps import claim as _claim
-from Core.ChatOps import store as _store
-from Core.ChatOps import task_schema as _task_schema
-from Core.ChatOps import transitions as _transitions
-from Core.NodeCTX import JsonlRotationPolicy, JsonlThrottlePolicy
+from Core.NSPL.ChatOps import claim as _claim
+from Core.NSPL.ChatOps import store as _store
+from Core.NSPL.ChatOps import task_schema as _task_schema
+from Core.NSPL.ChatOps import transitions as _transitions
+from Core.NSPL.NodeCTX import JsonlRotationPolicy, JsonlThrottlePolicy
 
 
 def _now_utc_iso() -> str:
@@ -227,7 +227,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         print(f"[chatops.worker] exec: {skill_name} ({len(skill_args)} args)", flush=True)
         log_event("exec_start", {"file": claimed.name, "skill": skill_name, "args_count": len(skill_args)})
 
-        cli_cmd: List[str] = [sys.executable, "-m", "Core.SkillCLI", "skill", skill_name]
+        cli_cmd: List[str] = [sys.executable, "-m", "Core.NSPL.SkillCLI", "skill", skill_name]
         cli_cmd.extend(["--instance", instance_id])
 
         # IMPORTANT: worker executes as itself, not as the target label.

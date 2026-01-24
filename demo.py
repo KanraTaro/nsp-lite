@@ -132,7 +132,7 @@ def main() -> int:
     _run([python_exe, "run_tests.py"], cwd=repo_root, check=True)
 
     _banner("2) List skills via SkillCLI (proves discovery works without importing broken modules)")
-    list_result: RunResult = _run([python_exe, "-m", "Core.SkillCLI", "list"], cwd=repo_root, check=True)
+    list_result: RunResult = _run([python_exe, "-m", "Core.NSPL.SkillCLI", "list"], cwd=repo_root, check=True)
 
     expected: List[str] = [
         "ChatOps.send_task",
@@ -181,7 +181,7 @@ def main() -> int:
         [
             python_exe,
             "-m",
-            "Core.SkillCLI",
+            "Core.NSPL.SkillCLI",
             "skill",
             "ChatOps.send_task",
             "--instance",
@@ -223,7 +223,7 @@ def main() -> int:
         [
             python_exe,
             "-m",
-            "Core.SkillCLI",
+            "Core.NSPL.SkillCLI",
             "skill",
             "ChatOps.run_worker",
             "--instance",
@@ -242,7 +242,7 @@ def main() -> int:
         [
             python_exe,
             "-m",
-            "Core.SkillCLI",
+            "Core.NSPL.SkillCLI",
             "skill",
             "ChatOps.queue_status",
             "--instance",

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Core.ProjectRoot.skill import find_root, get_effective_root
+from Core.NSPL.ProjectRoot.skill import find_root, get_effective_root
 
 class ProjectRootTests(unittest.TestCase):
     def setUp(self) -> None:

@@ -7,7 +7,7 @@ tested independently of argument parsing and user interaction.
 
 Functions exported here must not write to disk and should only read
 through NodeCTX where JSON parsing is required.  All exceptions raised
-are defined in :mod:`Core.SkillCLI.errors` to make handling in the CLI
+are defined in :mod:`Core.NSPL.SkillCLI.errors` to make handling in the CLI
 predictable.
 """
 
@@ -20,7 +20,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 # Always import NodeCTX relative to the Core package.  The Core
 # package itself is available on sys.path by virtue of running tests
 # from the repository root, so no bootstrap is necessary here.
-from Core.NodeCTX import read_json
+from Core.NSPL.NodeCTX import read_json
 
 from .errors import DuplicateSkillError, InvalidSkill, SkillNotFound
 

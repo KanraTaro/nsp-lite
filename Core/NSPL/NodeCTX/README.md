@@ -74,8 +74,8 @@ Example usage:
 ~~~
 	from pathlib import Path
 	
-    from Core.NodeCTX import build_state_dir
-    from Core.ProjectRoot import get_effective_root
+    from Core.NSPL.NodeCTX import build_state_dir
+    from Core.NSPL.ProjectRoot import get_effective_root
 	
 	root: Path = get_effective_root()
 	

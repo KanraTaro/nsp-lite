@@ -20,7 +20,7 @@ from io import StringIO
 from pathlib import Path
 from types import ModuleType
 
-from Core.SkillCLI import loader, skillcli
+from Core.NSPL.SkillCLI import loader, skillcli
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "Skills"

@@ -8,8 +8,8 @@ documented in :mod:`NodeCTX.skill`.
 
 Example usage::
 
-    from Core.NodeCTX import build_state_dir, write_json_atomic
-    from Core.ProjectRoot import get_effective_root
+    from Core.NSPL.NodeCTX import build_state_dir, write_json_atomic
+    from Core.NSPL.ProjectRoot import get_effective_root
 
     root = get_effective_root()
     state_dir = build_state_dir(root, instance_id="main", node_tag="node1",

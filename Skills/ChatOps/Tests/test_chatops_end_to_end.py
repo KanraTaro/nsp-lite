@@ -7,14 +7,14 @@ import unittest
 import uuid
 from pathlib import Path
 
-from Core.NodeCTX import build_state_dir
-from Core.ProjectRoot import get_effective_root
+from Core.NSPL.NodeCTX import build_state_dir
+from Core.NSPL.ProjectRoot import get_effective_root
 
 
 def _run_skill(args, timeout=30):
     """Helper to run a SkillCLI command and return the completed process."""
     return subprocess.run(
-        [sys.executable, "-m", "Core.SkillCLI"] + args,
+        [sys.executable, "-m", "Core.NSPL.SkillCLI"] + args,
         capture_output=True,
         text=True,
         timeout=timeout,

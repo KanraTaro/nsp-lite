@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Core.NodeCTX.skill import (
+from Core.NSPL.NodeCTX.skill import (
     apply_prefix,
     append_jsonl,
     build_state_dir,

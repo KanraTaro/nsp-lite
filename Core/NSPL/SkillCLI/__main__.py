@@ -2,7 +2,7 @@
 Core/SkillCLI/__main__.py
 
 Allows:
-  python -m Core.SkillCLI ...
+  python -m Core.NSPL.SkillCLI ...
 
 Bootstrap rule:
 - Put the *repo root* on sys.path so that `import Core.*` works.
@@ -45,7 +45,7 @@ def _bootstrap_repo_root_on_syspath() -> Path:
 
 _bootstrap_repo_root_on_syspath()
 
-from Core.SkillCLI.skillcli import main as _main
+from Core.NSPL.SkillCLI.skillcli import main as _main
 
 
 if __name__ == "__main__":
