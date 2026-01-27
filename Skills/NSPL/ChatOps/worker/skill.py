@@ -14,11 +14,8 @@ from Core.NSPL.ChatOps import task_schema as _task_schema
 from Core.NSPL.ChatOps import transitions as _transitions
 from Core.NSPL.NodeCTX import JsonlRotationPolicy, JsonlThrottlePolicy
 
-
 def _now_utc_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -156,6 +153,13 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             return
         last_state = new_state
         log_event("state", {"state": new_state})
+        
+    def _guess_task_id_from_filename(name: str) -> str:
+        stem = Path(name).stem
+        parts = stem.split("__")
+        if len(parts) >= 3:
+            return parts[-1]
+        return stem
 
     def process_one(task_path: Path) -> bool:
         claimed: Optional[Path] = _claim.claim_task(task_path, claimed_dir)
@@ -174,6 +178,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         except Exception as ex:
             result = {
                 "task_id": claimed.stem,
+                "task_id": _guess_task_id_from_filename(claimed.name),
                 "finished_utc": _now_utc_iso(),
                 "status": "failed",
                 "exit_code": -1,
@@ -309,6 +314,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 log_event(
                     "idle_heartbeat",
                     throttle=idle_throttle_policy,
+                    throttle_key="idle_heartbeat",
                 )
 
             if args.once and processed_any:

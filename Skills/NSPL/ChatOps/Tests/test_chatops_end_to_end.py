@@ -5,10 +5,29 @@ import sys
 import time
 import unittest
 import uuid
+import shutil
 from pathlib import Path
 
 from Core.NSPL.NodeCTX import build_state_dir
 from Core.NSPL.ProjectRoot import get_effective_root
+
+def _rmtree_best_effort(path: Path, retries: int = 5, sleep_sec: float = 0.10) -> None:
+    # I want teardown to be boring on every OS, even when Windows/AV holds a handle briefly.
+    if not path.exists():
+        return
+
+    last_err: Exception | None = None
+    for _ in range(retries):
+        try:
+            shutil.rmtree(path)
+            return
+        except Exception as exc:
+            last_err = exc
+            time.sleep(sleep_sec)
+
+    # If it still fails, let the test fail loudly so we notice real lock/path bugs.
+    if last_err is not None:
+        raise last_err
 
 
 def _run_skill(args, timeout=30):
@@ -18,6 +37,7 @@ def _run_skill(args, timeout=30):
         capture_output=True,
         text=True,
         timeout=timeout,
+        cwd=str(get_effective_root()),  # in case tests run from other dir
     )
 
 
@@ -30,13 +50,7 @@ class ChatOpsE2ETests(unittest.TestCase):
         # Clean up the State/<instance> directory after each test
         root = get_effective_root()
         state_dir = Path(root) / "State" / self.instance
-        if state_dir.exists():
-            # Remove directory tree
-            for p in sorted(state_dir.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-                try:
-                    p.unlink()
-                except IsADirectoryError:
-                    p.rmdir()
+        _rmtree_best_effort(state_dir)
 
     def test_happy_path_echo(self) -> None:
         # Enqueue a simple echo task

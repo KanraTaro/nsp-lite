@@ -1,2 +1,2 @@
-processed_any = False
-# do NOT set_state("idle") here
+"""ChatOps Skills package."""
+__all__ = []
