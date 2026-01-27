@@ -2,9 +2,12 @@ import subprocess
 import sys
 import uuid
 import unittest
+import shutil
+import time
 from pathlib import Path
 
 from Core.NSPL.ProjectRoot import get_effective_root
+
 
 
 def _run_skillcli(args: list[str], timeout: int = 20) -> subprocess.CompletedProcess[str]:
@@ -13,17 +16,25 @@ def _run_skillcli(args: list[str], timeout: int = 20) -> subprocess.CompletedPro
         capture_output=True,
         text=True,
         timeout=timeout,
+        cwd=str(get_effective_root()),  # in case tests run from other dir
     )
 
 
-def _rm_tree(path: Path) -> None:
+def _rm_tree(path: Path, retries: int = 5, sleep_sec: float = 0.10) -> None:
     if not path.exists():
         return
-    for p in sorted(path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+
+    last_err: Exception | None = None
+    for _ in range(retries):
         try:
-            p.unlink()
-        except IsADirectoryError:
-            p.rmdir()
+            shutil.rmtree(path)
+            return
+        except Exception as exc:
+            last_err = exc
+            time.sleep(sleep_sec)
+
+    if last_err is not None:
+        raise last_err
 
 
 class ChatOpsSkillsSmokeTests(unittest.TestCase):
