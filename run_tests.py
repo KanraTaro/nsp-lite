@@ -16,6 +16,9 @@ from __future__ import annotations
 
 import sys
 import unittest
+import argparse
+import os
+
 from pathlib import Path
 from typing import List
 
@@ -47,6 +50,25 @@ def _find_tests_dirs(repo_root: Path) -> List[Path]:
 
 
 def main(argv: List[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="run_tests.py",
+        add_help=True,
+        description="Repo-wide unittest runner.",
+    )
+    parser.add_argument(
+        "--ollama",
+        action="store_true",
+        help="Enable live Ollama integration test (sets NSPL_RUN_OLLAMA_INTEGRATION=1 and default model/host unless already set).",
+    )
+
+    # Allow future flags without breaking; keep unknown args ignored for now.
+    args, _unknown = parser.parse_known_args(argv)
+
+    if args.ollama:
+        os.environ.setdefault("NSPL_RUN_OLLAMA_INTEGRATION", "1")
+        os.environ.setdefault("NSPL_OLLAMA_MODEL", "qwen3:0.6b")
+        os.environ.setdefault("NSPL_OLLAMA_HOST", "http://localhost:11434")
+
     repo_root: Path = _find_repo_root(Path(__file__))
 
     # Critical: add repo root, not Core/, so "import Core.*" works.
@@ -73,7 +95,6 @@ def main(argv: List[str] | None = None) -> int:
     runner: unittest.TextTestRunner = unittest.TextTestRunner(verbosity=2)
     result: unittest.TestResult = runner.run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

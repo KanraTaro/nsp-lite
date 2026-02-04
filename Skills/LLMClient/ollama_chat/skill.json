@@ -1,0 +1,6 @@
+{
+  "name": "LLMClient.ollama_chat",
+  "version": "0.1.0",
+  "description": "Send a chat conversation to a locally running Ollama model and return the final reply.",
+  "entry": "skill.py"
+}

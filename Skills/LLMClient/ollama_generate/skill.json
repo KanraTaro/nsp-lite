@@ -1,0 +1,6 @@
+{
+  "name": "LLMClient.ollama_generate",
+  "version": "0.1.0",
+  "description": "Generate a text completion using a locally running Ollama model",
+  "entry": "skill.py"
+}

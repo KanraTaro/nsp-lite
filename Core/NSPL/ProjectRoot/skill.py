@@ -165,6 +165,14 @@ def get_effective_root(start_dir: Optional[Path] = None) -> Path:
         anchors are found within ``RR_MAX_DEPTH`` directories the
         starting directory is returned and a warning is logged.
     """
+    # Absolute override: RR_ROOT wins when provided.
+    env_root = os.environ.get("RR_ROOT")
+    if env_root:
+        forced_root = Path(env_root).expanduser().resolve()
+        if forced_root.is_dir():
+            return forced_root
+        logger.warning("RR_ROOT is set but is not a directory: %s", forced_root)
+    
     # Determine starting directory
     if start_dir is not None:
         base_dir = Path(start_dir).resolve()
