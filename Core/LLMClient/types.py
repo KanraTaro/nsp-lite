@@ -54,3 +54,4 @@ class PostJSONCallable(Protocol):
 
     def __call__(self, url: str, payload: Dict[str, Any], *, timeout_s: Optional[float] = None) -> Any:
         ...
+        

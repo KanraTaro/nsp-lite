@@ -15,3 +15,4 @@ response or raise one of the exceptions defined in
 from __future__ import annotations
 
 __all__ = ["ollama"]
+

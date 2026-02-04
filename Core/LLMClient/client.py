@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Optional
 
 from .types import PostJSONCallable
+from .types import LLMClientError
 
 
 class LLMClient:
@@ -50,7 +51,8 @@ class LLMClient:
         """
         if self.backend != "ollama":
             # Future backends could be dispatched here
-            raise ValueError(f"Unsupported backend: {self.backend}")
+            raise LLMClientError(f"Unsupported backend: {self.backend}")
+
 
         # Import lazily to avoid unnecessary dependencies for other backends
         from .backends.ollama import generate as ollama_generate  # type: ignore
@@ -62,3 +64,4 @@ class LLMClient:
             timeout_s=timeout_s,
             http_post=self.http_post,
         )
+

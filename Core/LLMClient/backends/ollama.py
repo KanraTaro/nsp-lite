@@ -129,3 +129,4 @@ def generate(
         return str(response) if response is not None else ""
     # Unexpected structure
     raise LLMClientError("Invalid response from Ollama: missing 'response' field")
+
