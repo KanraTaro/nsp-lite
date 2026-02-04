@@ -1,0 +1,6 @@
+{
+  "name": "LLMClient.ollama_stream",
+  "version": "0.1.0",
+  "description": "Stream a chat conversation to a locally running Ollama model and emit the response progressively.",
+  "entry": "skill.py"
+}
