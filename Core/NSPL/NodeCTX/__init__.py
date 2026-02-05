@@ -25,13 +25,16 @@ from .skill import (
     append_jsonl,
     append_jsonl_rotating,
     build_state_dir,
+    build_log_path,
     get_default_global_tag,
     get_default_instance_id,
     get_default_node_tag,
     is_prefix_enabled,
     is_prefix_instance,
     log_event_jsonl,
+    log_event, 
     read_json,
+    utc_now_iso,
     write_bytes_atomic,
     write_json_atomic,
     write_text_atomic,
@@ -43,11 +46,13 @@ from .skill import (
 
 __all__ = [
     "build_state_dir",
+    "build_log_path",
     "write_json_atomic",
     "read_json",
     "append_jsonl",
     "append_jsonl_rotating",
     "log_event_jsonl",
+    "log_event",
     "JsonlRotationPolicy",
     "JsonlThrottlePolicy",
     "write_text_atomic",
@@ -60,5 +65,6 @@ __all__ = [
     "is_prefix_instance",
     "strip_prefix",
     "strip_prefix_base_name",
+    "utc_now_iso",
 ]
 

@@ -29,6 +29,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Union, Dict, Any
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -545,6 +546,109 @@ def log_event_jsonl(
         throttle_key=resolved_key,
         throttle=throttle,
     )
+
+def utc_now_iso() -> str:
+    """UTC timestamp in ISO 8601 with Z suffix."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _validate_filename(name: str, value: str) -> str:
+    """Validate a base filename (no paths)."""
+    if value is None:
+        raise ValueError(f"{name} must be a non-empty string")
+
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{name} must be a non-empty string")
+
+    altsep: Optional[str] = os.path.altsep
+    if "/" in text or os.path.sep in text or (altsep is not None and altsep in text):
+        raise ValueError(f"{name} must be a base filename, not a path")
+
+    if text in {".", ".."}:
+        raise ValueError(f"{name} must not be '.' or '..'")
+
+    if os.name == "nt" and ":" in text:
+        raise ValueError(f"{name} must not contain ':' on Windows")
+
+    return text
+
+
+def build_log_path(
+    *,
+    root: Path,
+    instance_id: str,
+    node_tag: str,
+    global_scope: bool,
+    domain: str,
+    file_name: Optional[str] = None,
+    subpath: Optional[Union[str, Sequence[str]]] = None,
+) -> Path:
+    """Canonical JSONL log path under State/<Instance>/<Scope>/Logs/<Domain>/..."""
+    base_dir: Path = build_state_dir(
+        root=Path(root),
+        instance_id=instance_id,
+        node_tag=node_tag,
+        bucket="Logs",
+        domain=domain,
+        global_scope=global_scope,
+        subpath=subpath,
+    )
+
+    if file_name is None:
+        # Keep it predictable and readable.
+        file_name = f"{str(domain).casefold()}.jsonl"
+
+    clean_file: str = _validate_filename("file_name", file_name)
+    if not clean_file.endswith(".jsonl"):
+        clean_file = f"{clean_file}.jsonl"
+
+    return base_dir / clean_file
+
+
+def log_event(
+    *,
+    root: Path,
+    instance_id: str,
+    node_tag: str,
+    global_scope: bool,
+    domain: str,
+    kind: str,
+    extra: Optional[Dict[str, Any]] = None,
+    file_name: Optional[str] = None,
+    subpath: Optional[Union[str, Sequence[str]]] = None,
+    rotation: Optional[JsonlRotationPolicy] = None,
+    throttle: Optional[JsonlThrottlePolicy] = None,
+    throttle_key: Optional[str] = None,
+) -> None:
+    """One funnel for worker logging (JSONL), with canonical routing."""
+    path: Path = build_log_path(
+        root=Path(root),
+        instance_id=instance_id,
+        node_tag=node_tag,
+        global_scope=global_scope,
+        domain=domain,
+        file_name=file_name,
+        subpath=subpath,
+    )
+
+    base: Dict[str, Any] = {
+        "ts": utc_now_iso(),
+        "instance_id": str(instance_id),
+        "node_tag": "Global" if global_scope else str(node_tag),
+        "domain": str(domain),
+    }
+
+    log_event_jsonl(
+        path=path,
+        kind=kind,
+        base=base,
+        extra=extra,
+        rotation=rotation,
+        throttle=throttle,
+        throttle_key=throttle_key,
+    )
+
 
 def _fsync_dir(directory: Path) -> None:
     """Best-effort fsync() on a directory to persist rename/metadata updates.
