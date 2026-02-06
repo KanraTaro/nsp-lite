@@ -1,4 +1,4 @@
-"""Forge.Time.now skill.
+"""Tools.Time.now skill.
 
 This simple skill prints the current UTC timestamp in ISO 8601 format.
 It is useful for verifying that ChatOps can execute skills that

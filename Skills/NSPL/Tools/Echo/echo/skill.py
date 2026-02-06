@@ -1,8 +1,8 @@
-"""Forge.Echo.echo skill.
+"""Tools.Echo.echo skill.
 
 This skill echoes a message back to stdout.  It mirrors the semantics
 of the test Dummy.echo skill shipped with SkillCLI, but lives in the
-Forge domain for consistency.  If no message is provided, nothing is
+Tools domain for consistency.  If no message is provided, nothing is
 printed and success is returned.
 """
 

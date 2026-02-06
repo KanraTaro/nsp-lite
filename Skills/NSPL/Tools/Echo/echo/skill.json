@@ -1,5 +1,5 @@
 {
-  "name": "Forge.Echo.echo",
+  "name": "Tools.Echo.echo",
   "version": "0.1.0",
   "description": "Echo a message back to the user",
   "entry": "skill.py"

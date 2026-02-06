@@ -1,5 +1,5 @@
 {
-  "name": "Forge.TestFail.fail",
+  "name": "Tools.TestFail.fail",
   "version": "0.1.0",
   "description": "A test skill that always fails (exit code 1)",
   "entry": "skill.py"
