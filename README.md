@@ -82,7 +82,7 @@ python -m Core.NSPL.SkillCLI skill <SkillName> --instance main -- <args>
 
 Enqueue a task (producer):
 
-python -m Core.NSPL.SkillCLI skill ChatOps.send_task --instance main --skill Forge.Echo.echo --reply-to Outbox/demo_result.json -- Hello from README
+python -m Core.NSPL.SkillCLI skill ChatOps.send_task --instance main --skill Tools.Echo.echo --reply-to Outbox/demo_result.json -- Hello from README
 
 Run the worker once (consumer):
 

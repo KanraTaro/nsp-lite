@@ -188,7 +188,13 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 1
 
     # Determine Inbox path using NodeCTX helpers
-    inbox_dir, _, _, _ = _store.get_queue_dirs(node_ctx, root, instance_id, domain="ChatOps")
+    inbox_dir, _, _, _ = _store.get_queue_dirs(
+        node_ctx,
+        root,
+        instance_id,
+        domain="ChatOps",
+        global_scope=True,
+    )
 
     # Build file name: timestamp__skillSlug__taskId.json for ordering
     ts_slug = created_utc.replace(":", "-").replace("T", "_").replace("Z", "")

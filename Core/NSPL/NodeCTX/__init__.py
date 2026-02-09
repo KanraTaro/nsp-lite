@@ -32,7 +32,7 @@ from .skill import (
     is_prefix_enabled,
     is_prefix_instance,
     log_event_jsonl,
-    log_event, 
+    log_event,
     read_json,
     utc_now_iso,
     write_bytes_atomic,
@@ -42,6 +42,9 @@ from .skill import (
     strip_prefix_base_name,
     JsonlRotationPolicy,
     JsonlThrottlePolicy,
+    ensure_dir,
+    atomic_replace,
+    atomic_move_to_dir,
 )
 
 __all__ = [
@@ -66,5 +69,8 @@ __all__ = [
     "strip_prefix",
     "strip_prefix_base_name",
     "utc_now_iso",
+    "ensure_dir",
+    "atomic_replace",
+    "atomic_move_to_dir",
 ]
 

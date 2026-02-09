@@ -28,7 +28,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Union, Dict, Any
+from typing import Iterable, List, Optional, Sequence, Union, Dict, Any, Tuple
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -668,6 +668,36 @@ def _fsync_dir(directory: Path) -> None:
     except Exception:
         # Not all platforms/filesystems support directory fsync.
         pass
+
+def ensure_dir(path: Path) -> None:
+    """Ensure a directory exists (parents included). Best-effort durable."""
+    p: Path = Path(path)
+    p.mkdir(parents=True, exist_ok=True)
+    _fsync_dir(p)
+
+
+def atomic_replace(src: Path, dst: Path) -> None:
+    """Atomic rename/replace from src -> dst, creating dst parent dirs."""
+    s: Path = Path(src)
+    d: Path = Path(dst)
+
+    ensure_dir(d.parent)
+
+    os.replace(str(s), str(d))
+    _fsync_dir(d.parent)
+
+
+def atomic_move_to_dir(src: Path, dst_dir: Path, *, dst_name: Optional[str] = None) -> Path:
+    """Atomic move into a directory. Returns the final destination path."""
+    s: Path = Path(src)
+    ddir: Path = Path(dst_dir)
+    name: str = s.name if dst_name is None else _validate_filename("dst_name", dst_name)
+
+    ensure_dir(ddir)
+
+    dst: Path = ddir / name
+    atomic_replace(s, dst)
+    return dst
 
 
 def _atomic_write_bytes(target: Path, data: bytes) -> None:

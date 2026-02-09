@@ -26,56 +26,52 @@ DONE = "Done"
 FAILED = "Failed"
 
 
-def get_queue_dirs(node_ctx, root: Path, instance_id: str, domain: str = "ChatOps") -> Tuple[Path, Path, Path, Path]:
-    """Return the paths for the Inbox, Claimed, Done and Failed directories.
+def get_queue_dirs(
+    node_ctx,
+    root: Path,
+    instance_id: str,
+    *,
+    domain: str = "ChatOps",
+    global_scope: bool = True,
+    node_tag: Optional[str] = None,
+) -> tuple[Path, Path, Path, Path]:
+    """Return the paths for the Inbox, Claimed, Done and Failed directories."""
+    resolved_node_tag: str = str(node_tag).strip() if node_tag else node_ctx.get_default_node_tag()
 
-    Args:
-        node_ctx: The NodeCTX module (from ctx.node_ctx) used to build canonical
-            state directories.
-        root: The repository root (from ctx.root).
-        instance_id: The instance identifier (from ctx.instance_id or --instance).
-        domain: The domain name for ChatOps files.  Defaults to "ChatOps".
-
-    Returns:
-        A tuple of pathlib.Path instances: (inbox_dir, claimed_dir, done_dir, failed_dir).
-    """
-    # All ChatOps queues live in the global scope under the Workflow bucket.
-    # Domain corresponds to the ChatOps domain so that different subsystems can
-    # coexist within the Workflow bucket.
-    inbox_dir = node_ctx.build_state_dir(
+    inbox_dir: Path = node_ctx.build_state_dir(
         root=root,
         instance_id=instance_id,
-        node_tag="ignored",  # ignored when global_scope=True
+        node_tag=resolved_node_tag,
         bucket="Workflow",
         domain=str(domain),
-        global_scope=True,
+        global_scope=bool(global_scope),
         subpath=INBOX,
     )
-    claimed_dir = node_ctx.build_state_dir(
+    claimed_dir: Path = node_ctx.build_state_dir(
         root=root,
         instance_id=instance_id,
-        node_tag="ignored",
+        node_tag=resolved_node_tag,
         bucket="Workflow",
         domain=str(domain),
-        global_scope=True,
+        global_scope=bool(global_scope),
         subpath=CLAIMED,
     )
-    done_dir = node_ctx.build_state_dir(
+    done_dir: Path = node_ctx.build_state_dir(
         root=root,
         instance_id=instance_id,
-        node_tag="ignored",
+        node_tag=resolved_node_tag,
         bucket="Workflow",
         domain=str(domain),
-        global_scope=True,
+        global_scope=bool(global_scope),
         subpath=DONE,
     )
-    failed_dir = node_ctx.build_state_dir(
+    failed_dir: Path = node_ctx.build_state_dir(
         root=root,
         instance_id=instance_id,
-        node_tag="ignored",
+        node_tag=resolved_node_tag,
         bucket="Workflow",
         domain=str(domain),
-        global_scope=True,
+        global_scope=bool(global_scope),
         subpath=FAILED,
     )
     return inbox_dir, claimed_dir, done_dir, failed_dir
@@ -98,7 +94,7 @@ def write_task(node_ctx, inbox_dir: Path, task: dict, file_name: Optional[str] =
         The full path to the written file.
     """
     validate_task(task)
-    inbox_dir.mkdir(parents=True, exist_ok=True)
+    node_ctx.ensure_dir(inbox_dir)
     if file_name is None:
         file_name = f"{task['task_id']}.json"
     path = inbox_dir / file_name

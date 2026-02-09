@@ -138,7 +138,7 @@ def main() -> int:
         "ChatOps.send_task",
         "ChatOps.run_worker",
         "ChatOps.queue_status",
-        "Forge.Echo.echo",
+        "Tools.Echo.echo",
     ]
     missing: List[str] = []
     for name in expected:
@@ -187,7 +187,7 @@ def main() -> int:
             "--instance",
             instance_id,
             "--skill",
-            "Forge.Echo.echo",
+            "Tools.Echo.echo",
             "--reply-to",
             reply_to_rel,
             "--",
@@ -205,7 +205,7 @@ def main() -> int:
     task_id: str = str(task_obj.get("task_id", ""))
 
     _require(task_id != "", "Enqueued task JSON missing task_id")
-    _require(task_obj.get("skill") == "Forge.Echo.echo", "Enqueued task skill mismatch (expected Forge.Echo.echo)")
+    _require(task_obj.get("skill") == "Tools.Echo.echo", "Enqueued task skill mismatch (expected Tools.Echo.echo)")
     _require(task_obj.get("args") == [payload_text], "Enqueued task args mismatch")
     _require(
         isinstance(task_obj.get("reply_to"), dict) and task_obj["reply_to"].get("path") == reply_to_rel,

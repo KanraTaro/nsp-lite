@@ -107,7 +107,7 @@ Good options:
 - Forge.Time.now
   Writes a timestamp JSON and exits 0
 
-- Forge.Echo.echo
+- Tools.Echo.echo
   Writes a text file and exits 0
 
 Keep one permanently. It is invaluable for debugging.
