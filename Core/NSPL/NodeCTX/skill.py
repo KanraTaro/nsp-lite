@@ -464,7 +464,7 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
     if size < int(rotation.max_bytes):
         return
 
-    p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(p.parent)
 
     # Drop the oldest
     oldest: Path = p.with_name(f"{p.name}.{keep}")
@@ -491,6 +491,7 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
     except Exception:
         pass
 
+    _fsync_dir(p.parent)
 
 def append_jsonl_rotating(
     path: Path,
@@ -710,7 +711,7 @@ def _atomic_write_bytes(target: Path, data: bytes) -> None:
     - fsync parent directory (durable rename/metadata)
     """
     target_path = Path(target)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(target_path.parent)
 
     tmp_fd: Optional[int] = None
     tmp_path: Optional[Path] = None
@@ -762,7 +763,7 @@ def append_jsonl(path: Path, obj: object) -> None:
     """Append one JSON object as a single JSONL line, durably."""
     line = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
     p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(p.parent)
 
     with open(p, "ab") as f:
         f.write(line)

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from Core.NSPL.ChatOps.task_schema import validate_task
 from Core.NSPL.ChatOps.claim import claim_task
+from Core.NSPL import NodeCTX
 
 
 class ChatOpsCoreTests(unittest.TestCase):
@@ -33,12 +34,12 @@ class ChatOpsCoreTests(unittest.TestCase):
             inbox.mkdir()
             # Create a dummy file
             (inbox / "task.json").write_text("{}", encoding="utf-8")
-            first = claim_task(inbox / "task.json", claim)
+            first = claim_task(inbox / "task.json", claim, node_ctx=NodeCTX)
             self.assertIsNotNone(first)
             # Original file should be gone
             self.assertFalse((inbox / "task.json").exists())
             # Claimed file should exist
             self.assertTrue((claim / "task.json").exists())
             # Attempt to claim again should return None
-            second = claim_task(inbox / "task.json", claim)
+            second = claim_task(inbox / "task.json", claim, node_ctx=NodeCTX)
             self.assertIsNone(second)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import argparse
 import os
+import argparse
 import subprocess
 import sys
 import time
@@ -166,8 +166,21 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return stem
 
     def process_one(task_path: Path) -> bool:
-        claimed: Optional[Path] = _claim.claim_task(task_path, claimed_dir)
+        claimed: Optional[Path] = _claim.claim_task(task_path, claimed_dir, node_ctx=node_ctx)
         if claimed is None:
+            # If the task is still sitting in Inbox, this wasn't a "someone else claimed it" race.
+            # It's likely a real filesystem error (permission, cross-device, transient lock).
+            if task_path.exists():
+                log_event(
+                    "claim_failed",
+                    {
+                        "file": task_path.name,
+                        "src": str(task_path),
+                        "dst_dir": str(claimed_dir),
+                    },
+                )
+                if not quiet_idle:
+                    print(f"[chatops.worker] claim_failed: {task_path.name}", flush=True)
             return False
             
         nonlocal printed_idle_once
@@ -217,7 +230,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         target_node = ctx_info.get("node_id")
 
         # Routing decision: tasks can be targeted; worker should only execute if it matches.
-        if target_node and target_node not in (node_tag, "Any", "any"):
+        if target_node and str(target_node).strip() not in (str(node_tag), "Any", "any", "ANY"):
             dst: Path = inbox_dir / claimed.name
 
             moved: bool = False
@@ -236,7 +249,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             if moved:
                 log_event(
                     "returned_to_inbox_wrong_target",
-                    {"file": claimed.name, "target_node": str(target_node)},
+                    {"file": claimed.name, "target_node": str(target_node), "dst": str(dst)},
                 )
                 return False
 
