@@ -59,6 +59,11 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Optional target node_id for the task; if omitted the task is targeted to any worker",
     )
     parser.add_argument(
+        "--domain",
+        default="ChatOps",
+        help="ChatOps domain used to locate queue directories (default: ChatOps)",
+    )
+    parser.add_argument(
         "--ctx-domain",
         dest="ctx_domain",
         default=None,
@@ -188,11 +193,13 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 1
 
     # Determine Inbox path using NodeCTX helpers
+    domain: str = str(args.domain)
+
     inbox_dir, _, _, _ = _store.get_queue_dirs(
         node_ctx,
         root,
         instance_id,
-        domain="ChatOps",
+        domain=domain,
         global_scope=True,
     )
 

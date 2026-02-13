@@ -1,125 +1,129 @@
 # Skills/ChatOps
 
-Skills/ChatOps are the user-facing buttons for interacting with ChatOps.
+Skills/ChatOps are the user-facing entrypoints for interacting with the ChatOps filesystem queue.
 
-These skills do not redefine the protocol. The protocol is defined in:
-- Core/ChatOps/README.md
+Protocol + schema + core behavior live in:
+- Core/NSPL/ChatOps/README.md
 
-Skills/ChatOps exist to make it easy to:
-- enqueue tasks
-- run workers
-- inspect queue state
+These skills exist to make it easy to:
+- enqueue tasks (producer)
+- run a worker loop (worker)
+- inspect queue state (observer)
 
-## Quickstart workflows
+---
 
-### 1) Start a worker on a node
-
-You run a worker on any node that should execute tasks.
-
-Typical pattern:
-- 1 or more workers per node
-- workers watch the queue location for the chosen instance
-
-### 2) Enqueue a task from anywhere
-
-A producer can be:
-- you manually running a skill
-- a systemd timer
-- a script
-- a future GUI
-
-It just writes a task JSON into Inbox/.
-
-## Skill list (v1 target)
-
-Names are placeholders. Actual names should match your SkillCLI naming conventions.
+## Skills
 
 ### ChatOps.send_task
 
-Enqueue a task.
+Enqueue a task file into the ChatOps Inbox.
 
-Inputs:
-- --skill <SkillName>
-- -- <args...> pass-through args for the target skill
-- --instance <InstanceId>
-- --node <NodeId> optional target
-- --domain <Domain> optional routing tag
-- --reply-to <Path> optional file result path
+This does not execute the task. It writes a validated task JSON and exits.
 
-Output:
-- writes task file to Inbox/
-- prints task_id
+Key flags:
+
+- `--instance <InstanceId>` (SkillCLI flag)
+- `--skill <SkillName>` required
+- `--target <NodeId>` optional, sets `ctx.node_id`
+- `--ctx-domain <Domain>` optional, sets `ctx.domain`
+- `--domain <ChatOpsDomain>` optional, selects queue location (default: ChatOps)
+- `--reply-to <Path>` optional, stored as `reply_to.path`
+- `--` then any remaining tokens are passed through as the target skill args
+
+Example:
+
+python -m Core.NSPL.SkillCLI skill ChatOps.send_task \
+  --instance main \
+  --skill Tools.Echo.echo \
+  --target KanraDesktop \
+  --reply-to Outbox/example.result.json \
+  -- hello world
+
+---
 
 ### ChatOps.run_worker
 
-Run a worker loop.
+Run a worker loop that:
 
-Inputs:
-- --instance <InstanceId>
-- --worker-id <WorkerId>
-- --poll-ms <N> default value
-- --once process a single task then exit
+- scans Inbox/
+- atomically claims a task into Claimed/
+- validates task schema
+- executes the target skill via SkillCLI
+- writes a result JSON
+- moves the task into Done/ or Failed/
 
-Output:
-- consumes tasks from Inbox/
-- writes result JSON
-- moves tasks to Done/ or Failed/
+Key flags:
+
+- `--domain <ChatOpsDomain>` selects queue location (default: ChatOps)
+- `--worker-id <Id>` optional identifier used for logs/results
+- `--poll-ms <N>` polling interval when idle
+- `--once` process at most one task then exit (useful for tests)
+
+Notes:
+
+- Tasks can be targeted using `ctx.node_id`. If the task targets a different node, the worker attempts to return it to Inbox.
+- Worker events are written via NodeCTX to `State/<instance>/Global/Logs/<domain>/worker/<worker_id>.events.jsonl`
+- Disk safety knobs:
+  - `--idle-heartbeat-sec` (throttled idle heartbeats)
+  - `--log-max-bytes`, `--log-keep` (jsonl rotation)
+
+Example (run one task then exit):
+
+python -m Core.NSPL.SkillCLI skill ChatOps.run_worker \
+  --instance main \
+  --once \
+  --poll-ms 0
+
+---
 
 ### ChatOps.queue_status
 
-Show queue stats.
+Print the queue counts for a given instance/domain.
 
-Outputs:
-- counts of Inbox/Claimed/Done/Failed
-- optionally list newest N tasks
+Counts are derived from the filesystem:
 
-## Examples
+- Inbox / Claimed: counts task JSON files (excluding `*.result.json`)
+- Done / Failed: counts result files (`*.result.json`)
 
-Enqueue a task that runs a RohTalk skill:
+Key flags:
 
-ChatOps.send_task --instance main --skill RohTalk.send_prompt -- --persona default --text "hello"
+- `--domain <ChatOpsDomain>` selects queue location (default: ChatOps)
 
-Run a worker once (useful for tests):
+Example:
 
-ChatOps.run_worker --instance main --once
+python -m Core.NSPL.SkillCLI skill ChatOps.queue_status \
+  --instance main \
+  --domain ChatOps
 
-Check status:
+---
 
-ChatOps.queue_status --instance main
+## Quickstart
 
-## How this ties into RohTalk
+### 1) Start a worker
 
-ChatOps does not need RohTalk to output task-shaped files.
+Run a worker on any node that should execute tasks:
 
-Preferred pattern:
-- ChatOps queues a task that calls RohTalk.send_prompt
-- Worker executes the RohTalk skill
-- RohTalk writes its own artifacts using NodeCTX
-- Worker writes the ChatOps result file describing the run
+python -m Core.NSPL.SkillCLI skill ChatOps.run_worker \
+  --instance main \
+  --domain ChatOps
 
-This keeps ChatOps universal and keeps each app responsible for its own artifacts.
+### 2) Enqueue tasks from anywhere
 
-## First test skill recommendation
+A “producer” can be you, a script, a timer, or a future UI.
 
-Before trusting send_prompt, validate the pipeline with a boring skill.
+All it does is write task JSON files into Inbox.
 
-Good options:
-- Forge.Time.now
-  Writes a timestamp JSON and exits 0
+---
 
-- Tools.Echo.echo
-  Writes a text file and exits 0
+## What “done” looks like (Skills)
 
-Keep one permanently. It is invaluable for debugging.
+Skills/ChatOps is considered healthy when:
 
-## What done looks like
-
-Skills/ChatOps are done when:
-- send_task reliably writes a valid task JSON
-- run_worker reliably claims, executes, and finalizes tasks
-- queue_status reads folders and reports accurately
+- send_task writes a valid task JSON into Inbox
+- run_worker claims + executes + finalizes tasks reliably
+- queue_status reports accurate counts
 - tests cover:
   - a happy path task
   - a failing task
-  - schema validation failure
+  - basic smoke coverage
 

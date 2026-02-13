@@ -1,4 +1,4 @@
-"""TestFail.fail skill.
+"""Tools.TestFail.fail skill.
 
 This skill is designed to fail with a non-zero exit code.  It can be used
 to verify that ChatOps correctly handles failing tasks.
