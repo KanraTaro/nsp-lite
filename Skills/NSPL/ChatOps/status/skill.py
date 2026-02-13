@@ -34,10 +34,10 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     )
 
     counts: Dict[str, int] = {
-        "Inbox": len(_store.list_tasks(inbox_dir)),
-        "Claimed": len(_store.list_tasks(claimed_dir)),
-        "Done": len(_store.list_tasks(done_dir)),
-        "Failed": len(_store.list_tasks(failed_dir)),
+        "Inbox": _count_task_json(inbox_dir),
+        "Claimed": _count_task_json(claimed_dir),
+        "Done": _count_result_json(done_dir),
+        "Failed": _count_result_json(failed_dir),
     }
 
     if getattr(ctx, "json", False):
@@ -47,3 +47,31 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             print(f"{name}: {count}")
 
     return 0
+    
+def _count_task_json(queue_dir) -> int:
+    if not queue_dir.exists():
+        return 0
+    count = 0
+    for p in queue_dir.iterdir():
+        if not p.is_file():
+            continue
+        name = p.name.lower()
+        if not name.endswith(".json"):
+            continue
+        if name.endswith(".result.json"):
+            continue
+        count += 1
+    return count
+
+
+def _count_result_json(queue_dir) -> int:
+    if not queue_dir.exists():
+        return 0
+    count = 0
+    for p in queue_dir.iterdir():
+        if not p.is_file():
+            continue
+        if p.name.lower().endswith(".result.json"):
+            count += 1
+    return count
+

@@ -21,6 +21,7 @@ import argparse
 import os
 import sys
 import traceback
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -137,13 +138,75 @@ def _dispatch_skill(name: str, args: List[str], skills_dir: Path) -> int:
 
     # Build context object
     context = ctx_module.create_ctx(parsed_args)
+    
+    start_monotonic: float = time.monotonic()
+
+    # Best-effort logging, never block skill execution on logging failures.
+    try:
+        context.node_ctx.log_event(
+            root=context.root,
+            instance_id=context.instance_id,
+            node_tag=context.node_tag,
+            global_scope=context.global_scope,
+            domain="SkillCLI",
+            file_name="skillcli.jsonl",
+            kind="skill_started",
+            rotation=context.node_ctx.JsonlRotationPolicy(max_bytes=256_000, keep=5),
+            extra={
+                "skill": str(name),
+                "argv": list(args),
+            },
+        )
+    except Exception:
+        pass
 
     # Execute the skill and propagate its exit code
     try:
         result = module.run(parsed_args, context)
-        # Normalize return to integer
-        return int(result) if isinstance(result, int) else 0
+        exit_code: int = int(result) if isinstance(result, int) else 0
+        duration_ms: int = int((time.monotonic() - start_monotonic) * 1000.0)
+
+        try:
+            context.node_ctx.log_event(
+                root=context.root,
+                instance_id=context.instance_id,
+                node_tag=context.node_tag,
+                global_scope=context.global_scope,
+                domain="SkillCLI",
+                file_name="skillcli.jsonl",
+                kind="skill_finished",
+                rotation=context.node_ctx.JsonlRotationPolicy(max_bytes=256_000, keep=5),
+                extra={
+                    "skill": str(name),
+                    "exit_code": int(exit_code),
+                    "duration_ms": int(duration_ms),
+                },
+            )
+        except Exception:
+            pass
+
+        return exit_code
     except Exception as e:
+        duration_ms: int = int((time.monotonic() - start_monotonic) * 1000.0)
+        try:
+            context.node_ctx.log_event(
+                root=context.root,
+                instance_id=context.instance_id,
+                node_tag=context.node_tag,
+                global_scope=context.global_scope,
+                domain="SkillCLI",
+                file_name="skillcli.jsonl",
+                kind="skill_failed",
+                rotation=context.node_ctx.JsonlRotationPolicy(max_bytes=256_000, keep=5),
+                extra={
+                    "skill": str(name),
+                    "error_type": type(e).__name__,
+                    "error": str(e),
+                    "duration_ms": int(duration_ms),
+                },
+            )
+        except Exception:
+            pass
         # If debug flag is set, print full traceback and re-raise
         if getattr(parsed_args, "debug", False):
             traceback.print_exc()

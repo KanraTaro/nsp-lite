@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import argparse
 import os
+import argparse
 import subprocess
 import sys
 import time
@@ -84,7 +84,11 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     worker_id: str = str(args.worker_id) if args.worker_id else str(node_tag)
 
     inbox_dir, claimed_dir, done_dir, failed_dir = _store.get_queue_dirs(
-        node_ctx, root, instance_id, domain=domain
+        node_ctx,
+        root,
+        instance_id,
+        domain=domain,
+        global_scope=True,
     )
 
     chatops_base: Path = inbox_dir.parent
@@ -162,8 +166,21 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return stem
 
     def process_one(task_path: Path) -> bool:
-        claimed: Optional[Path] = _claim.claim_task(task_path, claimed_dir)
+        claimed: Optional[Path] = _claim.claim_task(task_path, claimed_dir, node_ctx=node_ctx)
         if claimed is None:
+            # If the task is still sitting in Inbox, this wasn't a "someone else claimed it" race.
+            # It's likely a real filesystem error (permission, cross-device, transient lock).
+            if task_path.exists():
+                log_event(
+                    "claim_failed",
+                    {
+                        "file": task_path.name,
+                        "src": str(task_path),
+                        "dst_dir": str(claimed_dir),
+                    },
+                )
+                if not quiet_idle:
+                    print(f"[chatops.worker] claim_failed: {task_path.name}", flush=True)
             return False
             
         nonlocal printed_idle_once
@@ -177,7 +194,6 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             payload_obj = node_ctx.read_json(claimed)
         except Exception as ex:
             result = {
-                "task_id": claimed.stem,
                 "task_id": _guess_task_id_from_filename(claimed.name),
                 "finished_utc": _now_utc_iso(),
                 "status": "failed",
@@ -214,16 +230,50 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         target_node = ctx_info.get("node_id")
 
         # Routing decision: tasks can be targeted; worker should only execute if it matches.
-        if target_node and target_node not in (node_tag, "Any", "any"):
-            try:
-                os.replace(str(claimed), str(inbox_dir / claimed.name))
-            except Exception:
-                pass
+        if target_node and str(target_node).strip() not in (str(node_tag), "Any", "any", "ANY"):
+            dst: Path = inbox_dir / claimed.name
+
+            moved: bool = False
+            last_err: Optional[Exception] = None
+
+            for _ in range(3):
+                try:
+                    # Prefer NodeCTX primitive (whatever you added: atomic_replace / atomic_move / move_to_dir)
+                    node_ctx.atomic_replace(claimed, dst)
+                    moved = True
+                    break
+                except Exception as ex:
+                    last_err = ex
+                    time.sleep(0.05)
+
+            if moved:
+                log_event(
+                    "returned_to_inbox_wrong_target",
+                    {"file": claimed.name, "target_node": str(target_node), "dst": str(dst)},
+                )
+                return False
+
+            # No silent wedge: if we couldn't requeue, fail it loudly so it's visible.
+            result = {
+                "task_id": payload.get("task_id", _guess_task_id_from_filename(claimed.name)),
+                "finished_utc": _now_utc_iso(),
+                "status": "failed",
+                "exit_code": -1,
+                "worker_id": worker_id,
+                "skill": str(payload.get("skill", "<unknown>")),
+                "args": list(payload.get("args", [])) if isinstance(payload.get("args"), list) else [],
+                "error": {
+                    "type": "WrongTargetRequeueFailed",
+                    "message": str(last_err) if last_err else "unknown",
+                    "target_node": str(target_node),
+                },
+            }
+            _transitions.fail_task(node_ctx, claimed, failed_dir, result)
             log_event(
-                "returned_to_inbox_wrong_target",
-                {"file": claimed.name, "target_node": str(target_node)},
+                "wrong_target_requeue_failed",
+                {"file": claimed.name, "dst": str(dst), "error": str(last_err) if last_err else "unknown"},
             )
-            return False
+            return True
 
         skill_name: str = str(payload.get("skill"))
         skill_args: List[str] = list(payload.get("args", [])) if isinstance(payload.get("args"), list) else []
@@ -284,16 +334,35 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         print(f"[chatops.worker] {status}: exit={exit_code} ms={duration_ms} file={claimed.name}", flush=True)
 
         reply = payload.get("reply_to")
-        if isinstance(reply, dict) and reply.get("mode") == "file":
-            path = reply.get("path")
-            if isinstance(path, str) and path:
-                out_path = chatops_base / path
-                try:
-                    out_path.parent.mkdir(parents=True, exist_ok=True)
-                    node_ctx.write_json_atomic(out_path, result)
-                    log_event("reply_to_written", {"path": str(path)})
-                except Exception as ex:
-                    log_event("reply_to_failed", {"path": str(path), "error": str(ex)})
+
+        rel_path_clean: Optional[str] = None
+
+        # v1 legacy: reply_to is a string path
+        if isinstance(reply, str):
+            rel_path_clean = reply.strip()
+
+        # newer: reply_to is an object
+        elif isinstance(reply, dict):
+            if reply.get("mode") == "file":
+                path_val = reply.get("path")
+                if isinstance(path_val, str):
+                    rel_path_clean = path_val.strip()
+
+        if rel_path_clean:
+            rel_path_clean = rel_path_clean.lstrip("/").lstrip("\\")
+            requested: Path = Path(rel_path_clean)
+
+            # Force everything under Outbox/
+            if len(requested.parts) > 0 and requested.parts[0] != "Outbox":
+                requested = Path("Outbox") / requested
+
+            out_path: Path = chatops_base / requested
+
+            try:
+                node_ctx.write_json_atomic(out_path, result)
+                log_event("reply_to_written", {"path": str(requested)})
+            except Exception as ex:
+                log_event("reply_to_failed", {"path": str(requested), "error": str(ex)})
 
         return True
 

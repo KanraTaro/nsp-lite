@@ -28,7 +28,8 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Union, Dict, Any
+from typing import Iterable, List, Optional, Sequence, Union, Dict, Any, Tuple
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +464,7 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
     if size < int(rotation.max_bytes):
         return
 
-    p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(p.parent)
 
     # Drop the oldest
     oldest: Path = p.with_name(f"{p.name}.{keep}")
@@ -490,6 +491,7 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
     except Exception:
         pass
 
+    _fsync_dir(p.parent)
 
 def append_jsonl_rotating(
     path: Path,
@@ -546,6 +548,109 @@ def log_event_jsonl(
         throttle=throttle,
     )
 
+def utc_now_iso() -> str:
+    """UTC timestamp in ISO 8601 with Z suffix."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _validate_filename(name: str, value: str) -> str:
+    """Validate a base filename (no paths)."""
+    if value is None:
+        raise ValueError(f"{name} must be a non-empty string")
+
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{name} must be a non-empty string")
+
+    altsep: Optional[str] = os.path.altsep
+    if "/" in text or os.path.sep in text or (altsep is not None and altsep in text):
+        raise ValueError(f"{name} must be a base filename, not a path")
+
+    if text in {".", ".."}:
+        raise ValueError(f"{name} must not be '.' or '..'")
+
+    if os.name == "nt" and ":" in text:
+        raise ValueError(f"{name} must not contain ':' on Windows")
+
+    return text
+
+
+def build_log_path(
+    *,
+    root: Path,
+    instance_id: str,
+    node_tag: str,
+    global_scope: bool,
+    domain: str,
+    file_name: Optional[str] = None,
+    subpath: Optional[Union[str, Sequence[str]]] = None,
+) -> Path:
+    """Canonical JSONL log path under State/<Instance>/<Scope>/Logs/<Domain>/..."""
+    base_dir: Path = build_state_dir(
+        root=Path(root),
+        instance_id=instance_id,
+        node_tag=node_tag,
+        bucket="Logs",
+        domain=domain,
+        global_scope=global_scope,
+        subpath=subpath,
+    )
+
+    if file_name is None:
+        # Keep it predictable and readable.
+        file_name = f"{str(domain).casefold()}.jsonl"
+
+    clean_file: str = _validate_filename("file_name", file_name)
+    if not clean_file.endswith(".jsonl"):
+        clean_file = f"{clean_file}.jsonl"
+
+    return base_dir / clean_file
+
+
+def log_event(
+    *,
+    root: Path,
+    instance_id: str,
+    node_tag: str,
+    global_scope: bool,
+    domain: str,
+    kind: str,
+    extra: Optional[Dict[str, Any]] = None,
+    file_name: Optional[str] = None,
+    subpath: Optional[Union[str, Sequence[str]]] = None,
+    rotation: Optional[JsonlRotationPolicy] = None,
+    throttle: Optional[JsonlThrottlePolicy] = None,
+    throttle_key: Optional[str] = None,
+) -> None:
+    """One funnel for worker logging (JSONL), with canonical routing."""
+    path: Path = build_log_path(
+        root=Path(root),
+        instance_id=instance_id,
+        node_tag=node_tag,
+        global_scope=global_scope,
+        domain=domain,
+        file_name=file_name,
+        subpath=subpath,
+    )
+
+    base: Dict[str, Any] = {
+        "ts": utc_now_iso(),
+        "instance_id": str(instance_id),
+        "node_tag": "Global" if global_scope else str(node_tag),
+        "domain": str(domain),
+    }
+
+    log_event_jsonl(
+        path=path,
+        kind=kind,
+        base=base,
+        extra=extra,
+        rotation=rotation,
+        throttle=throttle,
+        throttle_key=throttle_key,
+    )
+
+
 def _fsync_dir(directory: Path) -> None:
     """Best-effort fsync() on a directory to persist rename/metadata updates.
 
@@ -565,6 +670,36 @@ def _fsync_dir(directory: Path) -> None:
         # Not all platforms/filesystems support directory fsync.
         pass
 
+def ensure_dir(path: Path) -> None:
+    """Ensure a directory exists (parents included). Best-effort durable."""
+    p: Path = Path(path)
+    p.mkdir(parents=True, exist_ok=True)
+    _fsync_dir(p)
+
+
+def atomic_replace(src: Path, dst: Path) -> None:
+    """Atomic rename/replace from src -> dst, creating dst parent dirs."""
+    s: Path = Path(src)
+    d: Path = Path(dst)
+
+    ensure_dir(d.parent)
+
+    os.replace(str(s), str(d))
+    _fsync_dir(d.parent)
+
+
+def atomic_move_to_dir(src: Path, dst_dir: Path, *, dst_name: Optional[str] = None) -> Path:
+    """Atomic move into a directory. Returns the final destination path."""
+    s: Path = Path(src)
+    ddir: Path = Path(dst_dir)
+    name: str = s.name if dst_name is None else _validate_filename("dst_name", dst_name)
+
+    ensure_dir(ddir)
+
+    dst: Path = ddir / name
+    atomic_replace(s, dst)
+    return dst
+
 
 def _atomic_write_bytes(target: Path, data: bytes) -> None:
     """Write bytes to target atomically AND durably.
@@ -576,7 +711,7 @@ def _atomic_write_bytes(target: Path, data: bytes) -> None:
     - fsync parent directory (durable rename/metadata)
     """
     target_path = Path(target)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(target_path.parent)
 
     tmp_fd: Optional[int] = None
     tmp_path: Optional[Path] = None
@@ -628,7 +763,7 @@ def append_jsonl(path: Path, obj: object) -> None:
     """Append one JSON object as a single JSONL line, durably."""
     line = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
     p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_dir(p.parent)
 
     with open(p, "ab") as f:
         f.write(line)

@@ -2,45 +2,35 @@
 
 The claim operation moves a task file from the Inbox to the Claimed
 directory atomically.  In a concurrent environment with multiple workers,
-only one worker should succeed in claiming a particular task.  The
-lowest-level primitive used is ``os.replace``, which performs an atomic
-rename within a single filesystem.
+only one worker should succeed in claiming a particular task. 
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Optional
 
 
-def claim_task(task_path: Path, claimed_dir: Path) -> Optional[Path]:
-    """Atomically move ``task_path`` into ``claimed_dir`` and return the new path.
+def claim_task(task_path: Path, claimed_dir: Path, *, node_ctx) -> Optional[Path]:
+    """Atomically move task_path into claimed_dir and return the new path.
 
-    If another worker has already claimed or removed the file, or if any
-    exception occurs during the rename, ``None`` is returned.  On
-    success, the returned path points to the file in the Claimed
-    directory.  The caller should assume ownership of the file.
-
-    Args:
-        task_path: The full path to the task file in the Inbox.
-        claimed_dir: The directory to move the task into.  It will be
-            created if necessary.
-
-    Returns:
-        The new ``Path`` of the claimed file on success, or ``None`` on
-        failure.
+    Uses NodeCTX so directory creation + atomic rename rules are centralized.
     """
     try:
-        claimed_dir.mkdir(parents=True, exist_ok=True)
+        node_ctx.ensure_dir(claimed_dir)
         dest = claimed_dir / task_path.name
-        # os.replace performs an atomic rename, overwriting any existing
-        # file at dest.  On POSIX filesystems this operation is atomic.
-        os.replace(str(task_path), str(dest))
+        node_ctx.atomic_replace(task_path, dest)
         return dest
     except FileNotFoundError:
         # The file no longer exists (claimed by another worker)
         return None
-    except Exception:
-        # Other errors (e.g. permission) should not crash the worker
+    except Exception as ex:
+        try:
+            # Leave a breadcrumb in the claimed dir so it’s visible without logs.
+            node_ctx.ensure_dir(claimed_dir)
+            marker = claimed_dir / f"{task_path.name}.claim_failed.txt"
+            node_ctx.write_text_atomic(marker, f"claim_failed: {ex.__class__.__name__}: {ex}\n")
+        except Exception:
+            pass
         return None
+

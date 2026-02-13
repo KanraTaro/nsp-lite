@@ -13,6 +13,9 @@ from Core.NSPL.NodeCTX.skill import (
     strip_prefix,
     strip_prefix_base_name,
     write_json_atomic,
+    ensure_dir,
+    atomic_replace,
+    atomic_move_to_dir,
 )
 
 
@@ -218,6 +221,47 @@ class NodeCTXTests(unittest.TestCase):
             root, instance_id, node_tag, bucket, domain, global_scope=False, subpath=subpath
         )
         self.assertEqual(result, expected)
+
+    def test_ensure_dir_creates_nested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            target = base / "a" / "b" / "c"
+            self.assertFalse(target.exists())
+
+            ensure_dir(target)
+            self.assertTrue(target.exists())
+            self.assertTrue(target.is_dir())
+
+    def test_atomic_replace_and_move_to_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            src_dir = base / "src"
+            dst_dir = base / "dst"
+
+            ensure_dir(src_dir)
+            ensure_dir(dst_dir)
+
+            src = src_dir / "file.txt"
+            src.write_text("hello", encoding="utf-8")
+
+            # atomic_replace into a nested path
+            nested_dst = dst_dir / "nested" / "file.txt"
+            atomic_replace(src, nested_dst)
+
+            self.assertFalse(src.exists())
+            self.assertTrue(nested_dst.exists())
+            self.assertEqual(nested_dst.read_text(encoding="utf-8"), "hello")
+
+            # move_to_dir with rename
+            src2 = src_dir / "file2.txt"
+            src2.write_text("world", encoding="utf-8")
+
+            final = atomic_move_to_dir(src2, dst_dir, dst_name="renamed.txt")
+            self.assertFalse(src2.exists())
+            self.assertTrue(final.exists())
+            self.assertEqual(final.name, "renamed.txt")
+            self.assertEqual(final.read_text(encoding="utf-8"), "world")
+
 
 if __name__ == "__main__":
     unittest.main()

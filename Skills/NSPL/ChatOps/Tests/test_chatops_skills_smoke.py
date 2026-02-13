@@ -66,7 +66,7 @@ class ChatOpsSkillsSmokeTests(unittest.TestCase):
                 "--instance",
                 self.instance_id,
                 "--skill",
-                "Forge.Echo.echo",
+                "Tools.Echo.echo",
                 "--",
                 "smoke",
                 "test",

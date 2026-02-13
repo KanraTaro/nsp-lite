@@ -47,9 +47,28 @@ class ChatOpsE2ETests(unittest.TestCase):
         self.instance = f"test_{uuid.uuid4().hex[:8]}"
 
     def tearDown(self) -> None:
-        # Clean up the State/<instance> directory after each test
+        # Keep State on failure when debugging:
+        #   NSPL_KEEP_STATE_ON_FAIL=1 python -m unittest -v ...
+        keep_on_fail = os.environ.get("NSPL_KEEP_STATE_ON_FAIL", "").strip() in {"1", "true", "yes", "y"}
+
+        # unittest stores errors/failures on the result object; easiest is to check if any exist
+        # for this test instance.
+        had_failure = False
+        outcome = getattr(self, "_outcome", None)
+        if outcome is not None:
+            # outcome.errors includes (test, exc_info) pairs
+            for _, exc_info in getattr(outcome, "errors", []):
+                if exc_info is not None:
+                    had_failure = True
+                    break
+
         root = get_effective_root()
         state_dir = Path(root) / "State" / self.instance
+
+        if keep_on_fail and had_failure:
+            print(f"[test] keeping State for debug: {state_dir}", flush=True)
+            return
+
         _rmtree_best_effort(state_dir)
 
     def test_happy_path_echo(self) -> None:
@@ -60,7 +79,7 @@ class ChatOpsE2ETests(unittest.TestCase):
             "--instance",
             self.instance,
             "--skill",
-            "Forge.Echo.echo",
+            "Tools.Echo.echo",
             "--",
             "hello",
             "world",
@@ -97,18 +116,18 @@ class ChatOpsE2ETests(unittest.TestCase):
         data = json.loads(files[0].read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "done")
         self.assertEqual(data["exit_code"], 0)
-        self.assertEqual(data["skill"], "Forge.Echo.echo")
+        self.assertEqual(data["skill"], "Tools.Echo.echo")
         self.assertEqual(data["args"], ["hello", "world"])
 
     def test_failing_task(self) -> None:
-        # Enqueue a failing task using Forge.TestFail.fail
+        # Enqueue a failing task using Tools.TestFail.fail
         cmd_send = [
             "skill",
             "ChatOps.send_task",
             "--instance",
             self.instance,
             "--skill",
-            "Forge.TestFail.fail",
+            "Tools.TestFail.fail",
         ]
         proc = _run_skill(cmd_send)
         self.assertEqual(proc.returncode, 0, msg=proc.stderr)
@@ -142,7 +161,7 @@ class ChatOpsE2ETests(unittest.TestCase):
         data = json.loads(files[0].read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "failed")
         self.assertNotEqual(data["exit_code"], 0)
-        self.assertEqual(data["skill"], "Forge.TestFail.fail")
+        self.assertEqual(data["skill"], "Tools.TestFail.fail")
 
     def test_queue_status_counts(self) -> None:
         # Enqueue two tasks; one will succeed, one will fail
@@ -153,7 +172,7 @@ class ChatOpsE2ETests(unittest.TestCase):
                 "--instance",
                 self.instance,
                 "--skill",
-                "Forge.Echo.echo",
+                "Tools.Echo.echo",
                 "--",
                 "hi",
             ],
@@ -163,7 +182,7 @@ class ChatOpsE2ETests(unittest.TestCase):
                 "--instance",
                 self.instance,
                 "--skill",
-                "Forge.TestFail.fail",
+                "Tools.TestFail.fail",
             ],
         ]
         for cmd in cmds:

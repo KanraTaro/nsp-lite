@@ -400,7 +400,10 @@ def chat_stream(
             if not isinstance(message_obj, dict):
                 continue
             content = message_obj.get("content")
-            if content:
+            if isinstance(content, str):
+                if content != "":
+                    yield StreamEvent(type="text", text_delta=content, raw=chunk)
+            elif content is not None:
                 yield StreamEvent(type="text", text_delta=str(content), raw=chunk)
             tool_calls_in = message_obj.get("tool_calls") or []
             if isinstance(tool_calls_in, list) and tool_calls_in:

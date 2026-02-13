@@ -1,205 +1,361 @@
-# ChatOps
+# ChatOps (Core)
 
-ChatOps is a file-based task queue + worker runtime that executes SkillCLI skills on one or more nodes.
+ChatOps is a filesystem-native task queue built on top of:
 
-ChatOps is not "automation" by itself. It is the plumbing that makes automation possible by letting anything enqueue tasks and letting workers claim and run them in a predictable, auditable way.
+- SkillCLI (execution engine)
+- NodeCTX (canonical routing + durable I/O)
+- FPP (Filesystem Pulse Protocol)
 
-## Goals
+ChatOps does not execute anything by itself.  
+It defines the contract and primitives that make file-based automation safe, observable, and multi-node friendly.
 
-- Provide a universal task format that can run any SkillCLI skill.
-- Use filesystem as truth (FPP). No hidden state.
-- Support multi-node and multi-worker execution safely.
-- Keep dependency direction clean:
-  - Skills/ChatOps -> Core/ChatOps
-  - ChatOps does not depend on RohTalk.
-
-## Non-goals (v1)
-
-- DAG workflows, task graphs, or fancy orchestration
-- Built-in scheduling (cron/systemd can enqueue tasks if needed)
-- Remote networking layer (filesystem + your sync layer handle that)
-- UI (UI can be built later by reading queue state and calling skills)
-
-## Concept model
-
-ChatOps has 3 main roles:
-
-- Producer: anything that writes a task file into the inbox
-- Worker: a loop that claims tasks and runs them via SkillCLI
-- Observer: anything that reads the queue folders to show status and results
-
-## Directory layout
-
-ChatOps lives inside a NodeCTX routed location, meaning it should be stored in the correct State/<InstanceId>/... structure for your instance and scope.
-
-Core idea: tasks are files, state transitions are folder moves.
-
-Recommended layout under the ChatOps root:
-
-- Inbox/
-  Unclaimed tasks. Producers write here.
-
-- Claimed/
-  Tasks claimed by a worker. Claiming should be atomic.
-
-- Done/
-  Completed tasks with a result record.
-
-- Failed/
-  Tasks that failed, with a result record.
-
-- Outbox/
-  Optional, if you want responses separated from task files. Many systems store the result next to the task.
-
-- Logs/
-  Worker logs, if you want them.
-
-ChatOps does not require a specific filename format, but it helps if tasks use:
-- a timestamp prefix
-- a short slug
-- a unique id
-
-Example:
-2026-01-20_13-42-05__send_prompt__d7c8f3a1.json
-
-## Task file schema (v1)
-
-A ChatOps task is a JSON file that describes a SkillCLI invocation.
-
-Required fields:
-
-- task_id (string)
-- created_utc (string, ISO-8601)
-- skill (string, canonical SkillCLI skill name)
-- args (array of strings)
-- ctx (object)
-  - instance_id (string)
-  - node_id (string, optional)
-  - domain (string, optional)
-- reply_to (object, optional)
-  - mode (string: file)
-  - path (string)
-
-Optional fields:
-
-- priority (integer, default 0)
-- tags (array of strings)
-- timeout_sec (integer, optional)
-- retries_max (integer, default 0)
-- metadata (object, arbitrary)
-
-Example task JSON:
-
-{
-  "task_id": "d7c8f3a1",
-  "created_utc": "2026-01-20T18:42:05Z",
-  "skill": "RohTalk.send_prompt",
-  "args": ["--persona", "default", "--text", "Summarize today's logs"],
-  "ctx": {
-    "instance_id": "main",
-    "node_id": "KanraAlly",
-    "domain": "RohTalk"
-  },
-  "reply_to": {
-    "mode": "file",
-    "path": "Outbox/d7c8f3a1.result.json"
-  },
-  "priority": 0,
-  "tags": ["rohtalk", "prompt"]
-}
-
-Notes on skill and args:
-ChatOps does not interpret args. It passes them through to SkillCLI.
-Interoperability comes from a single universal contract:
 If SkillCLI can run it, ChatOps can queue it.
 
-## Result file schema (v1)
+---
 
-A ChatOps result is a JSON file describing what happened when the worker ran the skill.
+# Design Philosophy
+
+ChatOps is intentionally simple.
+
+- Tasks are files.
+- State transitions are folder moves.
+- Results are JSON.
+- The filesystem is truth.
+- No hidden state.
+- No in-memory queues.
+- No database.
+
+If a task exists on disk, it exists.
+If it moves folders, it changed state.
+If something fails, there is a breadcrumb.
+
+---
+
+# Dependency Direction
+
+Core/ChatOps depends on:
+
+- NodeCTX (routing + atomic I/O)
+
+Skills/ChatOps depends on:
+
+- Core/ChatOps
+- SkillCLI
+
+ChatOps does **not** depend on RohTalk, CLM, or any specific system.
+
+It is infrastructure.
+
+---
+
+# Canonical Location
+
+ChatOps queues are routed via NodeCTX:
+
+```
+State/<instance>/<scope>/Workflow/<domain>/
+```
+
+By default:
+
+- bucket = "Workflow"
+- domain = "ChatOps"
+- global_scope = True
+
+Which results in:
+
+```
+State/<instance>/Global/Workflow/ChatOps/
+```
+
+Inside that folder:
+
+- Inbox/
+- Claimed/
+- Done/
+- Failed/
+
+All paths are produced through:
+
+```
+store.get_queue_dirs(...)
+```
+
+Never hardcode paths.
+
+---
+
+# Queue Directories
+
+## Inbox/
+
+Unclaimed task files.
+
+Producers write here using `store.write_task()`.
+
+## Claimed/
+
+Tasks that have been atomically claimed by a worker.
+
+Only one worker may successfully claim a file.
+
+## Done/
+
+Completed tasks.
+
+Contains:
+
+- original task file
+- `<basename>.result.json`
+- optional `<basename>.move_failed.txt` if transition move failed
+
+## Failed/
+
+Failed tasks.
+
+Contains:
+
+- original task file
+- `<basename>.result.json`
+- optional `<basename>.move_failed.txt`
+
+---
+
+# Atomic Claiming
+
+Claiming is implemented in:
+
+```
+claim.py
+```
+
+It uses:
+
+```
+node_ctx.atomic_replace(...)
+```
+
+Properties:
+
+- Atomic within same filesystem
+- If two workers race, only one succeeds
+- On failure, returns None
+- On unexpected exception:
+  - writes `<task>.claim_failed.txt` marker
+  - returns None
+
+No silent wedges.
+
+---
+
+# Task Schema (v1)
+
+Validated by:
+
+```
+task_schema.validate_task(...)
+```
 
 Required fields:
 
 - task_id (string)
-- finished_utc (string, ISO-8601)
-- status (string: done or failed)
-- exit_code (integer)
-- worker_id (string)
+- created_utc (ISO-8601 string)
 - skill (string)
-- args (array of strings)
+- args (list of strings)
+- ctx (object)
+  - instance_id (string)
 
-Optional fields:
+Optional:
 
-- duration_ms (integer)
-- stdout (string, optional, can be truncated)
-- stderr (string, optional, can be truncated)
-- artifacts (array of objects, optional)
-  - example: { "kind": "file", "path": "State/main/.../some_output.json" }
-- error (object, optional)
-  - type, message, trace
+- ctx.node_id
+- ctx.domain
+- reply_to
+- priority
+- tags
+- timeout_sec
+- retries_max
+- metadata
 
-Example result JSON:
+Unknown keys are allowed for forward compatibility.
 
-{
-  "task_id": "d7c8f3a1",
-  "finished_utc": "2026-01-20T18:42:09Z",
-  "status": "done",
-  "exit_code": 0,
-  "duration_ms": 3562,
-  "worker_id": "KanraDesktop:worker-01",
-  "skill": "RohTalk.send_prompt",
-  "args": ["--persona", "default", "--text", "Summarize today's logs"],
-  "stdout": "",
-  "stderr": "",
-  "artifacts": [
-    { "kind": "file", "path": "State/main/Global/Data/RohTalk/Prompts/d7c8f3a1.prompt.json" },
-    { "kind": "file", "path": "State/main/Global/Data/RohTalk/Responses/d7c8f3a1.response.json" }
-  ]
-}
+Validation is strict and raises ValueError.
 
-## Worker lifecycle
+---
 
-A worker loops:
+# Result Schema (v1)
 
-1. Scan Inbox/ for tasks
-2. Pick a task (priority and ordering are policy)
-3. Claim it atomically by moving it to Claimed/
-4. Execute the task via SkillCLI
-5. Write a result JSON
-6. Move the task (and/or result) to Done/ or Failed/
+Written by:
 
-Claiming must be atomic.
-Simplest safe claim is filesystem rename/move within the same filesystem.
-If two workers race, only one should succeed.
+```
+transitions.complete_task(...)
+transitions.fail_task(...)
+```
 
-## Failure, retries, idempotency
+Result file name:
 
-- v1 can default to retries_max = 0
-- If retries exist, the worker must treat tasks as potentially repeated
-- Skills should be safe to re-run where possible
+```
+<task_basename>.result.json
+```
 
-Core/ChatOps does not "undo" anything. Filesystem is truth.
+Required result fields:
 
-## Integration points
+- task_id
+- finished_utc
+- status ("done" or "failed")
+- exit_code
+- worker_id
+- skill
+- args
 
-Core/ChatOps integrates with:
+Optional:
 
-- SkillCLI (required)
-- NodeCTX (recommended) for routing queue location and writing artifacts
-- FPP (required philosophy) for auditability and UI friendliness
+- duration_ms
+- stdout
+- stderr
+- artifacts
+- error
 
-## Complete ChatOps, defined
+---
 
-Complete ChatOps means:
+# State Transitions
 
-- A stable schema for tasks and results
-- A working worker loop with atomic claims
-- A producer skill that enqueues tasks
-- Tests proving:
-  - claim behavior works
-  - result files get written
-  - done/failed transitions happen
-  - schema validation catches bad tasks
-- Docs that match behavior
+Transition logic lives in:
 
-Anything beyond that is ChatOps v2.
+```
+transitions.py
+```
+
+Important behaviors:
+
+- Result JSON is written first.
+- Then task file is moved using `node_ctx.atomic_replace`.
+- If move fails:
+  - a `<basename>.move_failed.txt` marker is written
+  - the system does not silently swallow the issue
+
+Durability > elegance.
+
+---
+
+# Failure Safety
+
+ChatOps enforces:
+
+- No silent claim failures
+- No silent move failures
+- No silent schema failures
+- All writes go through NodeCTX
+- Atomic JSON writes
+- Canonical routing
+
+If something breaks, you can see it on disk.
+
+---
+
+# Ordering
+
+`store.list_tasks(...)`:
+
+- Returns only `.json` files
+- Ignores `.result.json`
+- Sorted by:
+  - mtime
+  - filename
+
+Policy decisions (priority, scheduling, fairness) belong to the worker skill, not Core.
+
+---
+
+# Outbox / reply_to
+
+ChatOps supports optional:
+
+```
+reply_to:
+  mode: "file"
+  path: "Outbox/<name>.json"
+```
+
+The worker:
+
+- Forces all reply paths under Outbox/
+- Writes via NodeCTX atomic write
+- Logs reply_to_written or reply_to_failed
+
+Outbox is optional and not required for base operation.
+
+---
+
+# What ChatOps Is NOT
+
+ChatOps is not:
+
+- A scheduler
+- A DAG engine
+- A distributed RPC layer
+- A network service
+- A message broker
+
+It is a deterministic filesystem queue.
+
+---
+
+# Testing Coverage
+
+Core tests verify:
+
+- Schema validation
+- Atomic claim behavior
+- Double-claim prevention
+- Basic durability assumptions
+
+Run from repo root:
+
+```
+python run_tests.py
+```
+
+---
+
+# Definition of Complete (v1)
+
+ChatOps Core is considered complete when:
+
+- Tasks validate correctly
+- Claims are atomic
+- Transitions write result before move
+- Breadcrumb markers are written on unexpected errors
+- Paths are routed exclusively through NodeCTX
+- Tests pass on multiple platforms
+
+Everything beyond this is orchestration, not infrastructure.
+
+---
+
+# Future (v2+)
+
+Possible extensions:
+
+- Retry policies
+- Deferred/WrongTarget queue
+- Priority queue semantics
+- Cross-instance federation
+- Structured observability tooling
+- Backpressure controls
+
+Core v1 stays minimal and deterministic.
+
+---
+
+# Summary
+
+ChatOps is:
+
+A thin, durable, canonical, filesystem-native execution layer.
+
+It does one thing:
+
+Turn files into executed SkillCLI calls.
+
+And it does it safely.
 

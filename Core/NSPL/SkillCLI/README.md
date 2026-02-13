@@ -1,4 +1,4 @@
-# **SkillCLI - RohTalk Skill Dispatcher (v1)**
+# **SkillCLI – RohTalk Skill Dispatcher (v1)**
 
 SkillCLI is the standard command-line dispatcher for RohTalk skills.
 
@@ -12,7 +12,7 @@ It provides a **stable execution spine** for action-oriented skills by solving t
    Only the selected skill is imported and executed.
 
 SkillCLI is intentionally small, explicit, and predictable.
-It is infrastructure - **not** an application layer.
+It is infrastructure — **not** an application layer.
 
 ---
 
@@ -27,8 +27,9 @@ This constraint is intentional and enables:
 * Zero bootstrap code inside skills
 * No `sys.path` manipulation in skill modules
 * A single, authoritative source of runtime context
+* Centralized logging, timing, and observability
 
-If a user needs a GUI, worker process, or double-click entry point, it should invoke SkillCLI internally.
+If a user needs a GUI, worker process, or alternate entry point, it should invoke SkillCLI internally.
 
 ---
 
@@ -36,18 +37,19 @@ If a user needs a GUI, worker process, or double-click entry point, it should in
 
 ```
 Core/
-  SkillCLI/        # dispatcher, loader, context helpers
-  NodeCTX/         # durable write helpers and path routing
-  ProjectRoot/     # runtime root discovery utilities
+  NSPL/
+    SkillCLI/        # dispatcher, loader, context helpers
+    NodeCTX/         # durable I/O, canonical paths, logging
+    ProjectRoot/     # runtime root discovery utilities
 
 Skills/
   <Domain>/
     <SkillName>/
-      skill.json   # discovery metadata (no imports)
-      skill.py     # executable implementation
+      skill.json     # discovery metadata (no imports)
+      skill.py       # executable implementation
 ```
 
-`Core/SkillCLI` is **not a skill**.
+`Core/NSPL/SkillCLI` is **not a skill**.
 It is framework infrastructure that skills depend on indirectly via the context object.
 
 ---
@@ -79,15 +81,15 @@ python -m Core.NSPL.SkillCLI list [--detailed]
 Example:
 
 ```
-Dummy.echo
-ImportError.explode
+Forge.Time.now
+LLMClient.ollama_chat
 ```
 
 With `--detailed`:
 
 ```
-Dummy.echo	0.1.0	Echo a message back to the user
-ImportError.explode	0.0.1	A skill designed to explode on import for testing
+Forge.Time.now        0.1.0   Print the current UTC time
+LLMClient.ollama_chat 0.3.0   Send a prompt to a local Ollama model
 ```
 
 ---
@@ -107,8 +109,69 @@ Execution flow:
    * Standard flags (provided by SkillCLI)
    * Skill-specific arguments (`build_parser`)
 4. Construct a runtime context object
-5. Call `run(args, ctx)`
-6. Exit with the returned status code
+5. Emit a `skill_started` log event
+6. Call `run(args, ctx)`
+7. Emit `skill_finished` or `skill_failed`
+8. Exit with the returned status code
+
+---
+
+## Dispatcher logging (authoritative)
+
+SkillCLI **automatically logs every skill execution**.
+
+This behavior is not optional and does not require any action by skill authors.
+
+### What is logged
+
+For each skill invocation, SkillCLI emits structured JSONL events:
+
+* `skill_started`
+* `skill_finished`
+* `skill_failed`
+
+Each event includes:
+
+* Timestamp (UTC, ISO 8601)
+* Instance ID
+* Node tag or `Global`
+* Domain (`SkillCLI`)
+* Skill name
+* Exit code (on completion)
+* Duration in milliseconds
+* Original argv (on start)
+* Error details (on failure)
+
+### Where logs are written
+
+Logs are written via `NodeCTX` to a canonical path:
+
+```
+State/
+  <InstanceId>/
+    <NodeTag | Global>/
+      Logs/
+        SkillCLI/
+          skillcli.jsonl
+```
+
+The log file uses **JSON Lines (JSONL)** format and supports rotation.
+
+### Logging guarantees
+
+* Logging is **best-effort**
+* Logging failures **never block skill execution**
+* Logging never changes exit codes
+* No logging output is written to stdout or stderr
+
+Logging exists to support:
+
+* GUIs
+* Workers
+* Debugging
+* Replay
+* Auditing
+* Multi-node observability
 
 ---
 
@@ -130,7 +193,7 @@ Minimum required fields:
 
 Optional:
 
-* `"entry"` - defaults to `"skill.py"`
+* `"entry"` – defaults to `"skill.py"`
 
 The `name` must be globally unique across all skills.
 
@@ -153,13 +216,11 @@ Each skill module must export **exactly two callables**:
 
 Optional:
 
-* `SKILL_META` dictionary (for introspection only; not used for discovery)
+* `SKILL_META` dictionary (introspection only)
 
 ---
 
 ## Canonical skill template
-
-This is the **recommended starting point** for all new skills:
 
 ```python
 # Skills/<Domain>/<SkillName>/skill.py
@@ -174,11 +235,12 @@ def run(args: argparse.Namespace, ctx) -> int:
     return 0
 ```
 
-Key rules:
+Rules:
 
 * **Do not import** `NodeCTX`, `ProjectRoot`, or `SkillCLI`
 * **Do not** modify `sys.path`
 * Treat `ctx` as the sole runtime interface
+* Let SkillCLI handle logging, timing, and lifecycle
 
 ---
 
@@ -189,7 +251,7 @@ When a skill is executed, SkillCLI constructs a `SkillContext` and passes it to 
 The context exposes:
 
 * `root`
-  `pathlib.Path` pointing to the repository root
+  `pathlib.Path` to the repository root
 
 * `node_tag`
   Current node identifier (overridable via `--node`)
@@ -201,8 +263,8 @@ The context exposes:
   Boolean flag from `--global`
 
 * `node_ctx`
-  Reference to the `Core.NSPL.NodeCTX` module
-  **All durable writes and canonical paths must go through this**
+  Reference to `Core.NSPL.NodeCTX`
+  **All durable writes and logs must go through this**
 
 * `debug`
   Whether `--debug` was supplied
@@ -210,30 +272,17 @@ The context exposes:
 * `json`
   Whether `--json` was supplied
 
-Skills should treat the context as a **stable API surface**, not an implementation detail.
+The context is a **stable API surface**, not an implementation detail.
 
 ---
 
 ## Standard flags (available to all skills)
 
-SkillCLI automatically adds the following flags to every skill:
-
-* `--debug`
-  Print full tracebacks on uncaught exceptions
-
-* `--json`
-  Request JSON-formatted output (skill-specific)
-
-* `--node <tag>`
-  Override node identifier
-
-* `--instance <id>`
-  Override instance identifier
-
-* `--global`
-  Operate in global scope instead of node scope
-
-Skill-specific arguments are added on top of these via `build_parser()`.
+* `--debug` – Print full tracebacks on failure
+* `--json` – Request machine-readable output (skill-defined)
+* `--node <tag>` – Override node identifier
+* `--instance <id>` – Override instance identifier
+* `--global` – Operate in global scope
 
 ---
 
@@ -245,47 +294,36 @@ By default, skills are discovered under:
 <repo>/Skills/
 ```
 
-For testing or advanced usage, discovery can be overridden via:
+Override for testing:
 
 ```sh
 export SKILLS_ROOT=path/to/skills
 ```
 
-Relative paths are resolved relative to the project root.
-
-This mechanism exists primarily for unit tests.
+Relative paths resolve against the project root.
 
 ---
 
 ## Error handling
 
-SkillCLI provides structured, human-readable errors:
-
-* Missing skills
-* Duplicate skill names
-* Invalid `skill.json`
-* Import or execution failures
-
-Behavior:
-
-* Errors produce a non-zero exit code
-* With `--debug`, full tracebacks are printed
-* Without `--debug`, errors are concise and user-facing
+* Structured, user-facing errors
+* Non-zero exit codes on failure
+* Full tracebacks only with `--debug`
+* Logging still occurs on failure
 
 ---
 
 ## Non-goals for v1
 
-The following are **explicitly out of scope**:
+Explicitly out of scope:
 
 * Direct execution of `skill.py`
-* ChatOps orchestration or session management
 * GUI concerns
-* Long-running workers or daemons
-* Packaging, freezing, or installers
+* Long-running workers
+* ChatOps orchestration
+* Session management
+* Packaging or installers
 * Writing state from the dispatcher itself
 * Importing all skills at startup
 
-SkillCLI exists solely to **locate, list, and invoke skills reliably**.
-
-Higher-level systems (ChatOps, workers, GUIs) should build on top of it - not inside it.
+SkillCLI exists to **locate, invoke, observe, and exit** — nothing more.
