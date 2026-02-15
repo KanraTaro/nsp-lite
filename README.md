@@ -129,15 +129,50 @@ The goal is not to reimplement large distributed systems, but to build automatio
 
 ---
 
+## Domains
+
+NSP Lite organizes most code by **Domain**.
+
+A **Domain** is a top-level grouping label that can appear across multiple roots. Domains help keep related capabilities aligned without implying ownership or dependency direction.
+
+A domain name is shared across:
+
+    * `Core/<Domain>/...` reusable code and primitives
+    * `Skills/<Domain>/<SkillName>/...` runnable SkillCLI entrypoints (“buttons”)
+    * `Config/<Domain>/...` optional configuration and presets
+    * `GUI/<Domain>/<GuiName>/...` optional interactive shells (windowed tools) that call skills
+
+Domains are intentionally simple. They exist to keep the repository navigable as it grows.
+
+### Rules
+
+* **Skills stay thin.** If logic becomes reusable, it moves into `Core/`.
+* **GUIs are shells.** They should not duplicate Core logic. They call SkillCLI skills.
+* Domains do **not** imply hierarchy. `Video` doesn’t “own” `NSPL`. It’s just a grouping.
+* Keep domain names consistent across roots when they refer to the same capability.
+
+### Examples
+
+* `Skills/ChatOps/...` exposes task queue operations via SkillCLI.
+* `Core/NSPL/...` contains NSPL-wide primitives used by many domains (SkillCLI, NodeCTX, etc).
+* `GUI/Video/LookLab/...` is a windowed tool for building FFmpeg looks, and should call `Skills/Video/...` for export.
+
+---
+
 ## Repository layout (high level)
 
 Core/
-  SkillCLI/        skill discovery and runner CLI
-  ChatOps/         task schema, queue store, transitions
-  NodeCTX/         filesystem and JSONL logging utilities
+    NSPL/            shared primitives (SkillCLI, ChatOps core, NodeCTX, deps, etc)
+    ChatOps/         task schema, queue store, transitions (domain reusable code)
+    NodeCTX/         filesystem and JSONL logging utilities (domain reusable code)
+    Video/           video-related reusable code (FFmpeg command building, etc)
 Skills/
-  ChatOps/         send_task, run_worker, queue_status
-  Forge/           example skills used by the demo
+    ChatOps/         send_task, run_worker, queue_status
+    Forge/           example skills used by the demo
+    Video/           video entrypoint skills (post-process, export, etc)
+GUI/
+    Video/           windowed tools for video workflows (shells that call skills)
+Config/            optional presets and config (domain subfolders as needed)
 State/             runtime output (generated, gitignored)
 demo.py            deterministic end-to-end demo
 run_tests.py       test runner
