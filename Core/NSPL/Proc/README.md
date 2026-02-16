@@ -43,35 +43,46 @@ Core/NSPL/Proc/
 
 ## Quick start
 
-JSONL logging (recommended for GUI + FPP)
+### JSONL logging (recommended for GUI + FPP)
 
-* Use JsonlFileSink to write structured events to a .jsonl file.
-* A GUI can tail this file to drive progress bars and status panels.
+Use `NodeCtxSink` to write structured events to a canonical JSONL file via NodeCTX.
+A GUI can tail this file to drive progress bars and status panels.
 
 Example:
 
 * Create a sink:
 
-  * JsonlFileSink("path/to/run.jsonl")
+  * `NodeCtxSink(NodeCtxSinkConfig(root=..., instance_id="main", node_tag="NodeA", domain="Proc"))`
+
+  By default this writes to:
+
+  `State/<instance>/<scope>/<domain>/Logs/Proc/<tool>/<run_id>.events.jsonl`
+
 * Create a runner:
 
-  * ProcessRunner(sink)
+  * `ProcessRunner(sink)`
+
 * Run a command:
 
-  * runner.run(["ffmpeg", ...], tool="ffmpeg", adapter=FfmpegAdapter(cfg), echo_stderr_lines=True)
+  * `runner.run(["ffmpeg", ...], tool="ffmpeg", adapter=FfmpegAdapter(cfg), echo_stderr_lines=True)`
 
-CLI-friendly output
+### CLI-friendly output
 
-* Use ConsoleSink for terminal feedback.
-* It prints stderr lines and shows progress as a single updating line.
+Use `ConsoleSink` for terminal feedback.
+It prints stderr lines and shows progress as a single updating line.
 
-## Example sinks
+### Fan-out (best of both)
 
-JsonlFileSink
+Use `MultiSink` to write JSONL for GUI/FPP and also show CLI progress:
 
-* Append-only JSONL output
-* Flushes each record for safety
-* Optional throttle policy for PROGRESS spam
+* `MultiSink([NodeCtxSink(...), ConsoleSink(...)])`
+
+## Included sinks
+
+NodeCtxSink
+
+* Canonical JSONL output via NodeCTX (FPP-friendly)
+* Optional rotation + throttling through NodeCTX policies
 
 ConsoleSink
 
@@ -83,6 +94,10 @@ CallbackSink
 
 * Calls a Python function for each record
 * Useful for hooking into custom code or bridging into a UI layer
+
+MultiSink
+
+* Fans out events to multiple sinks
 
 ## Ffmpeg progress
 

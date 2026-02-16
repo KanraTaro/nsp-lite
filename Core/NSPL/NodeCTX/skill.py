@@ -362,7 +362,7 @@ def build_state_dir(
     """Construct a canonical state directory path.
 
     Canonical layout:
-      <root>/State/<InstanceId>/<Scope>/<Bucket>/<Domain>/<Subpath...>/
+      <root>/State/<InstanceId>/<Scope>/<Domain>/<Bucket>/<Subpath...>/
 
     Scope is "Global" when global_scope=True, otherwise node_tag.
 
@@ -375,7 +375,7 @@ def build_state_dir(
     canonical_bucket = normalize_bucket(bucket)
 
     scope_folder = "Global" if global_scope else node_tag_clean
-    path = Path(root) / "State" / instance_id_clean / scope_folder / canonical_bucket / domain_clean
+    path = Path(root) / "State" / instance_id_clean / scope_folder / domain_clean / canonical_bucket
 
     if subpath:
         if isinstance(subpath, (str, bytes)):
@@ -585,7 +585,7 @@ def build_log_path(
     file_name: Optional[str] = None,
     subpath: Optional[Union[str, Sequence[str]]] = None,
 ) -> Path:
-    """Canonical JSONL log path under State/<Instance>/<Scope>/Logs/<Domain>/..."""
+    """Canonical JSONL log path under State/<Instance>/<Scope>/<Domain>/Logs/..."""
     base_dir: Path = build_state_dir(
         root=Path(root),
         instance_id=instance_id,

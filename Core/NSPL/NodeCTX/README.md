@@ -4,10 +4,10 @@ NodeCTX (Node Contextualizer) is a small, portable routing and durable I/O layer
 
 It solves two recurring problems:
 
-    1. Canonical routing  
+    1. Canonical routing
        Every system saves state in the same predictable folder structure.
 
-    2. Durable writes  
+    2. Durable writes
        Writes are atomic and best-effort durable across crashes or power loss.
 
 NodeCTX does not discover the project root.
@@ -21,7 +21,7 @@ Pair it with ProjectRoot for root discovery.
 
 NodeCTX builds canonical state directories under:
 
-State/<InstanceId>/<Scope>/<Bucket>/<Domain>/<Subpath...>/
+State/<InstanceId>/<Scope>/<Domain>/<Bucket>/<Subpath...>/
 
 Where:
 
@@ -35,11 +35,11 @@ Where:
       `Global` when `global_scope=True`
       Otherwise the node tag (for example: `KanraDesktop`, `MediaNodeA`)
 
+    * Domain
+      Subsystem grouping (`CLM`, `AutoRoh`, `RohTalk`, `Proc`, etc)
+
     * Bucket
       High-level category (`Config`, `Data`, `Workflow`, `Logs`, etc)
-
-    * Domain
-      Subsystem grouping (`CLM`, `AutoRoh`, `RohTalk`, etc)
 
     * Subpath
       Optional nested path for organization. Subpath may be a slash-separated string
@@ -71,7 +71,6 @@ If a value violates these rules, NodeCTX raises `ValueError`.
 
 Example usage:
 
-
     from pathlib import Path
 
     from Core.NSPL.NodeCTX import build_state_dir
@@ -89,12 +88,9 @@ Example usage:
         subpath="year/2026/month/01",
     )
 
-
 Result:
 
-
-<Root>/State/main/KanraDesktop/Data/Example/year/2026/month/01/
-
+<Root>/State/main/KanraDesktop/Example/Data/year/2026/month/01/
 
 ---
 
@@ -129,12 +125,10 @@ NodeCTX can prefix filenames to preserve provenance when files leave the system.
 
 Supported formats:
 
-
 - <node>-<filename>
 - Global-<filename>
 - <instance>-<node>-<filename>
 - <instance>-Global-<filename>
-
 
 Prefixing never affects routing.
 Folder layout remains canonical.
@@ -199,7 +193,7 @@ NodeCTX also provides higher-level logging helpers that combine canonical routin
 with JSONL output:
 
 * `build_log_path(root, instance_id, node_tag, global_scope, domain, file_name=None, subpath=None)`
-  Builds a canonical log file path under `State/.../Logs/...`.
+  Builds a canonical log file path under `State/.../<Domain>/Logs/...`.
 
 * `log_event(root, instance_id, node_tag, global_scope, domain, kind, extra=None, ...)`
   Writes a standard JSONL event entry to a canonical log file.
@@ -245,9 +239,7 @@ NodeCTX ships with unittest coverage for:
 
 Run tests from repo root:
 
-
 python run_tests.py
-
 
 ---
 
@@ -260,5 +252,4 @@ in the same way filesystems treat `open()` and `fsync()`.
 
 You do not think about it.
 You trust it.
-
 

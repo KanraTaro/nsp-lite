@@ -42,7 +42,7 @@ class NodeCTXTests(unittest.TestCase):
         node_tag = "node1"
         bucket = "data"  # intentionally lower-case to verify normalization
         domain = "Example"
-        expected = root / "State" / instance_id / node_tag / "Data" / domain
+        expected = root / "State" / instance_id / node_tag / domain / "Data"
         result = build_state_dir(root, instance_id, node_tag, bucket, domain, global_scope=False)
         self.assertEqual(result, expected)
 
@@ -52,7 +52,7 @@ class NodeCTXTests(unittest.TestCase):
         node_tag = "node1"
         bucket = "Logs"
         domain = "Subsystem"
-        expected = root / "State" / instance_id / "Global" / bucket / domain
+        expected = root / "State" / instance_id / "Global" / domain / "Logs"
         result = build_state_dir(root, instance_id, node_tag, bucket, domain, global_scope=True)
         self.assertEqual(result, expected)
 
@@ -63,7 +63,7 @@ class NodeCTXTests(unittest.TestCase):
         bucket = "Data"
         domain = "Example"
         subpath = "year/2025/month/01"
-        expected = root / "State" / instance_id / node_tag / bucket / domain / "year" / "2025" / "month" / "01"
+        expected = root / "State" / instance_id / node_tag / domain / bucket / "year" / "2025" / "month" / "01"
         result = build_state_dir(
             root, instance_id, node_tag, bucket, domain, global_scope=False, subpath=subpath
         )
@@ -76,7 +76,7 @@ class NodeCTXTests(unittest.TestCase):
         bucket = "Data"
         domain = "Example"
         subpath = ["one", "two", "three"]
-        expected = root / "State" / instance_id / node_tag / bucket / domain / "one" / "two" / "three"
+        expected = root / "State" / instance_id / node_tag / domain / bucket / "one" / "two" / "three"
         result = build_state_dir(
             root, instance_id, node_tag, bucket, domain, global_scope=False, subpath=subpath
         )
@@ -216,7 +216,7 @@ class NodeCTXTests(unittest.TestCase):
         bucket = "Data"
         domain = "Example"
         subpath = r"year\2026\month\01"
-        expected = root / "State" / instance_id / node_tag / bucket / domain / "year" / "2026" / "month" / "01"
+        expected = root / "State" / instance_id / node_tag / domain / bucket / "year" / "2026" / "month" / "01"
         result = build_state_dir(
             root, instance_id, node_tag, bucket, domain, global_scope=False, subpath=subpath
         )
