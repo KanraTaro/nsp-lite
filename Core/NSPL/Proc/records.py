@@ -40,3 +40,8 @@ class ProcRecord:
         d["type"] = str(self.type.value)
         return d
 
+@dataclass(frozen=True)
+class RecordFragment:
+    type: ProcRecordType
+    data: dict[str, Any]
+

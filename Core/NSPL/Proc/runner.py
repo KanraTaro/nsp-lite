@@ -8,16 +8,15 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from .records import ProcRecord, ProcRecordType, new_run_id, now_ts
+from .records import ProcRecord, ProcRecordType, RecordFragment, new_run_id, now_ts
 from .sinks import EventSink, MultiSink
-from .adapters.ffmpeg import FfmpegAdapter
 
 
 class Adapter(Protocol):
-    def on_stdout_line(self, line: str) -> list[ProcRecord]:
+    def on_stdout_line(self, line: str) -> list[RecordFragment]:
         ...
 
-    def on_stderr_line(self, line: str) -> list[ProcRecord]:
+    def on_stderr_line(self, line: str) -> list[RecordFragment]:
         ...
 
 
@@ -43,6 +42,18 @@ class ProcessRunner:
 
     def _emit(self, rec: ProcRecord) -> None:
         self.sink.on_record(rec)
+    
+    def _emit_fragments(self, run_id: str, tool_name: str, frags: list[RecordFragment]) -> None:
+        for frag in frags:
+            self._emit(
+                ProcRecord(
+                    type=frag.type,
+                    run_id=run_id,
+                    ts=now_ts(),
+                    tool=tool_name,
+                    data=frag.data,
+                )
+            )
 
     def run(
         self,
@@ -124,8 +135,7 @@ class ProcessRunner:
                         )
                     )
                 if adapter is not None:
-                    for rec in adapter.on_stdout_line(line):
-                        self._emit(rec)
+                    self._emit_fragments(run_id, tool_name, adapter.on_stdout_line(line))
 
             else:
                 if echo_stderr_lines:
@@ -139,8 +149,7 @@ class ProcessRunner:
                         )
                     )
                 if adapter is not None:
-                    for rec in adapter.on_stderr_line(line):
-                        self._emit(rec)
+                    self._emit_fragments(run_id, tool_name, adapter.on_stderr_line(line))
 
         exit_code = proc.wait()
 
