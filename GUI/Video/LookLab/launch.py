@@ -4,7 +4,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QProcess
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QSlider,
     QComboBox,
     QGroupBox,
+    QDoubleSpinBox,
+    QProgressDialog,
 )
 
 # -------------------------
@@ -61,30 +63,22 @@ def build_filter(p: LookParams) -> str:
     )
 
     # Warmth/temperature-ish: small colorbalance shift
-    # Positive warmth pushes reds up and blues down a bit.
     if abs(p.warmth) > 1e-4:
-        # Keep this subtle. Too much will break anime skin tones fast.
-        # rs/bs are "red shadows" / "blue shadows" style controls.
         rs = max(-0.25, min(0.25, 0.12 * p.warmth))
         bs = max(-0.25, min(0.25, -0.10 * p.warmth))
         parts.append(f"colorbalance=rs={rs:.3f}:bs={bs:.3f}")
 
     # Mild unsharp (only if requested)
     if p.unsharp_luma > 1e-4:
-        # unsharp=luma_msize_x:luma_msize_y:luma_amount:chroma_msize_x:chroma_msize_y:chroma_amount
         parts.append(f"unsharp=5:5:{p.unsharp_luma:.3f}:5:5:0.000")
 
     # Vignette (only if requested)
     if p.vignette > 1e-4:
-        # This is a simple strength mapping; it's not a perfect film vignette model,
-        # but it's stable and gets the job done.
         angle = 0.2 + (p.vignette * 1.2)
         parts.append(f"vignette=PI/{1.0/angle:.3f}")
 
     # Grain (only if requested)
     if p.grain > 1e-4:
-        # noise: alls is "strength". We keep it small; grain is easy to overdo.
-        # 0..1 -> 0..12
         strength = max(0.0, min(12.0, p.grain * 12.0))
         parts.append(f"noise=alls={strength:.2f}:allf=t+u")
 
@@ -114,8 +108,8 @@ def set_dark_palette(app: QApplication) -> None:
 
 class SliderRow(QWidget):
     """
-    A simple slider + value label row that maps an int slider range to a float.
-    I kept this tiny so you can keep adding knobs without pain.
+    Slider + editable float spinbox.
+    Slider gives fast feel, spinbox gives precision.
     """
     def __init__(
         self,
@@ -133,8 +127,8 @@ class SliderRow(QWidget):
         self._max = float(max_val)
         self._step = float(step)
         self._decimals = int(decimals)
+        self._sync_guard: bool = False
 
-        # Slider works in ints. Convert float range to int ticks.
         self._ticks = int(round((self._max - self._min) / self._step))
         if self._ticks <= 0:
             self._ticks = 1
@@ -149,41 +143,47 @@ class SliderRow(QWidget):
         self.slider.setRange(0, self._ticks)
         self.slider.setSingleStep(1)
 
-        self.value_label = QLabel("")
-        self.value_label.setMinimumWidth(80)
-        self.value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.spin = QDoubleSpinBox()
+        self.spin.setDecimals(self._decimals)
+        self.spin.setRange(self._min, self._max)
+        self.spin.setSingleStep(self._step)
+        self.spin.setKeyboardTracking(False)
+        self.spin.setMinimumWidth(90)
 
         layout.addWidget(self.label)
         layout.addWidget(self.slider, 1)
-        layout.addWidget(self.value_label)
+        layout.addWidget(self.spin)
 
         self.setLayout(layout)
 
-        self.set_value(default_val)
         self.slider.valueChanged.connect(self._on_slider)
+        self.spin.valueChanged.connect(self._on_spin)
 
-    def _on_slider(self, _: int) -> None:
-        self.value_label.setText(f"{self.value():.{self._decimals}f}")
+        self.set_value(default_val)
+
+    def _on_slider(self, t: int) -> None:
+        if self._sync_guard:
+            return
+        self._sync_guard = True
+        v = self._min + (t * self._step)
+        v = max(self._min, min(self._max, v))
+        self.spin.setValue(v)
+        self._sync_guard = False
+
+    def _on_spin(self, v: float) -> None:
+        if self._sync_guard:
+            return
+        self._sync_guard = True
+        v2 = max(self._min, min(self._max, float(v)))
+        t = int(round((v2 - self._min) / self._step))
+        self.slider.setValue(t)
+        self._sync_guard = False
 
     def value(self) -> float:
-        t = self.slider.value()
-        v = self._min + (t * self._step)
-        # Clamp (helps float rounding edge cases)
-        if v < self._min:
-            v = self._min
-        if v > self._max:
-            v = self._max
-        return float(v)
+        return float(self.spin.value())
 
     def set_value(self, v: float) -> None:
-        v = float(v)
-        if v < self._min:
-            v = self._min
-        if v > self._max:
-            v = self._max
-        t = int(round((v - self._min) / self._step))
-        self.slider.setValue(t)
-        self.value_label.setText(f"{self.value():.{self._decimals}f}")
+        self.spin.setValue(float(v))
 
 
 # -------------------------
@@ -194,7 +194,15 @@ class LookLab(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("LookLab (ffplay preview)")
+
         self.preview_proc: subprocess.Popen | None = None
+
+        # Export state (async)
+        self.export_proc: QProcess | None = None
+        self.export_progress: QProgressDialog | None = None
+        self.export_duration_ms: int = 0
+        self.export_out_path: str = ""
+        self.export_progress_buf: str = ""
 
         root = QVBoxLayout()
 
@@ -211,7 +219,7 @@ class LookLab(QWidget):
 
         # Scale dropdown
         scale_row = QHBoxLayout()
-        scale_row.addWidget(QLabel("Scale:"))
+        scale_row.addWidget(QLabel("Scale width:"))
         self.scale_combo = QComboBox()
         self.scale_combo.addItem("Original", 0)
         self.scale_combo.addItem("1080p wide (1920)", 1920)
@@ -236,7 +244,7 @@ class LookLab(QWidget):
         polish_box = QGroupBox("Polish")
         polish_layout = QVBoxLayout()
         self.unsharp_luma = SliderRow("Unsharp (luma)", 0.00, 2.00, 0.00, 0.01)
-        self.vignette = SliderRow("Vignette", 0.00, 1.00, 0.00, 0.01)
+        self.vignette = SliderRow("Vignette", 0.00, 1.00, 0.00, 0.001, decimals=3)
         polish_layout.addWidget(self.unsharp_luma)
         polish_layout.addWidget(self.vignette)
         polish_box.setLayout(polish_layout)
@@ -281,9 +289,10 @@ class LookLab(QWidget):
 
         self.setLayout(root)
 
-        # Update filter string when values change
+        # Update filter string when values change (slider + spinbox!)
         for row in [self.contrast, self.saturation, self.brightness, self.gamma, self.unsharp_luma, self.vignette, self.warmth, self.grain]:
             row.slider.valueChanged.connect(self.update_filter)
+            row.spin.valueChanged.connect(self.update_filter)
 
         self.scale_combo.currentIndexChanged.connect(self.update_filter)
 
@@ -360,6 +369,123 @@ class LookLab(QWidget):
         except Exception as ex:
             QMessageBox.critical(self, "Save failed", str(ex))
 
+    # -------------------------
+    # Export (async + percent)
+    # -------------------------
+
+    def get_duration_ms(self, video_path: str) -> int:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            s = result.stdout.strip()
+            if not s:
+                return 0
+            seconds = float(s)
+            return int(seconds * 1000.0)
+        except Exception:
+            return 0
+
+    def _cancel_export(self) -> None:
+        if self.export_proc is not None:
+            self.export_proc.kill()
+
+    def _on_export_stdout(self) -> None:
+        if self.export_proc is None or self.export_progress is None:
+            return
+
+        chunk = bytes(self.export_proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if not chunk:
+            return
+
+        self.export_progress_buf += chunk
+
+        # Only parse complete lines, keep the last partial line in the buffer
+        lines = self.export_progress_buf.splitlines(keepends=False)
+        if self.export_progress_buf and not self.export_progress_buf.endswith("\n"):
+            self.export_progress_buf = lines[-1] if lines else self.export_progress_buf
+            lines = lines[:-1]
+        else:
+            self.export_progress_buf = ""
+
+        out_time_us: int | None = None
+
+        for ln in lines:
+            ln = ln.strip()
+            if not ln:
+                continue
+
+            # ffmpeg variants:
+            # out_time_us=12345678
+            # out_time_ms=12345   (sometimes microseconds anyway, depends)
+            # out_time=00:00:01.23
+            if ln.startswith("out_time_us="):
+                try:
+                    out_time_us = int(ln.split("=", 1)[1])
+                except Exception:
+                    pass
+
+            elif ln.startswith("out_time_ms="):
+                try:
+                    v = int(ln.split("=", 1)[1])
+                    # Many builds lie and still report microseconds here. Heuristic:
+                    out_time_us = v if v > 10_000_000 else v * 1000
+                except Exception:
+                    pass
+
+            elif ln.startswith("out_time="):
+                # Parse hh:mm:ss.micro
+                try:
+                    ts = ln.split("=", 1)[1]
+                    parts = ts.split(":")
+                    if len(parts) == 3:
+                        h = float(parts[0])
+                        m = float(parts[1])
+                        s = float(parts[2])
+                        total_s = (h * 3600.0) + (m * 60.0) + s
+                        out_time_us = int(total_s * 1_000_000.0)
+                except Exception:
+                    pass
+
+            elif ln.startswith("progress=") and ln.endswith("end"):
+                self.export_progress.setValue(100)
+
+        if out_time_us is None:
+            return
+
+        # Convert to ms for comparing with duration_ms
+        t_ms = int(out_time_us / 1000)
+
+        if self.export_duration_ms > 0:
+            pct = int(max(0, min(100, (t_ms / self.export_duration_ms) * 100.0)))
+            self.export_progress.setValue(pct)
+
+    def _on_export_finished(self, exit_code: int, _status) -> None:
+        if self.export_progress is not None:
+            if exit_code == 0:
+                self.export_progress.setValue(100)
+            self.export_progress.close()
+            self.export_progress = None
+
+        if exit_code == 0:
+            QMessageBox.information(self, "Export complete", f"Wrote:\n{self.export_out_path}")
+        else:
+            err = ""
+            if self.export_proc is not None:
+                err = bytes(self.export_proc.readAllStandardError()).decode("utf-8", errors="replace")
+            if not err.strip():
+                err = "ffmpeg exited with a non-zero code."
+            QMessageBox.critical(self, "Export failed", err.strip())
+
+        self.export_proc = None
+        self.export_out_path = ""
+        self.export_duration_ms = 0
+
     def export_video(self) -> None:
         video = self.path_edit.text().strip()
         if not video:
@@ -378,43 +504,66 @@ class LookLab(QWidget):
         if not out_path:
             return
 
+        # Kill any previous export
+        if self.export_proc is not None:
+            try:
+                self.export_proc.kill()
+            except Exception:
+                pass
+            self.export_proc = None
+
+        self.export_out_path = out_path
+        self.export_duration_ms = self.get_duration_ms(video)
+
         filt = self.filter_edit.text().strip()
 
-        # Keep this simple for now: good default encode for social posting
-        cmd = [
-            "ffmpeg",
+        args = [
             "-y",
             "-hide_banner",
-            "-loglevel",
-            "error",
-            "-i",
-            video,
-            "-vf",
-            filt,
-            "-c:v",
-            "libx264",
-            "-crf",
-            "18",
-            "-preset",
-            "slow",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
+            "-nostats",
+            "-progress", "pipe:1",
+            "-i", video,
+            "-vf", filt,
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "slow",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-c:a", "aac",
+            "-b:a", "192k",
             out_path,
         ]
 
-        try:
-            subprocess.run(cmd, check=True)
-            QMessageBox.information(self, "Export complete", f"Wrote:\n{out_path}")
-        except FileNotFoundError:
+        self.export_proc = QProcess(self)
+        self.export_proc.setProgram("ffmpeg")
+        self.export_proc.setArguments(args)
+        self.export_proc.setProcessChannelMode(QProcess.SeparateChannels)
+
+        self.export_progress = QProgressDialog("Exporting...", "Cancel", 0, 100, self)
+        self.export_progress.setWindowTitle("LookLab Export")
+        self.export_progress.setMinimumDuration(0)
+        self.export_progress.setValue(0)
+        self.export_progress.canceled.connect(self._cancel_export)
+
+        # If we couldn't read duration, show an indeterminate spinner-style bar.
+        if self.export_duration_ms <= 0:
+            self.export_progress.setRange(0, 0)
+        else:
+            self.export_progress.setRange(0, 100)
+
+        self.export_proc.readyReadStandardOutput.connect(self._on_export_stdout)
+        self.export_proc.finished.connect(self._on_export_finished)
+
+        self.export_proc.start()
+        if not self.export_proc.waitForStarted(1500):
+            if self.export_progress is not None:
+                self.export_progress.close()
+                self.export_progress = None
             QMessageBox.critical(self, "ffmpeg not found", "ffmpeg wasn't found on PATH.")
-        except subprocess.CalledProcessError as ex:
-            QMessageBox.critical(self, "Export failed", f"ffmpeg failed.\n\n{ex}")
+            self.export_proc = None
+            self.export_out_path = out_path
+            self.export_duration_ms = self.get_duration_ms(video)
+            self.export_progress_buf = ""  # reset per export
 
 
 def main() -> int:

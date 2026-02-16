@@ -1,0 +1,7 @@
+{
+  "name": "Video.Clip.Export",
+  "version": "0.1.0",
+  "description": "Export a video clip with an FFmpeg look preset and optional target fitting.",
+  "entry": "skill.py"
+}
+
