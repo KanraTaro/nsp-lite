@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import os
-import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Sequence
 
 from PySide6.QtCore import Qt, QProcess
 from PySide6.QtGui import QColor, QPalette
@@ -22,6 +24,17 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QProgressDialog,
 )
+
+from Core.Video.export import ExportOptions, build_export_args
+from Core.Video.probe import get_duration_ms
+from Core.Video.ffmpeg_exec import require_ffmpeg, require_ffplay
+from Core.Video.filters import compose_vf
+
+from Core.NSPL.Proc.adapters.ffmpeg import FfmpegAdapter, FfmpegAdapterConfig
+from Core.NSPL.Proc.records import ProcRecordType
+from Core.NSPL.Proc.runner import ProcessRunner
+from Core.NSPL.Proc.sinks import CallbackSink
+
 
 # -------------------------
 # Params + filter building
@@ -43,16 +56,13 @@ class LookParams:
     warmth: float = 0.0   # -1..+1 (cool -> warm)
     grain: float = 0.0    # 0..1
 
-    # Output scale (0 = original, else width)
-    scale_width: int = 0
 
-
-def build_filter(p: LookParams) -> str:
+def build_look_vf(p: LookParams) -> str:
+    """
+    Builds ONLY the "look" portion of the vf chain.
+    Scaling and format are handled by Core.Video.compose_vf so LookLab stays dumb.
+    """
     parts: list[str] = []
-
-    # Scaling up front if requested (keeps everything consistent)
-    if p.scale_width and p.scale_width > 0:
-        parts.append(f"scale={p.scale_width}:-2:flags=lanczos")
 
     # Basic grade
     parts.append(
@@ -62,10 +72,10 @@ def build_filter(p: LookParams) -> str:
         f"gamma={p.gamma:.3f}"
     )
 
-    # Warmth/temperature-ish: small colorbalance shift
+    # Warmth/temperature-ish: colorbalance shift (punchier than before)
     if abs(p.warmth) > 1e-4:
-        rs = max(-0.25, min(0.25, 0.12 * p.warmth))
-        bs = max(-0.25, min(0.25, -0.10 * p.warmth))
+        rs = max(-0.35, min(0.35, 0.22 * p.warmth))
+        bs = max(-0.35, min(0.35, -0.18 * p.warmth))
         parts.append(f"colorbalance=rs={rs:.3f}:bs={bs:.3f}")
 
     # Mild unsharp (only if requested)
@@ -81,9 +91,6 @@ def build_filter(p: LookParams) -> str:
     if p.grain > 1e-4:
         strength = max(0.0, min(12.0, p.grain * 12.0))
         parts.append(f"noise=alls={strength:.2f}:allf=t+u")
-
-    # Always enforce a common pixel format for preview/export sanity
-    parts.append("format=yuv420p")
 
     return ",".join(parts)
 
@@ -195,14 +202,18 @@ class LookLab(QWidget):
         super().__init__()
         self.setWindowTitle("LookLab (ffplay preview)")
 
-        self.preview_proc: subprocess.Popen | None = None
+        # NSPL Proc runner for ffplay preview (ignore records for now)
+        self._proc_runner = ProcessRunner(CallbackSink(lambda _rec: None))
+        self.preview_handle = None
 
-        # Export state (async)
+        # Export state
         self.export_proc: QProcess | None = None
         self.export_progress: QProgressDialog | None = None
         self.export_duration_ms: int = 0
         self.export_out_path: str = ""
-        self.export_progress_buf: str = ""
+
+        # Ffmpeg progress adapter
+        self._ffmpeg_adapter: FfmpegAdapter | None = None
 
         root = QVBoxLayout()
 
@@ -261,7 +272,7 @@ class LookLab(QWidget):
         root.addWidget(polish_box)
         root.addWidget(extras_box)
 
-        # Filter string display
+        # Filter string display (final vf string, including scale + format)
         self.filter_edit = QLineEdit()
         self.filter_edit.setReadOnly(True)
         root.addWidget(QLabel("Generated -vf filtergraph:"))
@@ -277,7 +288,7 @@ class LookLab(QWidget):
         copy_btn.clicked.connect(self.copy_filter)
         save_btn = QPushButton("Save Preset (.fffilter)")
         save_btn.clicked.connect(self.save_preset)
-        export_btn = QPushButton("Export Video (ffmpeg)")
+        export_btn = QPushButton("Export Video")
         export_btn.clicked.connect(self.export_video)
 
         btns.addWidget(preview_btn)
@@ -290,13 +301,24 @@ class LookLab(QWidget):
         self.setLayout(root)
 
         # Update filter string when values change (slider + spinbox!)
-        for row in [self.contrast, self.saturation, self.brightness, self.gamma, self.unsharp_luma, self.vignette, self.warmth, self.grain]:
+        for row in [
+            self.contrast, self.saturation, self.brightness, self.gamma,
+            self.unsharp_luma, self.vignette, self.warmth, self.grain
+        ]:
             row.slider.valueChanged.connect(self.update_filter)
             row.spin.valueChanged.connect(self.update_filter)
 
         self.scale_combo.currentIndexChanged.connect(self.update_filter)
 
         self.update_filter()
+
+    def closeEvent(self, event) -> None:
+        # Kill ffplay if user closes the window
+        try:
+            self.stop_preview()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
     def get_params(self) -> LookParams:
         return LookParams(
@@ -308,12 +330,20 @@ class LookLab(QWidget):
             vignette=self.vignette.value(),
             warmth=self.warmth.value(),
             grain=self.grain.value(),
-            scale_width=int(self.scale_combo.currentData()),
         )
 
+    def _scale_width(self) -> int:
+        return int(self.scale_combo.currentData() or 0)
+
     def update_filter(self) -> None:
-        filt = build_filter(self.get_params())
-        self.filter_edit.setText(filt)
+        look_vf = build_look_vf(self.get_params())
+        vf = compose_vf(
+            look_vf=look_vf,
+            fit_vf=None,
+            scale_width=self._scale_width() if self._scale_width() > 0 else None,
+            force_yuv420p=True,
+        )
+        self.filter_edit.setText(vf)
 
     def browse_video(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -334,21 +364,35 @@ class LookLab(QWidget):
             QMessageBox.warning(self, "Missing file", f"File not found:\n{video}")
             return
 
+        try:
+            ffplay = require_ffplay()
+        except Exception as ex:
+            QMessageBox.critical(self, "ffplay missing", str(ex))
+            return
+
+        vf = self.filter_edit.text().strip()
+        cmd = [ffplay.path, "-loop", "0", "-vf", vf, video]
+
         self.stop_preview()
 
-        filt = self.filter_edit.text().strip()
-        cmd = ["ffplay", "-loop", "0", "-vf", filt, video]
         try:
-            self.preview_proc = subprocess.Popen(cmd)
-        except FileNotFoundError:
-            QMessageBox.critical(self, "ffplay not found", "ffplay wasn't found on PATH. Install ffmpeg / ffplay.")
+            self.preview_handle = self._proc_runner.spawn(
+                cmd=cmd,
+                tool="ffplay",
+                cwd=None,
+                env=None,
+            )
         except Exception as ex:
             QMessageBox.critical(self, "Preview failed", str(ex))
+            self.preview_handle = None
 
     def stop_preview(self) -> None:
-        if self.preview_proc and self.preview_proc.poll() is None:
-            self.preview_proc.terminate()
-        self.preview_proc = None
+        if self.preview_handle is not None:
+            try:
+                self._proc_runner.terminate(self.preview_handle, kill_after_sec=0.5)
+            except Exception:
+                pass
+        self.preview_handle = None
 
     def copy_filter(self) -> None:
         QApplication.clipboard().setText(self.filter_edit.text().strip())
@@ -363,9 +407,12 @@ class LookLab(QWidget):
         )
         if not path:
             return
+
         try:
             with open(path, "w", encoding="utf-8") as f:
-                f.write(self.filter_edit.text().strip() + "\n")
+                # Save ONLY the look vf (not the auto scale/format wrapper)
+                look_vf = build_look_vf(self.get_params()).strip()
+                f.write(look_vf + "\n")
         except Exception as ex:
             QMessageBox.critical(self, "Save failed", str(ex))
 
@@ -373,102 +420,41 @@ class LookLab(QWidget):
     # Export (async + percent)
     # -------------------------
 
-    def get_duration_ms(self, video_path: str) -> int:
-        cmd = [
-            "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            video_path,
-        ]
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            s = result.stdout.strip()
-            if not s:
-                return 0
-            seconds = float(s)
-            return int(seconds * 1000.0)
-        except Exception:
-            return 0
-
     def _cancel_export(self) -> None:
         if self.export_proc is not None:
             self.export_proc.kill()
 
     def _on_export_stdout(self) -> None:
-        if self.export_proc is None or self.export_progress is None:
+        if self.export_proc is None or self.export_progress is None or self._ffmpeg_adapter is None:
             return
 
         chunk = bytes(self.export_proc.readAllStandardOutput()).decode("utf-8", errors="replace")
         if not chunk:
             return
 
-        self.export_progress_buf += chunk
+        # Ffmpeg -progress output is line-based key=value. Feed the adapter line by line.
+        for raw_ln in chunk.splitlines():
+            frags = self._ffmpeg_adapter.on_stdout_line(raw_ln)
+            for frag in frags:
+                if frag.type != ProcRecordType.PROGRESS:
+                    continue
 
-        # Only parse complete lines, keep the last partial line in the buffer
-        lines = self.export_progress_buf.splitlines(keepends=False)
-        if self.export_progress_buf and not self.export_progress_buf.endswith("\n"):
-            self.export_progress_buf = lines[-1] if lines else self.export_progress_buf
-            lines = lines[:-1]
-        else:
-            self.export_progress_buf = ""
+                pct = frag.data.get("pct", None)
+                if pct is None:
+                    continue
 
-        out_time_us: int | None = None
-
-        for ln in lines:
-            ln = ln.strip()
-            if not ln:
-                continue
-
-            # ffmpeg variants:
-            # out_time_us=12345678
-            # out_time_ms=12345   (sometimes microseconds anyway, depends)
-            # out_time=00:00:01.23
-            if ln.startswith("out_time_us="):
                 try:
-                    out_time_us = int(ln.split("=", 1)[1])
+                    self.export_progress.setValue(int(pct))
                 except Exception:
                     pass
-
-            elif ln.startswith("out_time_ms="):
-                try:
-                    v = int(ln.split("=", 1)[1])
-                    # Many builds lie and still report microseconds here. Heuristic:
-                    out_time_us = v if v > 10_000_000 else v * 1000
-                except Exception:
-                    pass
-
-            elif ln.startswith("out_time="):
-                # Parse hh:mm:ss.micro
-                try:
-                    ts = ln.split("=", 1)[1]
-                    parts = ts.split(":")
-                    if len(parts) == 3:
-                        h = float(parts[0])
-                        m = float(parts[1])
-                        s = float(parts[2])
-                        total_s = (h * 3600.0) + (m * 60.0) + s
-                        out_time_us = int(total_s * 1_000_000.0)
-                except Exception:
-                    pass
-
-            elif ln.startswith("progress=") and ln.endswith("end"):
-                self.export_progress.setValue(100)
-
-        if out_time_us is None:
-            return
-
-        # Convert to ms for comparing with duration_ms
-        t_ms = int(out_time_us / 1000)
-
-        if self.export_duration_ms > 0:
-            pct = int(max(0, min(100, (t_ms / self.export_duration_ms) * 100.0)))
-            self.export_progress.setValue(pct)
 
     def _on_export_finished(self, exit_code: int, _status) -> None:
         if self.export_progress is not None:
             if exit_code == 0:
-                self.export_progress.setValue(100)
+                try:
+                    self.export_progress.setValue(100)
+                except Exception:
+                    pass
             self.export_progress.close()
             self.export_progress = None
 
@@ -485,6 +471,7 @@ class LookLab(QWidget):
         self.export_proc = None
         self.export_out_path = ""
         self.export_duration_ms = 0
+        self._ffmpeg_adapter = None
 
     def export_video(self) -> None:
         video = self.path_edit.text().strip()
@@ -493,6 +480,12 @@ class LookLab(QWidget):
             return
         if not os.path.exists(video):
             QMessageBox.warning(self, "Missing file", f"File not found:\n{video}")
+            return
+
+        try:
+            ffmpeg = require_ffmpeg()
+        except Exception as ex:
+            QMessageBox.critical(self, "ffmpeg missing", str(ex))
             return
 
         out_path, _ = QFileDialog.getSaveFileName(
@@ -513,30 +506,39 @@ class LookLab(QWidget):
             self.export_proc = None
 
         self.export_out_path = out_path
-        self.export_duration_ms = self.get_duration_ms(video)
 
-        filt = self.filter_edit.text().strip()
+        # Duration goes through Core.Video (which goes through Deps + ffprobe)
+        self.export_duration_ms = int(get_duration_ms(video) or 0)
 
-        args = [
-            "-y",
-            "-hide_banner",
-            "-nostats",
-            "-progress", "pipe:1",
-            "-i", video,
-            "-vf", filt,
-            "-c:v", "libx264",
-            "-crf", "18",
-            "-preset", "slow",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            out_path,
-        ]
+        look_vf = build_look_vf(self.get_params()).strip()
+        scale_width = self._scale_width()
+        scale_width_opt = scale_width if scale_width > 0 else None
+
+        export_opts = ExportOptions(
+            input_path=video,
+            output_path=out_path,
+            vf=look_vf,
+            preset="hq",
+            scale_width=scale_width_opt,
+            target=None,
+            fit="pad",
+        )
+        args = build_export_args(export_opts)
+
+        # Insert progress flags so adapter can work
+        args2: list[str] = []
+        i = 0
+        while i < len(args):
+            args2.append(args[i])
+            if args[i] == "-nostats":
+                args2.extend(["-progress", "pipe:1"])
+            i += 1
+
+        self._ffmpeg_adapter = FfmpegAdapter(FfmpegAdapterConfig(duration_ms=self.export_duration_ms))
 
         self.export_proc = QProcess(self)
-        self.export_proc.setProgram("ffmpeg")
-        self.export_proc.setArguments(args)
+        self.export_proc.setProgram(ffmpeg.path)
+        self.export_proc.setArguments(args2)
         self.export_proc.setProcessChannelMode(QProcess.SeparateChannels)
 
         self.export_progress = QProgressDialog("Exporting...", "Cancel", 0, 100, self)
@@ -545,7 +547,6 @@ class LookLab(QWidget):
         self.export_progress.setValue(0)
         self.export_progress.canceled.connect(self._cancel_export)
 
-        # If we couldn't read duration, show an indeterminate spinner-style bar.
         if self.export_duration_ms <= 0:
             self.export_progress.setRange(0, 0)
         else:
@@ -559,15 +560,18 @@ class LookLab(QWidget):
             if self.export_progress is not None:
                 self.export_progress.close()
                 self.export_progress = None
-            QMessageBox.critical(self, "ffmpeg not found", "ffmpeg wasn't found on PATH.")
+            QMessageBox.critical(self, "ffmpeg failed", "ffmpeg could not be started.")
             self.export_proc = None
-            self.export_out_path = out_path
-            self.export_duration_ms = self.get_duration_ms(video)
-            self.export_progress_buf = ""  # reset per export
+            self.export_out_path = ""
+            self.export_duration_ms = 0
+            self._ffmpeg_adapter = None
 
 
-def main() -> int:
-    app = QApplication(sys.argv)
+def main(argv: Sequence[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    app = QApplication([sys.argv[0], *list(argv)])
     set_dark_palette(app)
 
     w = LookLab()

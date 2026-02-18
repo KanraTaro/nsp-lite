@@ -13,6 +13,7 @@ predictable.
 
 from __future__ import annotations
 
+import sys
 import importlib.util
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -177,6 +178,7 @@ def load_skill_module(entry_path: Path) -> object:
         raise InvalidSkill(str(entry_path), "could not create import spec")
     module = importlib.util.module_from_spec(spec)
     try:
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)  # type: ignore[call-arg]
     except Exception as e:
         # Surface import errors as InvalidSkill for nicer CLI messages

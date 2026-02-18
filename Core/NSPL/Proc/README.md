@@ -22,7 +22,7 @@ EventSink
 * A consumer of ProcRecords.
 * Examples:
 
-  * JsonlFileSink: append-only JSONL log (FPP-friendly)
+  * NodeCtxSink: default, NodeCTX JsonL funnel
   * ConsoleSink: terminal-friendly output
   * CallbackSink: push events into your own handler
   * MultiSink: fan-out to multiple sinks
@@ -56,7 +56,7 @@ Example:
 
   By default this writes to:
 
-  `State/<instance>/<scope>/<domain>/Logs/Proc/<tool>/<run_id>.events.jsonl`
+  `State/<instance>/<scope>/<domain>/Logs/<tool>/<run_id>.events.jsonl`
 
 * Create a runner:
 
@@ -123,7 +123,7 @@ The adapter emits:
 
 * ProcessRunner uses threads to consume stdout/stderr concurrently to avoid deadlocks.
 * This module does not attempt to checkpoint or resume external tools, it only streams state.
-* For long-running tasks, prefer JsonlFileSink so UI state can be reconstructed after restart by replaying the JSONL.
+* For long-running tasks, prefer NodeCtxSink so UI state can be reconstructed after restart by replaying the JSONL.
 
 ## Future extensions
 

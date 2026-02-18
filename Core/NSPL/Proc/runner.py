@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import queue
+import time
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -26,6 +27,14 @@ class RunResult:
     exit_code: int
     tool: str
     cmd: list[str]
+    
+    
+@dataclass(frozen=True)
+class SpawnHandle:
+    run_id: str
+    tool: str
+    cmd: list[str]
+    proc: subprocess.Popen[str]
 
 
 class ProcessRunner:
@@ -55,6 +64,76 @@ class ProcessRunner:
                 )
             )
 
+    def spawn(
+        self,
+        cmd: list[str],
+        *,
+        tool: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> SpawnHandle:
+        if not cmd:
+            raise ValueError("cmd must be a non-empty list[str]")
+
+        run_id = new_run_id()
+        tool_name = tool if tool is not None else os.path.basename(cmd[0])
+
+        self._emit(
+            ProcRecord(
+                type=ProcRecordType.START,
+                run_id=run_id,
+                ts=now_ts(),
+                tool=tool_name,
+                data={"cmd": cmd, "cwd": cwd, "mode": "spawn"},
+            )
+        )
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=None,
+            stderr=None,
+            text=True,
+        )
+
+        return SpawnHandle(run_id=run_id, tool=tool_name, cmd=cmd, proc=proc)
+
+    def terminate(self, handle: SpawnHandle, *, kill_after_sec: float = 0.5) -> None:
+        proc = handle.proc
+        if proc.poll() is not None:
+            return
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
+        deadline = time.time() + float(kill_after_sec)
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                break
+            time.sleep(0.05)
+
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+        exit_code = proc.poll()
+        if exit_code is None:
+            exit_code = 0
+
+        self._emit(
+            ProcRecord(
+                type=ProcRecordType.DONE,
+                run_id=handle.run_id,
+                ts=now_ts(),
+                tool=handle.tool,
+                data={"exit_code": int(exit_code), "mode": "spawn"},
+            )
+        )
+
     def run(
         self,
         cmd: list[str],
@@ -65,6 +144,7 @@ class ProcessRunner:
         adapter: Adapter | None = None,
         echo_stdout_lines: bool = False,
         echo_stderr_lines: bool = False,
+        timeout_sec: float | None = None,
     ) -> RunResult:
         if not cmd:
             raise ValueError("cmd must be a non-empty list[str]")
@@ -90,7 +170,6 @@ class ProcessRunner:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,  # line-buffered
-            universal_newlines=True,
         )
 
         q: queue.Queue[tuple[str, str]] = queue.Queue()
@@ -110,10 +189,43 @@ class ProcessRunner:
 
         eof_out = False
         eof_err = False
+        
+        start_ts = time.time()
+        timeout_s = float(timeout_sec) if timeout_sec is not None else None
 
         while True:
-            which, line = q.get()
+            # --- Timeout check (loop must wake up periodically) ---
+            if timeout_s is not None:
+                now = time.time()
+                if (now - start_ts) > timeout_s:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
 
+                    exit_code = 124  # timeout conventional-ish
+                    self._emit(
+                        ProcRecord(
+                            type=ProcRecordType.DONE,
+                            run_id=run_id,
+                            ts=now_ts(),
+                            tool=tool_name,
+                            data={"exit_code": exit_code, "timeout_sec": timeout_s},
+                        )
+                    )
+                    return RunResult(run_id=run_id, exit_code=exit_code, tool=tool_name, cmd=cmd)
+
+            # --- Read next line, but don't block forever ---
+            try:
+                which, line = q.get(timeout=0.1)
+            except queue.Empty:
+                # No output yet, loop again (so timeout can be re-checked)
+                continue
+                
             if line == "__EOF__":
                 if which == "stdout":
                     eof_out = True
@@ -150,6 +262,14 @@ class ProcessRunner:
                     )
                 if adapter is not None:
                     self._emit_fragments(run_id, tool_name, adapter.on_stderr_line(line))
+
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+            if proc.stderr is not None:
+                proc.stderr.close()
+        except Exception:
+            pass
 
         exit_code = proc.wait()
 

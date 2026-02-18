@@ -1,9 +1,7 @@
 {
-  "id": "looklab",
-  "name": "LookLab",
-  "domain": "Video",
-  "entrypoint": "launch.py",
-  "description": "FFmpeg look-tweaking GUI with ffplay preview and presets.",
-  "requires": ["ffmpeg", "ffplay", "ffprobe"]
+  "name": "Video.LookLab",
+  "version": "0.1.0",
+  "description": "LookLab GUI tool for previewing and exporting FFmpeg looks",
+  "entry": "launch.py"
 }
 

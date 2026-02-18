@@ -86,3 +86,37 @@ Core/NSPL does **not**:
 
 Those behaviors live in **Skills/** and in consuming applications.
 
+___
+
+### Portability Contract
+
+Core/NSPL follows a strict portability contract:
+
+* Core/NSPL must remain **stdlib-first**
+
+  * No GUI frameworks
+  * No heavyweight native dependencies
+  * No platform-specific assumptions
+* All Core/NSPL functionality must work on:
+
+  * Linux
+  * macOS
+  * Windows
+  * Headless systems (e.g. servers, SBCs)
+* External tools (ffmpeg, Ollama, etc.) are **optional integrations**
+
+  * Availability must be checked explicitly
+  * Absence must degrade gracefully
+* GUIs are **shells**, not execution engines
+
+  * All durable logic must live in Core or Skills
+  * GUIs may observe state or invoke SkillCLI / Proc
+* No background services
+
+  * All execution must be explicit and inspectable
+* Filesystem state is the integration boundary
+
+  * CLI, GUI, and agents must interoperate through shared artifacts, not private APIs
+
+Violating this contract requires an explicit design decision and documentation.
+
