@@ -72,10 +72,18 @@ def build_look_vf(p: LookParams) -> str:
         f"gamma={p.gamma:.3f}"
     )
 
-    # Warmth/temperature-ish: colorbalance shift (punchier than before)
+    # Warmth: use colortemperature (primary) + colorbalance (punch assist)
     if abs(p.warmth) > 1e-4:
-        rs = max(-0.35, min(0.35, 0.22 * p.warmth))
-        bs = max(-0.35, min(0.35, -0.18 * p.warmth))
+        # Map -1..+1 to Kelvin shift. 6500K is "neutral daylight".
+        # This range is intentionally loud so you can actually see it.
+        base_k = 6500.0
+        kelvin_shift = 3500.0 * p.warmth   # -> 3000K .. 10000K-ish
+        kelvin = max(1000.0, min(40000.0, base_k + kelvin_shift))
+        parts.append(f"colortemperature=temperature={kelvin:.1f}")
+
+        # Punch assist: subtle red/blue bias on top of temperature
+        rs = max(-0.50, min(0.50, 0.30 * p.warmth))
+        bs = max(-0.50, min(0.50, -0.28 * p.warmth))
         parts.append(f"colorbalance=rs={rs:.3f}:bs={bs:.3f}")
 
     # Mild unsharp (only if requested)

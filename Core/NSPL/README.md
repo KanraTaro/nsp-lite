@@ -120,3 +120,38 @@ Core/NSPL follows a strict portability contract:
 
 Violating this contract requires an explicit design decision and documentation.
 
+---
+
+## Datastores & Indexing Policy (Filesystem Truth)
+
+NSPL is **filesystem-truth first**.
+
+### Source of truth
+If something must be:
+- durable across crashes
+- inspectable by humans/tools
+- replayable for debugging
+- syncable between machines
+
+…then it must exist as a **file artifact** under `State/` (JSON snapshots + JSONL event logs).
+
+### Optional databases
+Databases are allowed, but only as **derived projections** (indexes/caches) that can be rebuilt from file artifacts.
+
+Use a DB when we need:
+- fast search across many artifacts
+- aggregation / analytics queries
+- UI responsiveness on large datasets
+
+Rules:
+- DB contents are **never the only copy** of important state.
+- If the DB is deleted/corrupted, the system must be able to regenerate it from artifacts.
+- Multi-writer shared state should prefer **append-only logs + projections** over “shared mutable JSON”.
+
+### Concurrency guidance
+- Prefer **single-writer per artifact**.
+- For many writers, write **events** (append-only) and rebuild projections.
+- Avoid shared mutable files that will cause sync conflicts.
+
+---
+
