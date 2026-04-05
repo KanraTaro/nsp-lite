@@ -1,15 +1,13 @@
-"""Video.Frames.PingPong skill.
+"""Video.Frames.BuildVideo skill.
 
-Thin convenience wrapper around the general frames-to-video pipeline.
+General frames-to-video builder.
 
-This skill exists because "make me a ping-pong loop" is a common-enough
-user intent that it deserves a direct command, even though the real
-implementation lives in Core.Video.frames_to_video.
+Supports:
+- forward sequence
+- pingpong sequence
 
-Canon loop shape:
-  Forward: A..Z
-  Reverse: Z-1..B
-(no duplicated A or Z, looks smoother when looping)
+This is the canonical CLI/agent-facing entrypoint for turning a folder
+of ordered frames into a video clip.
 """
 
 from __future__ import annotations
@@ -25,7 +23,14 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--frames-dir", default=".", help="Folder containing frames.")
     parser.add_argument("--glob", default="*.png", help="Glob pattern (default: *.png).")
     parser.add_argument("--fps", type=int, default=12, help="Frames per second.")
-    parser.add_argument("--out", default="pingpong.mp4", help="Output filename or path.")
+    parser.add_argument("--out", default="frames.mp4", help="Output filename or path.")
+
+    parser.add_argument(
+        "--mode",
+        default="forward",
+        choices=["forward", "pingpong"],
+        help="Sequence mode.",
+    )
 
     parser.add_argument("--crf", default="18", help="x264 CRF value.")
     parser.add_argument("--preset", default="veryfast", help="x264 preset.")
@@ -50,7 +55,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         output_path=out_path,
         fps=int(args.fps),
         pattern=str(args.glob),
-        mode="pingpong",
+        mode=str(args.mode),
         vcodec=str(args.codec),
         crf=str(args.crf),
         preset=str(args.preset),

@@ -1,7 +1,6 @@
 {
   "name": "Video.Frames.PingPong",
   "version": "0.1.0",
-  "description": "Create a clean ping-pong loop video from a folder of frames.",
+  "description": "Create a clean ping-pong loop video from a folder of frames as a convenience wrapper over the general frames builder.",
   "entry": "skill.py"
 }
-

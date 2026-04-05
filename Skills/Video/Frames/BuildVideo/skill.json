@@ -1,0 +1,6 @@
+{
+  "name": "Video.Frames.BuildVideo",
+  "version": "0.1.0",
+  "description": "Build a video clip from a folder of ordered frames.",
+  "entry": "skill.py"
+}

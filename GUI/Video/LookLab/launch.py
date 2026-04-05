@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Callable, Optional, Sequence
 
 from PySide6.QtCore import Qt, QProcess
 from PySide6.QtGui import QColor, QPalette
@@ -23,12 +23,19 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QDoubleSpinBox,
     QProgressDialog,
+    QTabWidget,
+    QSpinBox,
 )
 
 from Core.Video.export import ExportOptions, build_export_args
 from Core.Video.probe import get_duration_ms
 from Core.Video.ffmpeg_exec import require_ffmpeg, require_ffplay
 from Core.Video.filters import compose_vf
+from Core.Video.frames_to_video import (
+    FramesToVideoOptions,
+    PreparedFramesToVideo,
+    prepare_frames_to_video,
+)
 
 from Core.NSPL.Proc.adapters.ffmpeg import FfmpegAdapter, FfmpegAdapterConfig
 from Core.NSPL.Proc.records import ProcRecordType
@@ -36,76 +43,52 @@ from Core.NSPL.Proc.runner import ProcessRunner
 from Core.NSPL.Proc.sinks import CallbackSink
 
 
-# -------------------------
-# Params + filter building
-# -------------------------
-
 @dataclass
 class LookParams:
-    # Basic grade
     contrast: float = 1.0
     saturation: float = 1.0
     brightness: float = 0.0
     gamma: float = 1.0
-
-    # Detail / polish
     unsharp_luma: float = 0.0
     vignette: float = 0.0
-
-    # "Extras"
-    warmth: float = 0.0   # -1..+1 (cool -> warm)
-    grain: float = 0.0    # 0..1
+    warmth: float = 0.0
+    grain: float = 0.0
 
 
-def build_look_vf(p: LookParams) -> str:
-    """
-    Builds ONLY the "look" portion of the vf chain.
-    Scaling and format are handled by Core.Video.compose_vf so LookLab stays dumb.
-    """
+def build_look_vf(params: LookParams) -> str:
     parts: list[str] = []
 
-    # Basic grade
-    parts.append(
-        f"eq=contrast={p.contrast:.3f}:"
-        f"brightness={p.brightness:.3f}:"
-        f"saturation={p.saturation:.3f}:"
-        f"gamma={p.gamma:.3f}"
-    )
-
-    # Warmth: use colortemperature (primary) + colorbalance (punch assist)
-    if abs(p.warmth) > 1e-4:
-        # Map -1..+1 to Kelvin shift. 6500K is "neutral daylight".
-        # This range is intentionally loud so you can actually see it.
-        base_k = 6500.0
-        kelvin_shift = 3500.0 * p.warmth   # -> 3000K .. 10000K-ish
-        kelvin = max(1000.0, min(40000.0, base_k + kelvin_shift))
+    # Warmth first so the later eq pass does not visually flatten it as much.
+    if abs(params.warmth) > 1e-4:
+        base_kelvin: float = 6500.0
+        kelvin_shift: float = 3500.0 * params.warmth
+        kelvin: float = max(1000.0, min(40000.0, base_kelvin + kelvin_shift))
         parts.append(f"colortemperature=temperature={kelvin:.1f}")
 
-        # Punch assist: subtle red/blue bias on top of temperature
-        rs = max(-0.50, min(0.50, 0.30 * p.warmth))
-        bs = max(-0.50, min(0.50, -0.28 * p.warmth))
-        parts.append(f"colorbalance=rs={rs:.3f}:bs={bs:.3f}")
+        red_shift: float = max(-0.50, min(0.50, 0.30 * params.warmth))
+        blue_shift: float = max(-0.50, min(0.50, -0.28 * params.warmth))
+        parts.append(f"colorbalance=rs={red_shift:.3f}:bs={blue_shift:.3f}")
 
-    # Mild unsharp (only if requested)
-    if p.unsharp_luma > 1e-4:
-        parts.append(f"unsharp=5:5:{p.unsharp_luma:.3f}:5:5:0.000")
+    parts.append(
+        f"eq=contrast={params.contrast:.3f}:"
+        f"brightness={params.brightness:.3f}:"
+        f"saturation={params.saturation:.3f}:"
+        f"gamma={params.gamma:.3f}"
+    )
 
-    # Vignette (only if requested)
-    if p.vignette > 1e-4:
-        angle = 0.2 + (p.vignette * 1.2)
-        parts.append(f"vignette=PI/{1.0/angle:.3f}")
+    if params.unsharp_luma > 1e-4:
+        parts.append(f"unsharp=5:5:{params.unsharp_luma:.3f}:5:5:0.000")
 
-    # Grain (only if requested)
-    if p.grain > 1e-4:
-        strength = max(0.0, min(12.0, p.grain * 12.0))
+    if params.vignette > 1e-4:
+        angle: float = 0.2 + (params.vignette * 1.2)
+        parts.append(f"vignette=PI/{1.0 / angle:.3f}")
+
+    if params.grain > 1e-4:
+        strength: float = max(0.0, min(12.0, params.grain * 12.0))
         parts.append(f"noise=alls={strength:.2f}:allf=t+u")
 
     return ",".join(parts)
 
-
-# -------------------------
-# UI helpers
-# -------------------------
 
 def set_dark_palette(app: QApplication) -> None:
     palette = QPalette()
@@ -122,10 +105,6 @@ def set_dark_palette(app: QApplication) -> None:
 
 
 class SliderRow(QWidget):
-    """
-    Slider + editable float spinbox.
-    Slider gives fast feel, spinbox gives precision.
-    """
     def __init__(
         self,
         label: str,
@@ -138,15 +117,14 @@ class SliderRow(QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self._min = float(min_val)
-        self._max = float(max_val)
-        self._step = float(step)
-        self._decimals = int(decimals)
+        self._min: float = float(min_val)
+        self._max: float = float(max_val)
+        self._step: float = float(step)
+        self._decimals: int = int(decimals)
         self._sync_guard: bool = False
 
-        self._ticks = int(round((self._max - self._min) / self._step))
-        if self._ticks <= 0:
-            self._ticks = 1
+        ticks: int = int(round((self._max - self._min) / self._step))
+        self._ticks: int = ticks if ticks > 0 else 1
 
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -168,7 +146,6 @@ class SliderRow(QWidget):
         layout.addWidget(self.label)
         layout.addWidget(self.slider, 1)
         layout.addWidget(self.spin)
-
         self.setLayout(layout)
 
         self.slider.valueChanged.connect(self._on_slider)
@@ -176,56 +153,299 @@ class SliderRow(QWidget):
 
         self.set_value(default_val)
 
-    def _on_slider(self, t: int) -> None:
+    def _on_slider(self, tick: int) -> None:
         if self._sync_guard:
             return
+
         self._sync_guard = True
-        v = self._min + (t * self._step)
-        v = max(self._min, min(self._max, v))
-        self.spin.setValue(v)
+        value: float = self._min + (tick * self._step)
+        value = max(self._min, min(self._max, value))
+        self.spin.setValue(value)
         self._sync_guard = False
 
-    def _on_spin(self, v: float) -> None:
+    def _on_spin(self, value: float) -> None:
         if self._sync_guard:
             return
+
         self._sync_guard = True
-        v2 = max(self._min, min(self._max, float(v)))
-        t = int(round((v2 - self._min) / self._step))
-        self.slider.setValue(t)
+        clamped: float = max(self._min, min(self._max, float(value)))
+        tick: int = int(round((clamped - self._min) / self._step))
+        self.slider.setValue(tick)
         self._sync_guard = False
 
     def value(self) -> float:
         return float(self.spin.value())
 
-    def set_value(self, v: float) -> None:
-        self.spin.setValue(float(v))
+    def set_value(self, value: float) -> None:
+        self.spin.setValue(float(value))
 
 
-# -------------------------
-# Main app
-# -------------------------
+class FramesTab(QWidget):
+    def __init__(self, *, on_built_video: Callable[[str], None]) -> None:
+        super().__init__()
+        self._on_built_video = on_built_video
 
-class LookLab(QWidget):
+        self.build_proc: QProcess | None = None
+        self.build_progress: QProgressDialog | None = None
+        self._ffmpeg_adapter: FfmpegAdapter | None = None
+        self._prep: PreparedFramesToVideo | None = None
+        self._out_path: str = ""
+
+        root = QVBoxLayout()
+
+        dir_row = QHBoxLayout()
+        self.frames_dir_edit = QLineEdit()
+        self.frames_dir_edit.setPlaceholderText("Pick a folder containing frames, like 0001.png ...")
+        dir_browse_btn = QPushButton("Browse")
+        dir_browse_btn.clicked.connect(self.browse_frames_dir)
+        dir_row.addWidget(QLabel("Frames dir:"))
+        dir_row.addWidget(self.frames_dir_edit, 1)
+        dir_row.addWidget(dir_browse_btn)
+        root.addLayout(dir_row)
+
+        opts_row = QHBoxLayout()
+
+        self.pattern_edit = QLineEdit("*.png")
+        self.pattern_edit.setMinimumWidth(120)
+
+        self.fps_spin = QSpinBox()
+        self.fps_spin.setRange(1, 120)
+        self.fps_spin.setValue(12)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("PingPong", "pingpong")
+        self.mode_combo.addItem("Forward", "forward")
+
+        opts_row.addWidget(QLabel("Pattern:"))
+        opts_row.addWidget(self.pattern_edit)
+        opts_row.addSpacing(10)
+        opts_row.addWidget(QLabel("FPS:"))
+        opts_row.addWidget(self.fps_spin)
+        opts_row.addSpacing(10)
+        opts_row.addWidget(QLabel("Mode:"))
+        opts_row.addWidget(self.mode_combo, 1)
+        root.addLayout(opts_row)
+
+        out_row = QHBoxLayout()
+        self.out_edit = QLineEdit()
+        self.out_edit.setPlaceholderText("Output mp4 path")
+        out_browse_btn = QPushButton("Save As")
+        out_browse_btn.clicked.connect(self.browse_out_path)
+        out_row.addWidget(QLabel("Output:"))
+        out_row.addWidget(self.out_edit, 1)
+        out_row.addWidget(out_browse_btn)
+        root.addLayout(out_row)
+
+        btn_row = QHBoxLayout()
+        build_btn = QPushButton("Build Video")
+        build_btn.clicked.connect(self.build_video)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self._cancel_build)
+        btn_row.addWidget(build_btn)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addStretch(1)
+        root.addLayout(btn_row)
+
+        note = QLabel("Tip: Build the loop here, then switch to Grade tab to color grade and export.")
+        note.setWordWrap(True)
+        root.addWidget(note)
+
+        self.setLayout(root)
+
+    def browse_frames_dir(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select frames directory",
+            os.path.expanduser("~"),
+        )
+        if path:
+            self.frames_dir_edit.setText(path)
+            if self.out_edit.text().strip() == "":
+                self.out_edit.setText(os.path.join(path, "pingpong.mp4"))
+
+    def browse_out_path(self) -> None:
+        frames_dir: str = self.frames_dir_edit.text().strip()
+        start_dir: str = frames_dir if frames_dir != "" else os.path.expanduser("~")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save output video",
+            os.path.join(start_dir, "pingpong.mp4"),
+            "MP4 Video (*.mp4);;All Files (*)",
+        )
+        if path:
+            self.out_edit.setText(path)
+
+    def _cancel_build(self) -> None:
+        if self.build_proc is not None:
+            try:
+                self.build_proc.kill()
+            except Exception:
+                pass
+
+    def _on_build_stdout(self) -> None:
+        if self.build_proc is None or self.build_progress is None or self._ffmpeg_adapter is None:
+            return
+
+        chunk = bytes(self.build_proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if chunk == "":
+            return
+
+        for raw_line in chunk.splitlines():
+            fragments = self._ffmpeg_adapter.on_stdout_line(raw_line)
+            for fragment in fragments:
+                if fragment.type != ProcRecordType.PROGRESS:
+                    continue
+
+                pct = fragment.data.get("pct", None)
+                if pct is None:
+                    continue
+
+                try:
+                    self.build_progress.setValue(int(pct))
+                except Exception:
+                    pass
+
+    def _on_build_finished(self, exit_code: int, _status) -> None:
+        if self.build_progress is not None:
+            if exit_code == 0:
+                try:
+                    self.build_progress.setValue(100)
+                except Exception:
+                    pass
+            self.build_progress.close()
+            self.build_progress = None
+
+        if self._prep is not None:
+            try:
+                self._prep.cleanup()
+            except Exception:
+                pass
+            self._prep = None
+
+        if exit_code == 0:
+            QMessageBox.information(self, "Build complete", f"Wrote:\n{self._out_path}")
+            try:
+                self._on_built_video(self._out_path)
+            except Exception:
+                pass
+        else:
+            err: str = ""
+            if self.build_proc is not None:
+                err = bytes(self.build_proc.readAllStandardError()).decode("utf-8", errors="replace")
+            if err.strip() == "":
+                err = "ffmpeg exited with a non-zero code."
+            QMessageBox.critical(self, "Build failed", err.strip())
+
+        self.build_proc = None
+        self._out_path = ""
+        self._ffmpeg_adapter = None
+
+    def build_video(self) -> None:
+        frames_dir: str = self.frames_dir_edit.text().strip()
+        if frames_dir == "":
+            QMessageBox.warning(self, "No frames dir", "Pick a frames directory first.")
+            return
+        if not os.path.isdir(frames_dir):
+            QMessageBox.warning(self, "Missing dir", f"Directory not found:\n{frames_dir}")
+            return
+
+        out_path: str = self.out_edit.text().strip()
+        if out_path == "":
+            out_path = os.path.join(frames_dir, "pingpong.mp4")
+            self.out_edit.setText(out_path)
+
+        pattern: str = self.pattern_edit.text().strip() or "*.png"
+        fps: int = int(self.fps_spin.value())
+        mode: str = str(self.mode_combo.currentData() or "pingpong")
+
+        try:
+            ffmpeg = require_ffmpeg()
+        except Exception as ex:
+            QMessageBox.critical(self, "ffmpeg missing", str(ex))
+            return
+
+        if self.build_proc is not None:
+            try:
+                self.build_proc.kill()
+            except Exception:
+                pass
+            self.build_proc = None
+
+        opts = FramesToVideoOptions(
+            frames_dir=frames_dir,
+            output_path=out_path,
+            fps=fps,
+            pattern=pattern,
+            mode=mode,
+            include_progress=True,
+        )
+
+        try:
+            self._prep = prepare_frames_to_video(opts)
+        except Exception as ex:
+            QMessageBox.critical(self, "Build setup failed", str(ex))
+            self._prep = None
+            return
+
+        self._out_path = out_path
+        self._ffmpeg_adapter = FfmpegAdapter(
+            FfmpegAdapterConfig(duration_ms=int(self._prep.duration_ms))
+        )
+
+        self.build_proc = QProcess(self)
+        self.build_proc.setProgram(ffmpeg.path)
+        self.build_proc.setArguments(self._prep.args)
+        self.build_proc.setProcessChannelMode(QProcess.SeparateChannels)
+
+        self.build_progress = QProgressDialog("Building video from frames...", "Cancel", 0, 100, self)
+        self.build_progress.setWindowTitle("LookLab Frames Build")
+        self.build_progress.setMinimumDuration(0)
+        self.build_progress.setValue(0)
+        self.build_progress.canceled.connect(self._cancel_build)
+
+        if self._prep.duration_ms <= 0:
+            self.build_progress.setRange(0, 0)
+        else:
+            self.build_progress.setRange(0, 100)
+
+        self.build_proc.readyReadStandardOutput.connect(self._on_build_stdout)
+        self.build_proc.finished.connect(self._on_build_finished)
+
+        self.build_proc.start()
+        if not self.build_proc.waitForStarted(1500):
+            if self.build_progress is not None:
+                self.build_progress.close()
+                self.build_progress = None
+
+            QMessageBox.critical(self, "ffmpeg failed", "ffmpeg could not be started.")
+            self.build_proc = None
+
+            if self._prep is not None:
+                try:
+                    self._prep.cleanup()
+                except Exception:
+                    pass
+                self._prep = None
+
+            self._out_path = ""
+            self._ffmpeg_adapter = None
+
+
+class GradeTab(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("LookLab (ffplay preview)")
 
-        # NSPL Proc runner for ffplay preview (ignore records for now)
         self._proc_runner = ProcessRunner(CallbackSink(lambda _rec: None))
         self.preview_handle = None
 
-        # Export state
         self.export_proc: QProcess | None = None
         self.export_progress: QProgressDialog | None = None
         self.export_duration_ms: int = 0
         self.export_out_path: str = ""
-
-        # Ffmpeg progress adapter
         self._ffmpeg_adapter: FfmpegAdapter | None = None
 
         root = QVBoxLayout()
 
-        # Video path row
         path_row = QHBoxLayout()
         self.path_edit = QLineEdit()
         self.path_edit.setPlaceholderText("Pick a video (ideally a 1–3s preview clip)")
@@ -236,7 +456,6 @@ class LookLab(QWidget):
         path_row.addWidget(browse_btn)
         root.addLayout(path_row)
 
-        # Scale dropdown
         scale_row = QHBoxLayout()
         scale_row.addWidget(QLabel("Scale width:"))
         self.scale_combo = QComboBox()
@@ -247,7 +466,6 @@ class LookLab(QWidget):
         scale_row.addWidget(self.scale_combo, 1)
         root.addLayout(scale_row)
 
-        # Groups keep it readable
         grade_box = QGroupBox("Grade")
         grade_layout = QVBoxLayout()
         self.contrast = SliderRow("Contrast", 0.50, 2.50, 1.00, 0.01)
@@ -280,13 +498,11 @@ class LookLab(QWidget):
         root.addWidget(polish_box)
         root.addWidget(extras_box)
 
-        # Filter string display (final vf string, including scale + format)
         self.filter_edit = QLineEdit()
         self.filter_edit.setReadOnly(True)
         root.addWidget(QLabel("Generated -vf filtergraph:"))
         root.addWidget(self.filter_edit)
 
-        # Buttons
         btns = QHBoxLayout()
         preview_btn = QPushButton("Preview (ffplay)")
         preview_btn.clicked.connect(self.preview)
@@ -308,25 +524,32 @@ class LookLab(QWidget):
 
         self.setLayout(root)
 
-        # Update filter string when values change (slider + spinbox!)
-        for row in [
-            self.contrast, self.saturation, self.brightness, self.gamma,
-            self.unsharp_luma, self.vignette, self.warmth, self.grain
-        ]:
+        watched_rows = [
+            self.contrast,
+            self.saturation,
+            self.brightness,
+            self.gamma,
+            self.unsharp_luma,
+            self.vignette,
+            self.warmth,
+            self.grain,
+        ]
+        for row in watched_rows:
             row.slider.valueChanged.connect(self.update_filter)
             row.spin.valueChanged.connect(self.update_filter)
 
         self.scale_combo.currentIndexChanged.connect(self.update_filter)
-
         self.update_filter()
 
     def closeEvent(self, event) -> None:
-        # Kill ffplay if user closes the window
         try:
             self.stop_preview()
         except Exception:
             pass
         super().closeEvent(event)
+
+    def set_video_path(self, path: str) -> None:
+        self.path_edit.setText(path.strip())
 
     def get_params(self) -> LookParams:
         return LookParams(
@@ -344,8 +567,8 @@ class LookLab(QWidget):
         return int(self.scale_combo.currentData() or 0)
 
     def update_filter(self) -> None:
-        look_vf = build_look_vf(self.get_params())
-        vf = compose_vf(
+        look_vf: str = build_look_vf(self.get_params())
+        vf: str = compose_vf(
             look_vf=look_vf,
             fit_vf=None,
             scale_width=self._scale_width() if self._scale_width() > 0 else None,
@@ -364,8 +587,8 @@ class LookLab(QWidget):
             self.path_edit.setText(path)
 
     def preview(self) -> None:
-        video = self.path_edit.text().strip()
-        if not video:
+        video: str = self.path_edit.text().strip()
+        if video == "":
             QMessageBox.warning(self, "No video", "Pick a video first (preferably a 1–3s preview clip).")
             return
         if not os.path.exists(video):
@@ -378,8 +601,8 @@ class LookLab(QWidget):
             QMessageBox.critical(self, "ffplay missing", str(ex))
             return
 
-        vf = self.filter_edit.text().strip()
-        cmd = [ffplay.path, "-loop", "0", "-vf", vf, video]
+        vf: str = self.filter_edit.text().strip()
+        cmd: list[str] = [ffplay.path, "-loop", "0", "-vf", vf, video]
 
         self.stop_preview()
 
@@ -406,7 +629,7 @@ class LookLab(QWidget):
         QApplication.clipboard().setText(self.filter_edit.text().strip())
 
     def save_preset(self) -> None:
-        default_name = "look_01.fffilter"
+        default_name: str = "look_01.fffilter"
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save preset",
@@ -417,16 +640,11 @@ class LookLab(QWidget):
             return
 
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                # Save ONLY the look vf (not the auto scale/format wrapper)
-                look_vf = build_look_vf(self.get_params()).strip()
-                f.write(look_vf + "\n")
+            with open(path, "w", encoding="utf-8") as handle:
+                look_vf: str = build_look_vf(self.get_params()).strip()
+                handle.write(look_vf + "\n")
         except Exception as ex:
             QMessageBox.critical(self, "Save failed", str(ex))
-
-    # -------------------------
-    # Export (async + percent)
-    # -------------------------
 
     def _cancel_export(self) -> None:
         if self.export_proc is not None:
@@ -437,17 +655,16 @@ class LookLab(QWidget):
             return
 
         chunk = bytes(self.export_proc.readAllStandardOutput()).decode("utf-8", errors="replace")
-        if not chunk:
+        if chunk == "":
             return
 
-        # Ffmpeg -progress output is line-based key=value. Feed the adapter line by line.
-        for raw_ln in chunk.splitlines():
-            frags = self._ffmpeg_adapter.on_stdout_line(raw_ln)
-            for frag in frags:
-                if frag.type != ProcRecordType.PROGRESS:
+        for raw_line in chunk.splitlines():
+            fragments = self._ffmpeg_adapter.on_stdout_line(raw_line)
+            for fragment in fragments:
+                if fragment.type != ProcRecordType.PROGRESS:
                     continue
 
-                pct = frag.data.get("pct", None)
+                pct = fragment.data.get("pct", None)
                 if pct is None:
                     continue
 
@@ -469,10 +686,10 @@ class LookLab(QWidget):
         if exit_code == 0:
             QMessageBox.information(self, "Export complete", f"Wrote:\n{self.export_out_path}")
         else:
-            err = ""
+            err: str = ""
             if self.export_proc is not None:
                 err = bytes(self.export_proc.readAllStandardError()).decode("utf-8", errors="replace")
-            if not err.strip():
+            if err.strip() == "":
                 err = "ffmpeg exited with a non-zero code."
             QMessageBox.critical(self, "Export failed", err.strip())
 
@@ -482,8 +699,8 @@ class LookLab(QWidget):
         self._ffmpeg_adapter = None
 
     def export_video(self) -> None:
-        video = self.path_edit.text().strip()
-        if not video:
+        video: str = self.path_edit.text().strip()
+        if video == "":
             QMessageBox.warning(self, "No video", "Pick a video first.")
             return
         if not os.path.exists(video):
@@ -505,7 +722,6 @@ class LookLab(QWidget):
         if not out_path:
             return
 
-        # Kill any previous export
         if self.export_proc is not None:
             try:
                 self.export_proc.kill()
@@ -514,13 +730,11 @@ class LookLab(QWidget):
             self.export_proc = None
 
         self.export_out_path = out_path
-
-        # Duration goes through Core.Video (which goes through Deps + ffprobe)
         self.export_duration_ms = int(get_duration_ms(video) or 0)
 
-        look_vf = build_look_vf(self.get_params()).strip()
-        scale_width = self._scale_width()
-        scale_width_opt = scale_width if scale_width > 0 else None
+        look_vf: str = build_look_vf(self.get_params()).strip()
+        scale_width: int = self._scale_width()
+        scale_width_opt: int | None = scale_width if scale_width > 0 else None
 
         export_opts = ExportOptions(
             input_path=video,
@@ -531,22 +745,21 @@ class LookLab(QWidget):
             target=None,
             fit="pad",
         )
-        args = build_export_args(export_opts)
+        args: list[str] = build_export_args(export_opts)
 
-        # Insert progress flags so adapter can work
-        args2: list[str] = []
-        i = 0
-        while i < len(args):
-            args2.append(args[i])
-            if args[i] == "-nostats":
-                args2.extend(["-progress", "pipe:1"])
-            i += 1
+        args_with_progress: list[str] = []
+        for arg in args:
+            args_with_progress.append(arg)
+            if arg == "-nostats":
+                args_with_progress.extend(["-progress", "pipe:1"])
 
-        self._ffmpeg_adapter = FfmpegAdapter(FfmpegAdapterConfig(duration_ms=self.export_duration_ms))
+        self._ffmpeg_adapter = FfmpegAdapter(
+            FfmpegAdapterConfig(duration_ms=self.export_duration_ms)
+        )
 
         self.export_proc = QProcess(self)
         self.export_proc.setProgram(ffmpeg.path)
-        self.export_proc.setArguments(args2)
+        self.export_proc.setArguments(args_with_progress)
         self.export_proc.setProcessChannelMode(QProcess.SeparateChannels)
 
         self.export_progress = QProgressDialog("Exporting...", "Cancel", 0, 100, self)
@@ -568,11 +781,41 @@ class LookLab(QWidget):
             if self.export_progress is not None:
                 self.export_progress.close()
                 self.export_progress = None
+
             QMessageBox.critical(self, "ffmpeg failed", "ffmpeg could not be started.")
             self.export_proc = None
             self.export_out_path = ""
             self.export_duration_ms = 0
             self._ffmpeg_adapter = None
+
+
+class LookLab(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("LookLab")
+
+        root = QVBoxLayout()
+
+        self.tabs = QTabWidget()
+        self.grade_tab = GradeTab()
+        self.frames_tab = FramesTab(on_built_video=self._on_built_video)
+
+        self.tabs.addTab(self.frames_tab, "Frames")
+        self.tabs.addTab(self.grade_tab, "Grade")
+
+        root.addWidget(self.tabs)
+        self.setLayout(root)
+
+    def _on_built_video(self, out_path: str) -> None:
+        self.grade_tab.set_video_path(out_path)
+        self.tabs.setCurrentWidget(self.grade_tab)
+
+    def closeEvent(self, event) -> None:
+        try:
+            self.grade_tab.stop_preview()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -582,12 +825,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     app = QApplication([sys.argv[0], *list(argv)])
     set_dark_palette(app)
 
-    w = LookLab()
-    w.resize(860, 520)
-    w.show()
+    window = LookLab()
+    window.resize(900, 600)
+    window.show()
     return app.exec()
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
