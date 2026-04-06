@@ -453,7 +453,7 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
         keep = 1
 
     p: Path = Path(path)
-    if not p.exists():
+    if not exists(p):
         return
 
     try:
@@ -468,9 +468,9 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
 
     # Drop the oldest
     oldest: Path = p.with_name(f"{p.name}.{keep}")
-    if oldest.exists():
+    if exists(oldest):
         try:
-            oldest.unlink()
+            delete_file(oldest)
         except Exception:
             pass
 
@@ -478,20 +478,21 @@ def _rotate_jsonl(path: Path, rotation: JsonlRotationPolicy) -> None:
     for i in range(keep - 1, 0, -1):
         src: Path = p.with_name(f"{p.name}.{i}")
         dst: Path = p.with_name(f"{p.name}.{i + 1}")
-        if src.exists():
+        if exists(src):
             try:
-                os.replace(str(src), str(dst))
+                atomic_replace(src, dst)
             except Exception:
                 pass
 
     # Current -> .1
     rotated: Path = p.with_name(f"{p.name}.1")
     try:
-        os.replace(str(p), str(rotated))
+        atomic_replace(p, rotated)
     except Exception:
         pass
 
     _fsync_dir(p.parent)
+    
 
 def append_jsonl_rotating(
     path: Path,
@@ -676,6 +677,49 @@ def ensure_dir(path: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
     _fsync_dir(p)
 
+def ensure_parent_dir(path: Path) -> None:
+    """Ensure the parent directory for a file path exists."""
+    p: Path = Path(path)
+    ensure_dir(p.parent)
+    
+def exists(path: Path) -> bool:
+    """Return True if the path exists."""
+    return Path(path).exists()
+
+
+def is_file(path: Path) -> bool:
+    """Return True if the path exists and is a file."""
+    return Path(path).is_file()
+
+
+def is_dir(path: Path) -> bool:
+    """Return True if the path exists and is a directory."""
+    return Path(path).is_dir()
+
+
+def list_dir(path: Path) -> List[Path]:
+    """Return sorted direct children of a directory.
+
+    Returns an empty list when the directory does not exist.
+    Does not recurse.
+    """
+    p: Path = Path(path)
+    if not p.exists():
+        return []
+    if not p.is_dir():
+        raise NotADirectoryError(str(p))
+
+    return sorted(p.iterdir(), key=lambda entry: entry.name)
+
+
+def list_files(path: Path, suffix: Optional[str] = None) -> List[Path]:
+    """Return sorted files in a directory, optionally filtered by suffix."""
+    files: List[Path] = [entry for entry in list_dir(path) if entry.is_file()]
+
+    if suffix is None:
+        return files
+
+    return [entry for entry in files if entry.suffix == suffix]
 
 def atomic_replace(src: Path, dst: Path) -> None:
     """Atomic rename/replace from src -> dst, creating dst parent dirs."""
@@ -700,6 +744,25 @@ def atomic_move_to_dir(src: Path, dst_dir: Path, *, dst_name: Optional[str] = No
     atomic_replace(s, dst)
     return dst
 
+def delete_file(path: Path, *, missing_ok: bool = True) -> None:
+    """Delete a file path.
+
+    - Deletes files only
+    - Raises IsADirectoryError when the path is a directory
+    - No-ops when missing and missing_ok=True
+    """
+    p: Path = Path(path)
+
+    if not p.exists():
+        if missing_ok:
+            return
+        raise FileNotFoundError(str(p))
+
+    if p.is_dir():
+        raise IsADirectoryError(str(p))
+
+    p.unlink()
+    _fsync_dir(p.parent)
 
 def _atomic_write_bytes(target: Path, data: bytes) -> None:
     """Write bytes to target atomically AND durably.
@@ -757,7 +820,34 @@ def read_json(path: Path) -> object:
     """Read JSON data from path and return the deserialized object."""
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+        
+def read_text(path: Path) -> str:
+    """Read UTF-8 text from a file path."""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
+
+def read_bytes(path: Path) -> bytes:
+    """Read raw bytes from a file path."""
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def read_jsonl(path: Path) -> List[object]:
+    """Read a JSONL file into a list of deserialized objects.
+
+    Blank lines are ignored. Malformed JSON raises.
+    """
+    records: List[object] = []
+
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line: str = raw_line.strip()
+            if not line:
+                continue
+            records.append(json.loads(line))
+
+    return records
 
 def append_jsonl(path: Path, obj: object) -> None:
     """Append one JSON object as a single JSONL line, durably."""

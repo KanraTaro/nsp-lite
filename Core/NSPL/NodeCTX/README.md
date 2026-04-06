@@ -1,17 +1,41 @@
 # NodeCTX
 
-NodeCTX (Node Contextualizer) is a small, portable routing and durable I/O layer.
+NodeCTX (Node Contextualizer) is a portable filesystem boundary layer for NSP-style systems.
 
-It solves two recurring problems:
+It provides:
 
-    1. Canonical routing
-       Every system saves state in the same predictable folder structure.
+1. Canonical routing  
+   All state is written to a predictable, validated directory structure.
 
-    2. Durable writes
-       Writes are atomic and best-effort durable across crashes or power loss.
+2. Durable I/O  
+   Writes are atomic and best-effort durable across crashes or power loss.
 
-NodeCTX does not discover the project root.
-Pair it with ProjectRoot for root discovery.
+3. Filesystem boundary helpers  
+   Common filesystem operations (read, list, delete, etc.) are centralized to avoid
+   inconsistent or unsafe direct filesystem usage across systems.
+
+---
+
+## Philosophy
+
+NodeCTX exists to make filesystem usage:
+
+- predictable
+- safe
+- boring
+- consistent across all systems
+
+Higher-level systems should **prefer NodeCTX helpers over direct filesystem access**
+for normal operations involving:
+
+- state
+- config
+- workflow files
+- logs
+- queue-style processing
+
+NodeCTX is not a framework.
+It is a **contract for how systems touch the filesystem**.
 
 ---
 
@@ -25,43 +49,42 @@ State/<InstanceId>/<Scope>/<Domain>/<Bucket>/<Subpath...>/
 
 Where:
 
-    * Root
-      Provided by `ProjectRoot.get_effective_root()`
+- **Root**  
+  Provided externally (typically via `ProjectRoot.get_effective_root()`)
 
-    * InstanceId
-      Logical instance name (for example: `main`, `dev`, `prod`)
+- **InstanceId**  
+  Logical instance name (example: `main`, `dev`, `prod`)
 
-    * Scope
-      `Global` when `global_scope=True`
-      Otherwise the node tag (for example: `KanraDesktop`, `MediaNodeA`)
+- **Scope**  
+  - `Global` when `global_scope=True`
+  - otherwise the node tag (`KanraDesktop`, `NodeA`, etc.)
 
-    * Domain
-      Subsystem grouping (`CLM`, `AutoRoh`, `RohTalk`, `Proc`, etc)
+- **Domain**  
+  Subsystem grouping (`CLM`, `AutoRoh`, `RohTalk`, etc.)
 
-    * Bucket
-      High-level category (`Config`, `Data`, `Workflow`, `Logs`, etc)
+- **Bucket**  
+  High-level category (`Config`, `Data`, `Workflow`, `Logs`, etc.)
 
-    * Subpath
-      Optional nested path for organization. Subpath may be a slash-separated string
-      or a list of segments; each segment is validated.
+- **Subpath**  
+  Optional nested segments (validated)
 
-NodeCTX returns paths only.
-Directories are created by write helpers as needed.
+NodeCTX returns paths only.  
+Directories are created by helpers when needed.
 
 ---
 
-## Path segment safety rules
+## Path safety rules
 
-NodeCTX treats `instance_id`, `node_tag`, `domain`, and each `subpath` segment as **single folder names**.
+All routing segments (`instance_id`, `node_tag`, `domain`, `subpath`) are treated as **single folder names**.
 
-To prevent path traversal and cross-platform weirdness:
+Rules:
 
-* Segments must be non-empty after trimming whitespace
-* Segments must not contain path separators (`/` or platform separators)
-* Segments must not be `"."` or `".."` (prevents traversal)
-* On Windows (`os.name == "nt"`), segments must not contain `":"` (drive letters / ADS hazards)
+- must be non-empty
+- must not contain path separators
+- must not be `"."` or `".."` (prevents traversal)
+- must not contain `":"` on Windows
 
-If a value violates these rules, NodeCTX raises `ValueError`.
+Violations raise `ValueError`.
 
 ---
 
@@ -69,187 +92,216 @@ If a value violates these rules, NodeCTX raises `ValueError`.
 
 ### build_state_dir
 
-Example usage:
 
-    from pathlib import Path
+state_dir = build_state_dir(
+    root=root,
+    instance_id="main",
+    node_tag="KanraDesktop",
+    bucket="Data",
+    domain="Example",
+    global_scope=False,
+    subpath="year/2026/month/01",
+)
 
-    from Core.NSPL.NodeCTX import build_state_dir
-    from Core.NSPL.ProjectRoot import get_effective_root
-
-    root: Path = get_effective_root()
-
-    state_dir: Path = build_state_dir(
-        root=root,
-        instance_id="main",
-        node_tag="KanraDesktop",
-        bucket="Data",
-        domain="Example",
-        global_scope=False,
-        subpath="year/2026/month/01",
-    )
 
 Result:
 
 <Root>/State/main/KanraDesktop/Example/Data/year/2026/month/01/
 
+
 ---
 
 ## Bucket normalization
 
-NodeCTX normalizes known buckets to prevent path fragmentation.
+Known buckets are normalized to canonical casing:
 
-Examples:
-
-* `"data"`, `"DATA"`, `"Data"` → `Data`
-* `"logs"`, `"LOGS"` → `Logs`
+* `"data"` → `Data`
+* `"logs"` → `Logs`
 
 Custom buckets are allowed and passed through unchanged.
 
-Bucket normalization is not enforcement.
-It prevents accidental duplication like having both:
+Purpose:
 
-* `data/`
-* `Data/`
-
-Rules:
-
-* bucket must be non-empty
-* bucket must not contain path separators
-* custom buckets are allowed
+* prevent path fragmentation
+* avoid duplicate folders with different casing
 
 ---
 
 ## Filename prefixing (provenance only)
 
-NodeCTX can prefix filenames to preserve provenance when files leave the system.
+NodeCTX can prefix filenames to preserve origin:
 
-Supported formats:
+Formats:
 
-- <node>-<filename>
-- Global-<filename>
-- <instance>-<node>-<filename>
-- <instance>-Global-<filename>
+* `<node>-<filename>`
+* `Global-<filename>`
+* `<instance>-<node>-<filename>`
+* `<instance>-Global-<filename>`
 
-Prefixing never affects routing.
-Folder layout remains canonical.
+Prefixing:
 
-Prefix stripping helpers are provided for re-ingestion.
+* does **not** affect folder routing
+* is strictly metadata/provenance
 
-**Note:** the global prefix tag defaults to `Global` but can be overridden via `NODECTX_GLOBAL_TAG`.
+Helpers:
 
-### Environment variables
-
-* `NODECTX_NODE_TAG`
-  Overrides the default node tag (otherwise hostname / fallback `"default"`).
-
-* `NODECTX_INSTANCE_ID`
-  Default instance id when callers don’t provide one (default: `"main"`).
-
-* `NODECTX_GLOBAL_TAG`
-  The tag used for global-scope filename prefixing (default: `"Global"`).
-
-* `NODECTX_ENABLE_PREFIXING`
-  Enables/disables filename prefixing (default: enabled).
-
-* `NODECTX_PREFIX_INSTANCE`
-  Includes the instance id in the filename prefix (default: disabled).
+* `apply_prefix(...)`
+* `strip_prefix(...)`
+* `strip_prefix_base_name(...)`
 
 ---
 
-## Durable writes and filesystem helpers
+## Environment variables
 
-NodeCTX provides helpers for durable file output and safe filesystem operations:
+* `NODECTX_NODE_TAG`
+* `NODECTX_INSTANCE_ID`
+* `NODECTX_GLOBAL_TAG`
+* `NODECTX_ENABLE_PREFIXING`
+* `NODECTX_PREFIX_INSTANCE`
 
-### JSON and text
+These control identity and prefixing behavior.
 
-* `write_json_atomic(path, obj)`
-  Pretty-printed JSON, newline-terminated, written atomically.
+---
+
+## Filesystem helpers
+
+NodeCTX provides a consistent set of helpers so systems don’t need to use raw `Path` or `open()` for normal operations.
+
+### Reads
 
 * `read_json(path)`
-  Loads JSON from a file.
+* `read_text(path)`
+* `read_bytes(path)`
+* `read_jsonl(path)`
 
-* `write_text_atomic(path, text)` / `write_bytes_atomic(path, data)`
-  Atomic writes for text and bytes.
+### Writes
 
-### JSONL logging
+* `write_json_atomic(path, obj)`
+* `write_text_atomic(path, text)`
+* `write_bytes_atomic(path, data)`
+* `append_jsonl(path, obj)`
+
+All writes:
+
+* are atomic (write temp → replace)
+* fsync file + parent directory (best effort)
+
+---
+
+## JSONL logging
+
+### Basic
 
 * `append_jsonl(path, obj)`
-  Appends one JSON object as a single JSONL line with flush + fsync.
 
-* `append_jsonl_rotating(path, obj, rotation=..., throttle=...)`
-  Adds optional rotation (by size) and in-process throttling.
+### Advanced
 
-Rotation and throttling policy objects:
+* `append_jsonl_rotating(...)`
+* `log_event_jsonl(...)`
+* `log_event(...)`
+* `build_log_path(...)`
 
-* `JsonlRotationPolicy(max_bytes=256_000, keep=5)`
-  Rotation happens **before** the append.
+Features:
 
-* `JsonlThrottlePolicy(min_interval_sec=...)`
-  Throttle is **in-process only** (not persisted).
+* rotation by size
+* in-process throttling
+* canonical log routing
 
-### Canonical worker/daemon logging
+---
 
-NodeCTX also provides higher-level logging helpers that combine canonical routing
-with JSONL output:
+## Filesystem inspection
 
-* `build_log_path(root, instance_id, node_tag, global_scope, domain, file_name=None, subpath=None)`
-  Builds a canonical log file path under `State/.../<Domain>/Logs/...`.
+* `exists(path)`
+* `is_file(path)`
+* `is_dir(path)`
+* `list_dir(path)`
+* `list_files(path, suffix=None)`
 
-* `log_event(root, instance_id, node_tag, global_scope, domain, kind, extra=None, ...)`
-  Writes a standard JSONL event entry to a canonical log file.
+Behavior:
 
-* `log_event_jsonl(path, kind, base, extra=None, rotation=None, throttle=None, throttle_key=None)`
-  Low-level event writer when you already have a path and base fields.
+* `list_dir()` returns `[]` when missing
+* raises if path exists but is not a directory
+* results are sorted for deterministic behavior
 
-### Directory and atomic move helpers
+---
 
-These are here to keep higher-level systems from reaching for `mkdir()` / `os.replace()` directly:
+## File mutation helpers
+
+* `delete_file(path, missing_ok=True)`
+* `atomic_replace(src, dst)`
+* `atomic_move_to_dir(src, dst_dir, dst_name=None)`
+
+Behavior:
+
+* delete is file-only (raises on directories)
+* atomic operations ensure safe moves and replaces
+* parent directories are created automatically
+
+---
+
+## Directory helpers
 
 * `ensure_dir(path)`
-  Creates the directory (parents included) and best-effort fsyncs the directory metadata.
+* `ensure_parent_dir(path)`
 
-* `atomic_replace(src, dst)`
-  `os.replace()` with parent directory creation and best-effort fsync of the destination directory.
-
-* `atomic_move_to_dir(src, dst_dir, dst_name=None)`
-  Moves `src` into `dst_dir` (optionally renamed) using `atomic_replace()`.
+These ensure directory creation with best-effort durability.
 
 ---
 
 ## Design rules
 
-* NodeCTX never discovers project roots
-* NodeCTX never hardcodes NSP concepts
-* NodeCTX enforces shape, not meaning
-* NodeCTX is safe to embed in any repository
+* NodeCTX does not discover project roots
+* NodeCTX does not encode business logic
+* NodeCTX enforces structure, not meaning
+* NodeCTX is safe to embed anywhere
+
+---
+
+## Usage guideline
+
+If your code is doing something like:
+
+* reading state files
+* writing config
+* appending logs
+* listing workflow directories
+
+You should probably be using NodeCTX.
+
+If you find yourself writing:
+
+
+Path(...).exists()
+open(...)
+os.replace(...)
+
+
+in system-level code, it’s usually a sign that NodeCTX should expose that behavior instead.
 
 ---
 
 ## Tests
 
-NodeCTX ships with unittest coverage for:
+NodeCTX includes coverage for:
 
-* Bucket normalization
-* Global vs local routing
-* Subpath handling (string and list)
-* Prefix application and stripping
-* Durable JSON writes
-* JSONL append correctness
-* ensure_dir + atomic move helpers
+* routing correctness
+* prefix behavior
+* durable writes
+* JSONL logging
+* directory helpers
+* filesystem inspection
+* file mutation helpers
 
-Run tests from repo root:
+Run:
+
 
 python run_tests.py
+
 
 ---
 
 ## Status
 
-NodeCTX V1 is complete and stable.
+NodeCTX is stable and actively evolving.
 
-Future systems should treat NodeCTX as foundational,
-in the same way filesystems treat `open()` and `fsync()`.
-
-You do not think about it.
-You trust it.
-
+It should be treated as the default filesystem contract for NSP systems.
