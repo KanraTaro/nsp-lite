@@ -1,329 +1,315 @@
-# **SkillCLI – RohTalk Skill Dispatcher (v1)**
+# SkillCLI – NSP Skill Dispatcher
 
-SkillCLI is the standard command-line dispatcher for RohTalk skills.
+SkillCLI is the standard command-line dispatcher for NSP skills.
 
-It provides a **stable execution spine** for action-oriented skills by solving two core problems:
+It provides a stable execution spine for action-oriented systems by solving two core problems:
 
-1. **Consistency**
-   Every skill is invoked with the same argument structure, standard flags, error handling, and a shared runtime context (project root, node identity, durable I/O helpers).
+1. Consistency  
+   Every skill is invoked with the same argument structure, flags, error handling, and runtime context.
 
-2. **Lazy dispatch**
-   Skills are discovered via metadata (`skill.json`) without importing their Python modules at startup.
-   Only the selected skill is imported and executed.
+2. Lazy dispatch  
+   Skills are discovered via metadata (skill.json) and only imported when executed.
 
-SkillCLI is intentionally small, explicit, and predictable.
-It is infrastructure — **not** an application layer.
+SkillCLI is infrastructure — not an application layer.
 
 ---
 
 ## Design stance (important)
 
-**Skills are executed exclusively via SkillCLI.**
+Skills are executed exclusively via SkillCLI.
 
-Direct execution of `skill.py` files is **out of scope** for v1 and not guaranteed to work.
+Direct execution of skill.py is not supported.
 
-This constraint is intentional and enables:
+This enables:
 
-* Zero bootstrap code inside skills
-* No `sys.path` manipulation in skill modules
-* A single, authoritative source of runtime context
-* Centralized logging, timing, and observability
+- zero bootstrap code inside skills
+- no sys.path hacks
+- a single runtime context contract
+- centralized logging and lifecycle
+- consistent behavior across CLI, GUI, and workers
 
-If a user needs a GUI, worker process, or alternate entry point, it should invoke SkillCLI internally.
+If something needs to run a skill, it should call SkillCLI.
+
+---
+
+## Relationship to NodeCTX
+
+SkillCLI provides execution.
+
+NodeCTX provides filesystem access.
+
+Together:
+
+- SkillCLI defines how code runs
+- NodeCTX defines how code touches disk
+
+### Rule of thumb
+
+If your skill is interacting with:
+
+- state
+- config
+- logs
+- workflow files
+- queues
+
+you should be using:
+
+ctx.node_ctx
+
+not raw:
+
+Path(...)
+open(...)
+os.replace(...)
+
+NodeCTX is the filesystem boundary.
 
 ---
 
 ## Package layout
 
-```
 Core/
   NSPL/
-    SkillCLI/        # dispatcher, loader, context helpers
-    NodeCTX/         # durable I/O, canonical paths, logging
-    ProjectRoot/     # runtime root discovery utilities
+    SkillCLI/
+    NodeCTX/
+    ProjectRoot/
 
 Skills/
   <Domain>/
     <SkillName>/
-      skill.json     # discovery metadata (no imports)
-      skill.py       # executable implementation
-```
+      skill.json
+      skill.py
 
-`Core/NSPL/SkillCLI` is **not a skill**.
-It is framework infrastructure that skills depend on indirectly via the context object.
+SkillCLI is not a skill.  
+It is runtime infrastructure.
 
 ---
 
 ## Invocation
 
-SkillCLI is invoked as a Python module:
-
-```sh
 python -m Core.NSPL.SkillCLI <command>
-```
-
-This ensures the repository root is bootstrapped correctly and all `Core.*` imports resolve consistently.
 
 ---
 
 ## Commands
 
-### List available skills
+### List skills
 
-```sh
 python -m Core.NSPL.SkillCLI list [--detailed]
-```
 
-* Recursively scans `Skills/` for `skill.json`
-* **Does not import** any `skill.py` modules
-* Prints one skill name per line
-
-Example:
-
-```
-Forge.Time.now
-LLMClient.ollama_chat
-```
-
-With `--detailed`:
-
-```
-Forge.Time.now        0.1.0   Print the current UTC time
-LLMClient.ollama_chat 0.3.0   Send a prompt to a local Ollama model
-```
+- scans Skills/
+- does not import skill modules
+- prints names or metadata
 
 ---
 
 ### Run a skill
 
-```sh
-python -m Core.NSPL.SkillCLI skill <SkillName> [skill arguments...]
-```
+python -m Core.NSPL.SkillCLI skill <SkillName> [args...]
 
 Execution flow:
 
-1. Resolve the skill via `skill.json`
-2. Import **exactly one** module (`skill.py`)
-3. Build an argument parser:
-
-   * Standard flags (provided by SkillCLI)
-   * Skill-specific arguments (`build_parser`)
-4. Construct a runtime context object
-5. Emit a `skill_started` log event
-6. Call `run(args, ctx)`
-7. Emit `skill_finished` or `skill_failed`
-8. Exit with the returned status code
+1. resolve skill via skill.json
+2. import exactly one module
+3. build parser
+4. construct context
+5. log skill_started
+6. run skill
+7. log skill_finished or skill_failed
+8. exit with code
 
 ---
 
-## Dispatcher logging (authoritative)
+## Dispatcher logging
 
-SkillCLI **automatically logs every skill execution**.
+SkillCLI automatically logs all executions via NodeCTX.
 
-This behavior is not optional and does not require any action by skill authors.
+### Events
 
-### What is logged
+- skill_started
+- skill_finished
+- skill_failed
 
-For each skill invocation, SkillCLI emits structured JSONL events:
+### Location
 
-* `skill_started`
-* `skill_finished`
-* `skill_failed`
+State/<Instance>/<Node|Global>/SkillCLI/Logs/skillcli.jsonl
 
-Each event includes:
+### Guarantees
 
-* Timestamp (UTC, ISO 8601)
-* Instance ID
-* Node tag or `Global`
-* Domain (`SkillCLI`)
-* Skill name
-* Exit code (on completion)
-* Duration in milliseconds
-* Original argv (on start)
-* Error details (on failure)
-
-### Where logs are written
-
-Logs are written via `NodeCTX` to a canonical path:
-
-```
-State/
-  <InstanceId>/
-    <NodeTag | Global>/
-      Logs/
-        SkillCLI/
-          skillcli.jsonl
-```
-
-The log file uses **JSON Lines (JSONL)** format and supports rotation.
-
-### Logging guarantees
-
-* Logging is **best-effort**
-* Logging failures **never block skill execution**
-* Logging never changes exit codes
-* No logging output is written to stdout or stderr
-
-Logging exists to support:
-
-* GUIs
-* Workers
-* Debugging
-* Replay
-* Auditing
-* Multi-node observability
+- best-effort only
+- never blocks execution
+- never alters exit codes
 
 ---
 
-## Skill contract (v1)
+## Skill contract
 
-Each skill **must** define:
+Each skill must define:
 
-### `skill.json`
+### skill.json
 
-Minimum required fields:
-
-```json
 {
-  "name": "ChatOps.send_task",
+  "name": "Example.echo",
   "version": "0.1.0",
-  "description": "Submit a ChatOps task into the queue"
+  "description": "Example skill"
 }
-```
-
-Optional:
-
-* `"entry"` – defaults to `"skill.py"`
-
-The `name` must be globally unique across all skills.
 
 ---
 
-### `skill.py`
+### skill.py
 
-Each skill module must export **exactly two callables**:
+def build_parser(parser):
+    ...
 
-#### `build_parser(parser: argparse.ArgumentParser) -> None`
+def run(args, ctx) -> int:
+    ...
 
-* Extend the provided parser with skill-specific arguments
-* **Do not** call `parse_args()`
+---
 
-#### `run(args: argparse.Namespace, ctx: SkillContext) -> int`
+## The context object
 
-* Execute the skill
-* Return an integer exit code (`0` = success)
-* All filesystem interaction **must go through `ctx.node_ctx`**
+SkillCLI provides a ctx object.
 
-Optional:
+### Fields
 
-* `SKILL_META` dictionary (introspection only)
+- ctx.root
+- ctx.node_tag
+- ctx.instance_id
+- ctx.global_scope
+- ctx.node_ctx
+- ctx.debug
+- ctx.json
+
+### Important
+
+ctx.node_ctx is your filesystem interface.
+
+---
+
+## NodeCTX usage inside skills
+
+This is the most important section.
+
+### Pattern: build → read/write
+
+def run(args, ctx):
+    node_ctx = ctx.node_ctx
+
+    path = node_ctx.build_state_dir(
+        root=ctx.root,
+        instance_id=ctx.instance_id,
+        node_tag=ctx.node_tag,
+        global_scope=ctx.global_scope,
+        domain="Example",
+        bucket="Data",
+        subpath="items"
+    )
+
+    file_path = path / "item.json"
+
+    node_ctx.write_json_atomic(file_path, {"value": 123})
+
+    return 0
+
+---
+
+### Pattern: append logs
+
+node_ctx.append_jsonl(log_path, {"event": "something"})
+
+or use:
+
+node_ctx.log_event(...)
+
+---
+
+### Pattern: list files
+
+files = node_ctx.list_files(path, suffix=".json")
+
+---
+
+### Pattern: read data
+
+data = node_ctx.read_json(file_path)
+text = node_ctx.read_text(file_path)
+lines = node_ctx.read_jsonl(log_path)
+
+---
+
+### Pattern: safe mutation
+
+node_ctx.atomic_move_to_dir(src, dst_dir)
+node_ctx.delete_file(path)
+
+---
+
+## What NOT to do
+
+Avoid this in skills:
+
+open(...)
+Path(...).exists()
+os.replace(...)
+
+Unless you have a very specific reason.
+
+If you need something NodeCTX doesn’t provide, extend NodeCTX instead.
 
 ---
 
 ## Canonical skill template
 
-```python
-# Skills/<Domain>/<SkillName>/skill.py
-
 import argparse
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("message", help="Message to print")
+    parser.add_argument("message")
 
-def run(args: argparse.Namespace, ctx) -> int:
+def run(args, ctx) -> int:
+    node_ctx = ctx.node_ctx
+
     print(args.message)
     return 0
-```
-
-Rules:
-
-* **Do not import** `NodeCTX`, `ProjectRoot`, or `SkillCLI`
-* **Do not** modify `sys.path`
-* Treat `ctx` as the sole runtime interface
-* Let SkillCLI handle logging, timing, and lifecycle
 
 ---
 
-## Context object
+## Standard flags
 
-When a skill is executed, SkillCLI constructs a `SkillContext` and passes it to `run()`.
-
-The context exposes:
-
-* `root`
-  `pathlib.Path` to the repository root
-
-* `node_tag`
-  Current node identifier (overridable via `--node`)
-
-* `instance_id`
-  Current instance identifier (overridable via `--instance`)
-
-* `global_scope`
-  Boolean flag from `--global`
-
-* `node_ctx`
-  Reference to `Core.NSPL.NodeCTX`
-  **All durable writes and logs must go through this**
-
-* `debug`
-  Whether `--debug` was supplied
-
-* `json`
-  Whether `--json` was supplied
-
-The context is a **stable API surface**, not an implementation detail.
-
----
-
-## Standard flags (available to all skills)
-
-* `--debug` – Print full tracebacks on failure
-* `--json` – Request machine-readable output (skill-defined)
-* `--node <tag>` – Override node identifier
-* `--instance <id>` – Override instance identifier
-* `--global` – Operate in global scope
-
----
-
-## Skill discovery root override
-
-By default, skills are discovered under:
-
-```
-<repo>/Skills/
-```
-
-Override for testing:
-
-```sh
-export SKILLS_ROOT=path/to/skills
-```
-
-Relative paths resolve against the project root.
+- --debug
+- --json
+- --node
+- --instance
+- --global
 
 ---
 
 ## Error handling
 
-* Structured, user-facing errors
-* Non-zero exit codes on failure
-* Full tracebacks only with `--debug`
-* Logging still occurs on failure
+- return non-zero on failure
+- structured errors preferred
+- full traceback only with --debug
+- logging still happens on failure
 
 ---
 
-## Non-goals for v1
+## Design rules
 
-Explicitly out of scope:
+- skills do not manage runtime
+- skills do not discover roots
+- skills do not manage sys.path
+- skills use NodeCTX for filesystem work
 
-* Direct execution of `skill.py`
-* GUI concerns
-* Long-running workers
-* ChatOps orchestration
-* Session management
-* Packaging or installers
-* Writing state from the dispatcher itself
-* Importing all skills at startup
+---
 
-SkillCLI exists to **locate, invoke, observe, and exit** — nothing more.
+## Non-goals
+
+- direct skill execution
+- GUI logic
+- workers
+- orchestration
+- packaging
+
+SkillCLI exists to:
+
+locate → invoke → observe → exit
