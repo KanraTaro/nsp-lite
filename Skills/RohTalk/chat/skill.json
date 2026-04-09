@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.chat",
+  "version": "0.1.0",
+  "description": "Append a message to an existing RohTalk conversation and print the assistant's reply",
+  "entry": "skill.py"
+}

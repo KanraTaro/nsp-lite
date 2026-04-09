@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.list_conversations",
+  "version": "0.1.0",
+  "description": "List stored RohTalk conversations",
+  "entry": "skill.py"
+}

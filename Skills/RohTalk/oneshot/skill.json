@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.oneshot",
+  "version": "0.1.0",
+  "description": "Execute a single prompt via RohTalk and print the assistant's reply",
+  "entry": "skill.py"
+}
