@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.delete_conversation",
+  "version": "0.1.0",
+  "description": "Delete a stored RohTalk conversation by id or numeric index",
+  "entry": "skill.py"
+}

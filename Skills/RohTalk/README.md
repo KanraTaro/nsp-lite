@@ -1,85 +1,127 @@
 # RohTalk Skills
 
-This directory exposes the RohTalk core via three user‑facing skills.
-Each skill is discovered and invoked through the standard
-``SkillCLI`` mechanism and operates against the RohTalk conversation
-store.  Skills must be run via the dispatcher:
+This directory exposes the RohTalk core via user-facing skills.
 
-```sh
+Each skill is discovered and invoked through SkillCLI and operates
+against the same RohTalk conversation store.
+
+Run skills through the dispatcher:
+
 python -m Core.NSPL.SkillCLI list
 python -m Core.NSPL.SkillCLI skill RohTalk.oneshot -- "Ask me a question"
-```
+
+---
 
 ## Available skills
 
-### `RohTalk.oneshot`
+### RohTalk.oneshot
 
-Execute a single prompt without creating a long‑lived chat session.
+Execute a single prompt without creating a long-lived chat session.
+
 The prompt is stored as a conversation with kind `oneshot` so that
-record keeping and auditing still work, but oneshots are hidden from
-the default conversation list.  The skill prints only the assistant’s
-reply to standard output.
+record keeping still works, but oneshots are hidden from the default
+conversation list.
 
-**Usage:**
+Usage:
 
-```sh
 python -m Core.NSPL.SkillCLI skill RohTalk.oneshot [--model MODEL] [--host URL] -- <your prompt>
-```
 
-Options:
+---
 
-* `--model` – Override the default model (otherwise uses the value from the RohTalk config)
-* `--host` – Override the backend URL (otherwise uses the value from the RohTalk config)
+### RohTalk.start
 
-All arguments after `--` are joined into a single prompt.
+Start a new persistent conversation and run the first model turn.
 
-### `RohTalk.chat`
+If `--title` is omitted, RohTalk derives a title automatically from the
+first user message.
 
-Append a message to an existing conversation and run one model turn.  The
-conversation identifier must be supplied.  If the conversation does
-not exist, the skill exits with a non‑zero status and prints an
-error.
+Usage:
 
-**Usage:**
+python -m Core.NSPL.SkillCLI skill RohTalk.start [--title TITLE] [--model MODEL] [--host URL] -- <your prompt>
 
-```sh
+Output:
+
+- conversation_id
+- title
+- assistant reply
+
+---
+
+### RohTalk.chat
+
+Append a message to an existing conversation and run one model turn.
+
+Usage:
+
 python -m Core.NSPL.SkillCLI skill RohTalk.chat <conversation_id> [--model MODEL] [--host URL] -- <your message>
-```
 
 Arguments:
 
-* `<conversation_id>` – Identifier of the existing conversation to append to
-* `--model` – Optional model override
-* `--host` – Optional backend URL override
+- `<conversation_id>` - existing conversation id
+- `--model` - optional override
+- `--host` - optional override
 
-All tokens after `--` are joined into the user message.
+---
 
-### `RohTalk.list_conversations`
+### RohTalk.show_conversation
 
-List stored conversations.  By default oneshot conversations are
-omitted.  Each line of output contains the conversation id followed
-by the last updated timestamp.  Ordering is from oldest to newest.
+Display a stored conversation in readable form.
 
-**Usage:**
+You can pass either:
 
-```sh
+- full conversation id
+- numeric index from list_conversations
+
+Usage:
+
+python -m Core.NSPL.SkillCLI skill RohTalk.show_conversation <conversation_id_or_index>
+
+---
+
+### RohTalk.list_conversations
+
+List stored conversations.
+
+By default oneshot conversations are hidden.
+
+Each line prints:
+
+[index] title | short_id | updated_timestamp
+
+Usage:
+
 python -m Core.NSPL.SkillCLI skill RohTalk.list_conversations [--include-oneshots]
-```
 
-Options:
+The numeric index can be used with show_conversation.
 
-* `--include-oneshots` – Include oneshot conversations in the list.
+---
+
+## Suggested CLI flow
+
+Start a conversation:
+
+python -m Core.NSPL.SkillCLI skill RohTalk.start --title "DST Run" -- "We just entered winter, what should I do?"
+
+List conversations:
+
+python -m Core.NSPL.SkillCLI skill RohTalk.list_conversations
+
+Show one:
+
+python -m Core.NSPL.SkillCLI skill RohTalk.show_conversation 0
+
+Continue it:
+
+python -m Core.NSPL.SkillCLI skill RohTalk.chat <conversation_id> -- "What should I gather first?"
+
+---
 
 ## Where data is written
 
-All skills operate relative to the current SkillCLI context.  By
-default, data is written under:
+State/<Instance>/<NodeTag>/RohTalk/Workflow/Conversations/
 
-```
-State/<Instance>/<NodeTag>/Workflow/RohTalk/Conversations/
-```
+Override context using:
 
-The instance id and node tag can be overridden with the standard
-SkillCLI flags `--instance` and `--node`.  To operate in global
-scope, pass `--global`.  See the `SkillCLI` documentation for
-details.
+--instance
+--node
+--global

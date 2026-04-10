@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.clear_oneshots",
+  "version": "0.1.0",
+  "description": "Delete all stored RohTalk oneshot conversations",
+  "entry": "skill.py"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.start",
+  "version": "0.1.0",
+  "description": "Start a new persistent RohTalk conversation and print the conversation id and assistant reply",
+  "entry": "skill.py"
+}

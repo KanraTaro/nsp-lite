@@ -1,22 +1,37 @@
 """RohTalk.list_conversations skill.
 
-This skill lists stored RohTalk conversations.  By default oneshot
-conversations are omitted from the list.  Each line of output
-contains the conversation identifier followed by the timestamp of
-its last update.  Ordering is from oldest to newest.
+This skill lists stored RohTalk conversations.
 
-Flags:
+By default oneshot conversations are omitted.
 
-* ``--include-oneshots`` – When provided, include oneshot
-  conversations in the output.
+Each line prints:
+- numeric index
+- title
+- short conversation id
+- last updated timestamp
+- full conversation id
+
+The numeric index can be used with RohTalk.show_conversation and RohTalk.chat.
 """
 
 from __future__ import annotations
 
 import argparse
-from typing import Any
+from typing import Any, Dict, List
 
 from Core.RohTalk import list_conversations
+
+
+def _display_title(meta: Dict[str, Any]) -> str:
+    title = str(meta.get("title", "")).strip()
+    if title != "":
+        return title
+
+    conv_id = str(meta.get("id", ""))
+    if conv_id != "":
+        return f"Conversation {conv_id[:8]}"
+
+    return "Untitled Conversation"
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -30,18 +45,21 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    """Execute the list_conversations skill: print stored conversations."""
+    """Execute the list_conversations skill."""
     include = bool(getattr(args, "include_oneshots", False))
+
     try:
-        convs = list_conversations(ctx, include_oneshots=include)
+        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=include)
     except Exception as exc:
-        # If something goes wrong reading metadata, surface the error
-        # as a non-zero exit code and message.
         print(str(exc))
         return 1
-    for meta in convs:
-        conv_id = meta.get("id", "")
-        ts = meta.get("updated_at", meta.get("created_at", ""))
-        print(f"{conv_id} {ts}")
+
+    for index, meta in enumerate(conversations):
+        conv_id = str(meta.get("id", ""))
+        short_id = conv_id[:8] if conv_id else "unknown"
+        title = _display_title(meta)
+        ts = str(meta.get("updated_at", meta.get("created_at", "")))
+
+        print(f"[{index}] {title} | {short_id} | {ts} | {conv_id}")
+
     return 0
-    

@@ -79,6 +79,19 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _derive_title(user_message: str, *, max_length: int = 60) -> str:
+    """Derive a simple human-readable title from the first user message."""
+    cleaned = " ".join(str(user_message).strip().split())
+    if cleaned == "":
+        return "Untitled Conversation"
+
+    if len(cleaned) <= max_length:
+        return cleaned
+
+    trimmed = cleaned[:max_length].rstrip()
+    return f"{trimmed}..."
+
+
 def create_conversation(
     ctx,
     user_message: str,
@@ -86,6 +99,7 @@ def create_conversation(
     kind: str = "conversation",
     model: Optional[str] = None,
     host: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Create a new conversation, persist it and return the id and reply."""
     node_ctx = ctx.node_ctx
@@ -93,6 +107,7 @@ def create_conversation(
 
     model_to_use = model or config.default_model
     host_to_use = host or config.default_host
+    resolved_title = str(title).strip() if title is not None and str(title).strip() != "" else _derive_title(user_message)
 
     initial_messages = assemble_initial_messages(config.agent_identity, user_message)
 
@@ -111,6 +126,7 @@ def create_conversation(
     now_iso = _iso_now()
     metadata: Dict[str, Any] = {
         "id": conversation_id,
+        "title": resolved_title,
         "kind": kind,
         "created_at": now_iso,
         "updated_at": now_iso,
@@ -138,15 +154,8 @@ def create_conversation(
     return conversation_id, assistant_text
 
 
-def append_message(
-    ctx,
-    conversation_id: str,
-    user_message: str,
-    *,
-    model: Optional[str] = None,
-    host: Optional[str] = None,
-) -> str:
-    """Append a user message to an existing conversation and return the reply."""
+def get_conversation(ctx, conversation_id: str) -> Dict[str, Any]:
+    """Load and return a conversation metadata object by id."""
     node_ctx = ctx.node_ctx
     meta_path = _metadata_path(ctx, conversation_id)
 
@@ -157,6 +166,21 @@ def append_message(
 
     if not isinstance(metadata, dict):
         raise ValueError(f"Conversation '{conversation_id}' metadata is not a JSON object")
+
+    return metadata
+
+
+def append_message(
+    ctx,
+    conversation_id: str,
+    user_message: str,
+    *,
+    model: Optional[str] = None,
+    host: Optional[str] = None,
+) -> str:
+    """Append a user message to an existing conversation and return the reply."""
+    node_ctx = ctx.node_ctx
+    metadata = get_conversation(ctx, conversation_id)
 
     messages: List[Dict[str, Any]] = list(metadata.get("messages", []))
     new_messages = append_user_message(messages, user_message)
@@ -178,6 +202,7 @@ def append_message(
     metadata["model"] = model_to_use
     metadata["host"] = host_to_use
 
+    meta_path = _metadata_path(ctx, conversation_id)
     node_ctx.write_json_atomic(meta_path, metadata)
 
     events_path = _events_path(ctx, conversation_id)
@@ -231,6 +256,14 @@ def list_conversations(
 
         if not isinstance(meta, dict):
             continue
+
+        if "title" not in meta or str(meta.get("title", "")).strip() == "":
+            messages = meta.get("messages", [])
+            if isinstance(messages, list) and len(messages) > 1:
+                first_user = messages[1].get("content", "") if isinstance(messages[1], dict) else ""
+                meta["title"] = _derive_title(str(first_user))
+            else:
+                meta["title"] = f"Conversation {str(meta.get('id', 'unknown'))[:8]}"
 
         if not include_oneshots and meta.get("kind") == "oneshot":
             continue

@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.show_conversation",
+  "version": "0.1.0",
+  "description": "Show a stored RohTalk conversation by id or numeric list index",
+  "entry": "skill.py"
+}
