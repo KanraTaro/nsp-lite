@@ -1,80 +1,85 @@
 # RohTalk Skills
 
-This directory exposes the RohTalk core via user-facing skills.
+This directory exposes RohTalk Core through user-facing CLI skills.
 
-Each skill is discovered and invoked through SkillCLI and operates
-against the same RohTalk conversation store.
-
-Run skills through the dispatcher:
-
-python -m Core.NSPL.SkillCLI list
-python -m Core.NSPL.SkillCLI skill RohTalk.oneshot -- "Ask me a question"
+All skills are executed through SkillCLI and operate on the same persistent conversation system.
 
 ---
 
-## Available skills
+## Core Concept
 
-### RohTalk.oneshot
+RohTalk skills are the interface layer for:
 
-Execute a single prompt without creating a long-lived chat session.
+- starting conversations
+- continuing conversations
+- inspecting stored state
+- deleting or clearing sessions
+- testing tool-enabled behavior
 
-The prompt is stored as a conversation with kind `oneshot` so that
-record keeping still works, but oneshots are hidden from the default
-conversation list.
-
-Usage:
-
-python -m Core.NSPL.SkillCLI skill RohTalk.oneshot [--model MODEL] [--host URL] -- <your prompt>
+All persistent conversation state is stored on disk through NodeCTX.
 
 ---
+
+## Available Skills
 
 ### RohTalk.start
 
-Start a new persistent conversation and run the first model turn.
+Start a new persistent conversation.
 
-If `--title` is omitted, RohTalk derives a title automatically from the
-first user message.
+Supports:
+
+- automatic title generation
+- optional model override
+- optional host override
+- optional tool loop execution with `--tools`
 
 Usage:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.start [--title TITLE] [--model MODEL] [--host URL] -- <your prompt>
+nspl-skill skill RohTalk.start -- "Hello"
+
+Tool-enabled:
+
+nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
 
 Output:
 
-- conversation_id
-- title
+- `conversation_id`
+- `title`
 - assistant reply
 
 ---
 
 ### RohTalk.chat
 
-Append a message to an existing conversation and run one model turn.
+Continue an existing conversation.
+
+Supports:
+
+- full conversation id
+- numeric index from `RohTalk.list_conversations`
+- optional model override
+- optional host override
+- optional tool loop execution with `--tools`
 
 Usage:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.chat <conversation_id> [--model MODEL] [--host URL] -- <your message>
+nspl-skill skill RohTalk.chat 0 -- "How are you?"
 
-Arguments:
+Tool-enabled:
 
-- `<conversation_id>` - existing conversation id
-- `--model` - optional override
-- `--host` - optional override
+nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather like in New York?"
 
 ---
 
-### RohTalk.show_conversation
+### RohTalk.oneshot
 
-Display a stored conversation in readable form.
+Run a single-turn prompt without creating a long-lived chat thread.
 
-You can pass either:
-
-- full conversation id
-- numeric index from list_conversations
+The interaction is still stored as a conversation with kind `oneshot`, but oneshots are hidden from default listings.
 
 Usage:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.show_conversation <conversation_id_or_index>
+nspl-skill skill RohTalk.oneshot -- "Quick question"
 
 ---
 
@@ -82,46 +87,251 @@ python -m Core.NSPL.SkillCLI skill RohTalk.show_conversation <conversation_id_or
 
 List stored conversations.
 
-By default oneshot conversations are hidden.
+By default, oneshot conversations are hidden.
 
 Each line prints:
 
-[index] title | short_id | updated_timestamp
+[index] title | short_id | updated_timestamp | full_id
 
 Usage:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.list_conversations [--include-oneshots]
+nspl-skill skill RohTalk.list_conversations
 
-The numeric index can be used with show_conversation.
+Include oneshots:
+
+nspl-skill skill RohTalk.list_conversations --include-oneshots
 
 ---
 
-## Suggested CLI flow
+### RohTalk.show_conversation
 
-Start a conversation:
+Display a stored conversation in readable form.
 
-python -m Core.NSPL.SkillCLI skill RohTalk.start --title "DST Run" -- "We just entered winter, what should I do?"
+Usage:
+
+nspl-skill skill RohTalk.show_conversation 0
+
+or:
+
+nspl-skill skill RohTalk.show_conversation <conversation_id>
+
+---
+
+### RohTalk.delete_conversation
+
+Delete a stored conversation by id or numeric index.
+
+Usage:
+
+nspl-skill skill RohTalk.delete_conversation 0
+
+Include oneshots for numeric index resolution:
+
+nspl-skill skill RohTalk.delete_conversation --include-oneshots 0
+
+---
+
+### RohTalk.clear_oneshots
+
+Delete all stored oneshot conversations.
+
+Usage:
+
+nspl-skill skill RohTalk.clear_oneshots
+
+Preview only:
+
+nspl-skill skill RohTalk.clear_oneshots --dry-run
+
+---
+
+### RohTalk.tool_test
+
+Proving skill for tool-enabled execution.
+
+This skill:
+
+- runs the tool loop without persistence
+- is useful for backend testing
+- is useful for prompt/tool-definition testing
+- can stream visible activity unless `--quiet` is used
+
+Usage:
+
+nspl-skill skill RohTalk.tool_test -- "What's the weather in Orlando?"
+
+Quiet mode:
+
+nspl-skill skill RohTalk.tool_test --quiet -- "What's the weather in Orlando?"
+
+Show final normalized history:
+
+nspl-skill skill RohTalk.tool_test --show-history -- "What's the weather in Orlando?"
+
+---
+
+## Tool Behavior
+
+When `--tools` is enabled:
+
+1. the tool-capable loop is used instead of a single model call
+2. assistant tool-call messages are appended to normalized history
+3. tools are executed
+4. tool result messages are appended
+5. the model is called again with updated history
+6. the final assistant response is persisted
+
+This enables:
+
+- grounded answers
+- multi-step reasoning
+- persistent tool-aware conversations
+
+---
+
+## Suggested CLI Flow
+
+Start a persistent conversation:
+
+nspl-skill skill RohTalk.start -- "Hello"
+
+Start a tool-enabled conversation:
+
+nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
 
 List conversations:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.list_conversations
+nspl-skill skill RohTalk.list_conversations
 
-Show one:
+Inspect one:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.show_conversation 0
+nspl-skill skill RohTalk.show_conversation 0
 
 Continue it:
 
-python -m Core.NSPL.SkillCLI skill RohTalk.chat <conversation_id> -- "What should I gather first?"
+nspl-skill skill RohTalk.chat 0 -- "How are you?"
+
+Continue with tools:
+
+nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
 
 ---
 
-## Where data is written
+## Storage Location
 
-State/<Instance>/<NodeTag>/RohTalk/Workflow/Conversations/
+All persistent RohTalk data is stored through NodeCTX:
 
-Override context using:
+State/<Instance>/<Scope>/Workflow/RohTalk/Conversations/
 
---instance
---node
---global
+Each conversation has:
+
+- metadata JSON containing full normalized history
+- append-only JSONL event log
+
+Context can be overridden through standard SkillCLI flags:
+
+- `--instance`
+- `--node`
+- `--global`
+
+---
+
+## Design Principles
+
+### CLI is the Primary Interface
+
+All skills run through SkillCLI.
+
+This gives:
+
+- consistent invocation
+- shared runtime context
+- compatibility with future automation
+
+---
+
+### Conversations are Persistent
+
+State is not hidden in memory.
+
+Conversations can be resumed, inspected, and replayed from disk.
+
+---
+
+### Tool Loop is Optional
+
+- default behavior = simple single-turn model call
+- `--tools` = multi-step tool-capable reasoning loop
+
+This keeps the basic CLI simple while allowing richer agent behavior when needed.
+
+---
+
+### Execution is Moving Toward Unification
+
+Current tool execution uses direct Python callables.
+
+Planned direction:
+
+- tool execution routed through SkillCLI
+- shared execution surface for:
+  - humans
+  - agents
+  - automation workers
+
+---
+
+## Current Status
+
+RohTalk Skills currently support:
+
+- persistent conversations
+- tool-enabled start/chat flows
+- oneshot prompts
+- conversation inspection
+- conversation deletion and cleanup
+- tool-loop proving via `RohTalk.tool_test`
+
+---
+
+## Relationship to Core
+
+Skills are thin wrappers.
+
+Core handles:
+
+- message assembly
+- conversation persistence
+- tool loops
+- normalized history
+- backend interaction through LLMClient
+
+Skills handle:
+
+- CLI argument parsing
+- output formatting
+- user-facing entrypoints
+
+---
+
+## Notes
+
+Current implementation still has some temporary proving-layer duplication:
+
+- weather tool definition is duplicated across tool-enabled skills
+- tool execution is still callable-based
+- tool-call rendering in `show_conversation` can still be improved
+
+These are known next-step cleanup items, not architectural blockers.
+
+---
+
+## Next Steps
+
+Planned follow-up work:
+
+- centralize shared tool definitions
+- improve `show_conversation` rendering for tool calls
+- route tool execution through SkillCLI
+- add profile-based backend capability handling
+- expand streaming visibility into more user-facing skills

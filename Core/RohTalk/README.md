@@ -1,126 +1,285 @@
-# RohTalk Core (Pass 0)
+# RohTalk Core
 
-This module provides the minimal infrastructure needed to support a
-chat‑style agent in NSP Lite.  It is deliberately small and
-opinionated, focusing on a single conversation pipeline without any
-tool loop.  Higher level features such as tool execution, persona
-management or long running sessions are intentionally out of scope for
-Pass 0.
+RohTalk is a persistent, tool-capable conversation runtime built on NSP Lite.
 
-## What it does
+It provides a filesystem-backed agent loop that supports:
 
-* **Configuration** – Loads persistent defaults (agent name, system
-  identity, model and host) from `State/<Instance>/<Scope>/Config/RohTalk/config.json`
-  or `Config/RohTalk/config.json`, falling back to hard‑coded values.
-* **Message assembly** – Prepends a system message containing the
-  agent identity before the user’s prompt.
-* **Conversation storage** – Writes a JSON metadata file and an
-  append‑only JSONL event log into
-  `State/<Instance>/<Scope>/Workflow/RohTalk/Conversations/` for each
-  conversation.  Metadata includes the entire message history so that
-  subsequent turns can be constructed without reading the event log.
-* **Conversation lifecycle** – Supports creating a new conversation or
-  appending a message to an existing one.  Onesho
-  conversations are stored in the same way but are excluded from
-  listings by default.
-* **Unified runner** – Exposes a single `run_conversation()` helper
-  that hides the distinction between creation and append.  Skills use
-  this to implement `oneshot` and `chat` behaviours.
+- multi-turn conversations
+- durable message history
+- tool execution with iterative reasoning
+- backend-agnostic message normalization
+- CLI-driven interaction via SkillCLI
 
-## What it doesn’t do
+This is no longer a single-turn chat wrapper.  
+RohTalk is now a local agent runtime with memory and tools.
 
-* No tool execution.  The assistant’s replies come directly from the
-  model.
-* No streaming responses.  Only the final reply text is returned.
-* No ChatOps integration or chat loops.
-* No persona registry beyond the single identity string in the config.
-* No GUI or interactive prompt loop.
+---
 
-## File layout
+## Core Capabilities
 
-```
-Core/RohTalk/
-  __init__.py     # Public exports
-  config.py       # Load and merge configuration values
-  messages.py     # Helpers for assembling message payloads
-  conversations.py# Durable conversation storage and retrieval
-  runner.py       # High level orchestration for one turn
-  Tests/          # Offline unit tests
-```
+### Persistent Conversations
 
-### On‑disk storage
+Each conversation is stored on disk via NodeCTX and can be:
 
-All persistent state lives in the `State/` directory via NodeCTX.
-Under a given instance and node scope conversations are stored as:
+- created
+- resumed
+- appended to
+- inspected
 
-```
+All state lives under:
+
 State/<Instance>/<Scope>/Workflow/RohTalk/Conversations/
-  <conversation_id>.json            # Metadata (created_at, updated_at, messages, kind)
-  <conversation_id>.events.jsonl    # Append‑only message/event log
-```
 
-File names are automatically prefixed according to NodeCTX settings
-(`NODECTX_ENABLE_PREFIXING`, `NODECTX_PREFIX_INSTANCE` etc.) to
-preserve provenance when files are moved off node.  The conversation
-identifier returned by the API does **not** include the prefix.
+Each conversation includes:
 
-### Configuration files
+- full normalized message history (in metadata JSON)
+- append-only event log (JSONL)
 
-User‑supplied defaults can be stored in:
+---
 
-1. `State/<Instance>/<Scope>/Config/RohTalk/config.json`
-2. `Config/RohTalk/config.json` (repository root)
+### Tool-Capable Reasoning Loop
 
-Both files accept a JSON object with any of the following keys:
+RohTalk supports multi-step tool usage within a single turn.
 
-* `agent_name` – Human friendly name for the agent (string)
-* `agent_identity` – System prompt injected into every conversation (string)
-* `default_model` – Model name used when callers do not specify one (string)
-* `default_host` – Optional backend URL override (string or null)
+Flow:
 
-Unknown keys are ignored.  Missing keys fall back to hard‑coded
-defaults (`RohTalk`, a generic assistant identity, and `qwen3:0.6b`).
+1. user message added to history
+2. model runs via chat_stream_collect(...)
+3. assistant message appended
+4. if tool calls are present:
+   - tools executed via tool_runner
+   - tool results appended
+   - loop continues
+5. final assistant response returned
 
-## Usage examples
+This enables:
 
-While the core API is intended for Skills, it can be exercised
-directly for testing or scripting.  The following example creates a
-conversation, appends a message and lists conversations:
+- iterative reasoning
+- tool grounding
+- multi-step decision making
 
-```python
-from Core.NSPL.SkillCLI.ctx import SkillContext
-import Core.NSPL.NodeCTX as NodeCTX
-from Core.RohTalk import create_conversation, append_message, list_conversations
+---
 
-# Construct a minimal context (normally provided by SkillCLI)
-ctx = SkillContext(
-    root=Path("/path/to/repo"),
-    node_tag="MyNode",
-    instance_id="main",
-    global_scope=False,
-    node_ctx=NodeCTX,
-    debug=False,
-    json=False,
-)
+### Normalized Message Format
 
-# Create a new conversation
-conv_id, reply = create_conversation(ctx, "Hello world!")
-print(f"Assistant: {reply}")
+All messages are stored in a backend-agnostic structure:
 
-# Send another message
-reply2 = append_message(ctx, conv_id, "How are you?")
-print(f"Assistant: {reply2}")
+Assistant tool call:
 
-# List stored conversations
-for meta in list_conversations(ctx):
-    print(meta["id"], meta["updated_at"])
-```
+{
+  "role": "assistant",
+  "content": "",
+  "tool_calls": [
+    {
+      "id": "...",
+      "name": "...",
+      "arguments": {...}
+    }
+  ]
+}
 
-## See also
+Tool result:
 
-* `Skills/RohTalk/README.md` – contains user‑facing examples for the
-  oneshot, chat and list_conversations skills.
-* `Core/NSPL/NodeCTX/README.md` – details on canonical path routing and
-  durable writes.
-* `Core/LLMClient/README.md` – describes how the model client works and
-  what exceptions to expect.
+{
+  "role": "tool",
+  "tool_call_id": "...",
+  "tool_name": "...",
+  "content": "{...json...}"
+}
+
+This ensures:
+
+- provider independence (Ollama, OpenAI, etc.)
+- replayable conversations
+- inspectable history
+- stable internal contracts
+
+---
+
+### Streaming Support
+
+RohTalk is built on LLMClient streaming:
+
+- text is streamed during generation
+- tool calls are detected during streaming
+- final assistant message is normalized and stored
+
+Streaming is optional at the caller level, but supported end-to-end.
+
+---
+
+### CLI Usage
+
+RohTalk is accessed through SkillCLI.
+
+Examples:
+
+# Start a conversation
+nspl-skill skill RohTalk.start -- "Hello"
+
+# Start with tools enabled
+nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
+
+# Continue a conversation
+nspl-skill skill RohTalk.chat 0 -- "How are you?"
+
+# Continue with tools
+nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
+
+# Inspect conversation
+nspl-skill skill RohTalk.show_conversation 0
+
+---
+
+## Architecture
+
+Directory layout:
+
+Core/RohTalk/
+  __init__.py
+  config.py
+  messages.py
+  conversations.py
+  runner.py
+  tool_loop.py
+  tool_runner.py
+  Tests/
+
+---
+
+### Responsibilities
+
+config.py  
+Loads and merges configuration values
+
+messages.py  
+Builds system + user message payloads
+
+conversations.py  
+Handles durable storage, retrieval, and updates
+
+runner.py  
+Single-turn orchestration (non-tool mode)
+
+tool_loop.py  
+Multi-step tool-capable reasoning loop
+
+tool_runner.py  
+Execution seam for tool calls
+
+---
+
+## Storage Model
+
+Each conversation is stored as:
+
+<conversation_id>.json  
+<conversation_id>.events.jsonl
+
+Metadata includes:
+
+- id
+- created_at
+- updated_at
+- messages (full normalized history)
+- model
+- agent identity
+- kind (conversation / oneshot)
+
+Event logs provide append-only auditing and replay.
+
+---
+
+## Configuration
+
+Configuration is loaded from:
+
+1. State/<Instance>/<Scope>/Config/RohTalk/config.json  
+2. Config/RohTalk/config.json  
+
+Supported keys:
+
+- agent_name
+- agent_identity
+- default_model
+- default_host
+
+Missing values fall back to defaults.
+
+---
+
+## Design Principles
+
+### Filesystem is Truth
+
+All state is persisted via NodeCTX:
+
+- no hidden memory
+- no in-process state reliance
+- everything observable on disk
+
+---
+
+### Backend Agnostic
+
+RohTalk does not depend on provider-specific formats.
+
+LLMClient handles translation.  
+RohTalk only consumes normalized messages.
+
+---
+
+### Tool Execution is Abstracted
+
+Current implementation uses direct Python callables.
+
+Planned evolution:
+
+- route tool execution through SkillCLI
+- unify execution across:
+  - humans (CLI)
+  - agents (RohTalk)
+  - automation (ChatOps / workers)
+
+---
+
+### Streaming + Determinism
+
+- streaming provides real-time feedback
+- final stored state is always normalized and deterministic
+
+---
+
+## What It Does NOT Do (Yet)
+
+- no persona system (beyond config identity)
+- no tool registry or capability profiles
+- no automatic context compression
+- no ChatOps orchestration
+- no GUI layer (CLI only)
+
+---
+
+## Current Status
+
+RohTalk currently supports:
+
+- persistent conversations
+- tool usage within conversations
+- multi-step reasoning loops
+- normalized, inspectable history
+- CLI-based interaction
+
+This is the foundation for:
+
+- AutoRoh
+- tool-driven agents
+- distributed NSP workflows
+
+---
+
+## See Also
+
+Skills/RohTalk/README.md  
+Core/NSPL/NodeCTX/README.md  
+Core/LLMClient/README.md

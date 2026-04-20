@@ -1,105 +1,294 @@
-# LLMClient Core Module
+# LLMClient Core
 
-The **LLMClient** module provides a thin, backend‐agnostic interface for
-sending plain prompts to a locally running LLM and returning the
-generated text.  It currently ships with a single backend implementation
-for [Ollama](https://ollama.com), a local model runner that exposes a
-simple HTTP API.  Future passes may add additional backends or richer
-chat/session support, but the goal of this module in Pass 1 is to
-demonstrate a working end‑to‑end integration with Ollama.
+LLMClient is a backend-agnostic interface for interacting with language models.
 
-## Quick start
+It provides a normalized contract for:
 
-```sh
-# from the repository root, list available skills
-python -m Core.NSPL.SkillCLI list
+- chat completion
+- streaming responses
+- tool call extraction
+- assistant message normalization
 
-# run the ollama_generate skill against a running Ollama instance
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_generate \
-  --host http://localhost:11434 \
-  --model llama3.2 \
-  -- "Hello, world"
-```
+LLMClient is the translation layer between external model providers and NSP systems like RohTalk.
 
-The skill accepts a positional prompt (any remaining tokens after
-`--` are joined with spaces), and two optional flags:
+---
 
-- `--host`: Override the base URL of the Ollama server.  The default
-  host is `http://localhost:11434`.  If your Ollama instance listens on
-  another port or hostname, supply it here.
-- `--model`: Specify the model name to generate against.  Ollama will
-  only serve responses for models that have been pulled locally (e.g.
-  via `ollama pull llama3.2`).  There is no repo‑wide default model;
-  if omitted, you must supply a model when calling the skill or when
-  using the `Core.LLMClient.client.LLMClient` API directly.  You can
-  set your own preferred default in your own code by passing a
-  `model` argument to `generate()`.
-- `--timeout`: Optional timeout in seconds for the request.  If the
-  request takes longer than this number of seconds the call will be
-  aborted and a timeout error will be raised.
+## Core Responsibilities
 
-## API overview
+### Unified Chat Interface
 
-At the core of this module is the `LLMClient` class defined in
-`Core/LLMClient/client.py`.  It exposes a single method:
+LLMClient exposes a consistent API across providers:
 
-```python
-LLMClient.generate(prompt: str, *, model: str | None = None,
-                   host: str | None = None,
-                   timeout_s: float | None = None) -> str
-```
+- Ollama (current)
+- OpenAI (future)
+- other backends (planned)
 
-The method accepts a plain text prompt and optional `model`, `host`
-and `timeout_s` parameters.  It returns the raw text of the model’s
-response.  If an error occurs the method raises one of the custom
-exceptions defined in `Core/LLMClient/types.py`:
+All providers are normalized into the same internal structures.
 
-- `ConnectionError`: the Ollama server is unreachable (e.g. it is not
-  running or the host is incorrect).
-- `ModelNotFoundError`: the specified model has not been pulled locally.
-- `TimeoutError`: the request exceeded the provided timeout.
-- `HTTPStatusError`: the Ollama server returned a non‑200 status code.
-- `LLMClientError`: a catch‑all for other unexpected conditions.
+---
 
-Consumers of this API should catch these exceptions and map them to
-user‑facing messages.  The included skill does this for you.
+### Normalized Output
 
-## Implementation notes
+Every chat call returns a `ChatResult`:
 
-- **Backend selection** – Pass 1 only implements the Ollama backend.
-  Additional backends can be added under `Core/LLMClient/backends/`
-  with their own `generate()` functions.  The `LLMClient` class will
-  dispatch based on the configured backend name.
-- **Default host** – The default host is `http://localhost:11434`,
-  which matches the default for a vanilla Ollama installation.  If
-  your Ollama server is bound to a different address you must pass
-  `--host`.
-- **Model default** – There is deliberately no hard‑coded default
-  model.  Models vary widely in size and capability, and requiring an
-  explicit `--model` argument avoids accidentally loading an enormous
-  model.  If your workflow prefers a default you can wrap
-  `LLMClient.generate()` in your own helper that supplies one.
+- `text` — final assistant text
+- `tool_calls` — structured tool requests
+- `assistant_message` — normalized message ready for history
+- `raw` — provider response for debugging
 
-## Error handling
+This allows higher-level systems to operate without caring about provider format.
 
-Errors raised from `LLMClient.generate()` are surfaced as custom
-exceptions.  When executing via the `LLMClient.ollama_generate` skill
-these exceptions are caught and printed as concise messages.  Examples
-of user‑visible errors include:
+---
 
-- *Ollama not running or host unreachable* – the client could not
-  connect to the Ollama server.  Check that the service is running and
-  the `--host` URL is correct.
-- *Model not available locally; run: `ollama pull <model>`* – the
-  specified model has not been pulled.  Use `ollama pull` to download
-  it first.
-- *Request timed out after X seconds* – the call to the server took
-  longer than the specified timeout.
-- *Ollama server returned status NNN: …* – the server returned a
-  non‑200 HTTP status.  The message will include the status code and a
-  snippet of the response body to aid debugging.
+### Streaming Support
 
-The unit tests in `Core/LLMClient/Tests/test_ollama_backend.py` cover
-request building, response parsing and error mapping to ensure the
-module behaves predictably without requiring a running Ollama during
-testing.
+LLMClient supports streaming via:
+
+`chat_stream(...)`
+
+which yields incremental `StreamEvent` objects:
+
+- text deltas
+- tool call detection
+- raw provider chunks
+
+It also supports:
+
+`chat_stream_collect(...)`
+
+which:
+
+- consumes the stream
+- reconstructs the final response
+- returns a normalized `ChatResult`
+
+This enables both:
+
+- real-time UX
+- deterministic stored state
+
+---
+
+### Tool Call Normalization
+
+Providers return tool calls in different shapes.
+
+LLMClient normalizes them into `ToolCall` objects with:
+
+- `id`
+- `name`
+- `arguments`
+- `arguments_json`
+
+Key guarantee:
+
+- `tool_call_id` is always stable and present
+
+If the backend does not provide an ID, LLMClient generates one.
+
+This ensures tool execution and tool result mapping always works.
+
+---
+
+### Message Normalization
+
+LLMClient converts between:
+
+- internal normalized messages
+- provider-specific payloads
+
+Normalized assistant tool-call message:
+
+{
+  "role": "assistant",
+  "content": "",
+  "tool_calls": [
+    {
+      "id": "...",
+      "name": "...",
+      "arguments": { ... }
+    }
+  ]
+}
+
+Normalized tool result message:
+
+{
+  "role": "tool",
+  "tool_call_id": "...",
+  "tool_name": "...",
+  "content": "{...json...}"
+}
+
+This allows higher-level systems to persist and replay model interactions without storing provider-specific formats.
+
+---
+
+## Architecture
+
+Core/LLMClient/
+  client.py
+  types.py
+  http_json.py
+  http_stream.py
+  backends/
+    ollama.py
+  Tests/
+
+---
+
+### Module Responsibilities
+
+`client.py`
+- public interface
+- backend dispatch
+- streaming collection
+- normalized result construction
+
+`types.py`
+- shared structures
+- error definitions
+- dependency injection protocols
+
+`http_json.py`
+- HTTP JSON helper functions
+- non-streaming request support
+
+`http_stream.py`
+- streaming HTTP helpers
+- NDJSON/event-style response handling
+
+`backends/ollama.py`
+- Ollama-specific request formatting
+- streaming parse logic
+- tool call extraction
+- assistant message normalization
+
+---
+
+## Design Principles
+
+### Backend Agnostic
+
+LLMClient hides provider differences completely.
+
+Callers should never depend on:
+
+- raw provider message formats
+- streaming response shapes
+- provider-specific tool schemas
+
+---
+
+### Streaming First, Deterministic Final
+
+- streaming gives the caller real-time visibility
+- final results are always normalized into stable structures
+
+This keeps UX responsive while preserving clean persistence behavior.
+
+---
+
+### Stable Tool Contracts
+
+Tool calls are normalized and ID-stable across providers.
+
+This is critical for:
+
+- multi-step tool loops
+- replaying conversations
+- switching providers without breaking behavior
+
+---
+
+### Minimal Surface Area
+
+LLMClient does not:
+
+- manage conversations
+- store persistent state
+- execute tools
+- run agent loops
+
+It only:
+
+- talks to language model backends
+- normalizes results into NSP-friendly structures
+
+---
+
+## What It Does NOT Do
+
+- no persistence
+- no tool execution
+- no agent planning
+- no context compression
+- no persona management
+
+These belong to higher layers such as RohTalk, CLM, and future runtime systems.
+
+---
+
+## Usage Example
+
+from Core.LLMClient.client import LLMClient
+
+client = LLMClient()
+
+result = client.chat(
+    messages=[
+        {"role": "user", "content": "Hello"}
+    ],
+    model="qwen3:1.7b",
+)
+
+print(result.text)
+
+Streaming example:
+
+for event in client.chat_stream(
+    [{"role": "user", "content": "Hello"}],
+    model="qwen3:1.7b",
+):
+    if event.text_delta:
+        print(event.text_delta, end="")
+
+Collected streaming example:
+
+result = client.chat_stream_collect(
+    [{"role": "user", "content": "Hello"}],
+    model="qwen3:1.7b",
+)
+
+print(result.text)
+print(result.assistant_message)
+
+---
+
+## Relationship to RohTalk
+
+LLMClient is the execution engine.
+
+RohTalk is the runtime that:
+
+- manages conversation history
+- runs tool loops
+- persists state
+- exposes CLI behaviors through SkillCLI
+
+LLMClient feeds RohTalk normalized outputs.
+
+---
+
+## Current Status
+
+LLMClient currently supports:
+
+- Ollama backend
+- chat completion
+- streaming responses
+- tool call normalization
+- assistant message normalization
+- round-trip normalized message conversion
+
+This is the stable foundation for local agent systems in NSP.
