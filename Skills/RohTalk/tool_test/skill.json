@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.tool_test",
+  "version": "0.1.0",
+  "description": "Run a simple tool-enabled RohTalk loop for testing",
+  "entry": "skill.py"
+}

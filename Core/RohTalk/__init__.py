@@ -5,13 +5,16 @@ handles configuration loading, message assembly, durable conversation
 storage and retrieval, and orchestrates a single model call per user
 interaction.
 
-Skills can import the public functions exposed here to:
+Skills and higher-level systems can import the public functions exposed
+here to:
 
 - create conversations
 - load an existing conversation
 - append new messages
 - list stored conversations
 - execute a unified run pipeline
+- execute tool calls
+- run a tool-capable conversation loop
 
 The module layout is deliberately simple:
 
@@ -19,6 +22,8 @@ The module layout is deliberately simple:
 - ``messages`` - helper for assembling chat messages
 - ``conversations`` - durable conversation store implementation
 - ``runner`` - high-level orchestration for one turn
+- ``tool_runner`` - tool execution seam
+- ``tool_loop`` - tool-capable conversation loop
 
 These modules are pure Python and have no side effects at import
 time. All filesystem interaction occurs through the NodeCTX
@@ -33,8 +38,11 @@ from .conversations import (
     create_conversation,
     get_conversation,
     list_conversations,
+    update_conversation_messages,
 )
 from .runner import run_conversation
+from .tool_runner import execute_tool_call
+from .tool_loop import run_tool_loop
 
 __all__ = [
     "load_config",
@@ -45,4 +53,7 @@ __all__ = [
     "append_message",
     "list_conversations",
     "run_conversation",
+    "execute_tool_call",
+    "run_tool_loop",
+    "update_conversation_messages",
 ]

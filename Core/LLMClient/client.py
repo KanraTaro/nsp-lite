@@ -156,3 +156,79 @@ class LLMClient:
             http_stream=self.http_stream,
         )
 
+    def chat_stream_collect(
+        self,
+        messages,
+        *,
+        model: Optional[str] = None,
+        host: Optional[str] = None,
+        timeout_s: Optional[float] = None,
+        tools: Optional[list[Any]] = None,
+        tool_choice: Optional[str] = None,
+        on_text_delta: Optional[Any] = None,
+    ):
+        """Run a streaming chat call and collect it into a ChatResult.
+
+        This consumes chat_stream(...) and returns a normalized ChatResult
+        with:
+        - full text
+        - normalized tool_calls
+        - assistant_message ready for history
+
+        If ``on_text_delta`` is provided, it is called for each streamed
+        text delta before the final result is assembled.
+        """
+
+        from .types import ChatResult, ToolCall
+
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        raw_events: list[Any] = []
+
+        events = self.chat_stream(
+            messages,
+            model=model,
+            host=host,
+            timeout_s=timeout_s,
+            tools=tools,
+            tool_choice=tool_choice,
+        )
+
+        for event in events:
+            raw_events.append(event.raw)
+
+            if event.type == "text" and event.text_delta:
+                text_parts.append(event.text_delta)
+                if on_text_delta is not None:
+                    on_text_delta(event.text_delta)
+
+            elif event.type == "tool_call" and event.tool_call:
+                tool_calls.append(event.tool_call)
+
+        text = "".join(text_parts)
+
+        if tool_calls:
+            assistant_message = {
+                "role": "assistant",
+                "content": text if text else "",
+                "tool_calls": [
+                    {
+                        "id": str(tc.id) if tc.id else "",
+                        "name": tc.name,
+                        "arguments": tc.arguments,
+                    }
+                    for tc in tool_calls
+                ],
+            }
+        else:
+            assistant_message = {
+                "role": "assistant",
+                "content": text,
+            }
+
+        return ChatResult(
+            text=text,
+            tool_calls=tool_calls,
+            assistant_message=assistant_message,
+            raw=raw_events,
+        )

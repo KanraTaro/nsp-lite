@@ -6,16 +6,50 @@ reply.
 
 If --title is omitted, the conversation title is derived automatically
 from the first user message.
+
+When --tools is enabled, the first turn is executed through the
+tool-capable RohTalk loop and the resulting normalized history is
+persisted back into the conversation.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any, List
+from typing import Any, Dict, List
 
-from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import run_conversation
+from Core.LLMClient.types import LLMClientError, ToolDef
+from Core.RohTalk import load_config, run_conversation, update_conversation_messages
+from Core.RohTalk.conversations import create_conversation, get_conversation
+from Core.RohTalk.tool_loop import run_tool_loop
+
+
+def _get_weather(city: str) -> Dict[str, Any]:
+    return {
+        "city": city,
+        "forecast": "Partly cloudy",
+        "temp_f": 82,
+    }
+
+
+TOOLS: List[ToolDef] = [
+    ToolDef(
+        name="get_weather",
+        description="Get the weather for a city.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "city": {"type": "string"},
+            },
+            "required": ["city"],
+        },
+    )
+]
+
+
+TOOL_IMPL = {
+    "get_weather": _get_weather,
+}
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -39,6 +73,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Optional backend URL override",
     )
     parser.add_argument(
+        "--tools",
+        dest="tools",
+        action="store_true",
+        help="Enable tool loop for this conversation",
+    )
+    parser.add_argument(
         "prompt",
         nargs=argparse.REMAINDER,
         help="First message to send (all remaining tokens are joined)",
@@ -59,15 +99,51 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 2
 
     try:
-        conversation_id, reply = run_conversation(
-            ctx,
-            user_text,
-            conversation_id=None,
-            kind="conversation",
-            model=args.model,
-            host=args.host,
-            title=args.title,
-        )
+        if not args.tools:
+            conversation_id, reply = run_conversation(
+                ctx,
+                user_text,
+                conversation_id=None,
+                kind="conversation",
+                model=args.model,
+                host=args.host,
+                title=args.title,
+            )
+        else:
+            config = load_config(ctx)
+            model = args.model or config.default_model
+            host = args.host or config.default_host
+
+            conversation_id, _ = create_conversation(
+                ctx,
+                user_text,
+                kind="conversation",
+                model=model,
+                host=host,
+                title=args.title,
+                skip_model=True,
+            )
+
+            metadata = get_conversation(ctx, conversation_id)
+            messages = list(metadata.get("messages", []))
+
+            reply, final_messages = run_tool_loop(
+                messages,
+                model=model,
+                host=host,
+                tools=TOOLS,
+                tool_impl=TOOL_IMPL,
+                max_steps=5,
+            )
+
+            update_conversation_messages(
+                ctx,
+                conversation_id,
+                final_messages,
+                model=model,
+                host=host,
+            )
+
     except LLMClientError as exc:
         print(str(exc), file=sys.stderr)
         return 1

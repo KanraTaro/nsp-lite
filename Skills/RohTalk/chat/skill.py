@@ -14,6 +14,7 @@ Flags:
 
 * ``--model`` - Optional model override.
 * ``--host`` - Optional backend URL override.
+* ``--tools`` - Enable tool-capable loop for this message.
 
 The first positional argument is the conversation identifier or numeric
 list index. All subsequent positional arguments after the optional
@@ -26,8 +27,43 @@ import argparse
 import sys
 from typing import Any, Dict, List
 
-from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import list_conversations, run_conversation
+from Core.LLMClient.types import LLMClientError, ToolDef
+from Core.RohTalk import (
+    list_conversations,
+    load_config,
+    run_conversation,
+    update_conversation_messages,
+)
+from Core.RohTalk.conversations import get_conversation
+from Core.RohTalk.tool_loop import run_tool_loop
+
+
+def _get_weather(city: str) -> Dict[str, Any]:
+    return {
+        "city": city,
+        "forecast": "Partly cloudy",
+        "temp_f": 82,
+    }
+
+
+TOOLS: List[ToolDef] = [
+    ToolDef(
+        name="get_weather",
+        description="Get the weather for a city.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "city": {"type": "string"},
+            },
+            "required": ["city"],
+        },
+    )
+]
+
+
+TOOL_IMPL = {
+    "get_weather": _get_weather,
+}
 
 
 def _resolve_conversation_id(ctx: Any, raw_value: str) -> str:
@@ -65,6 +101,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Optional backend URL override",
     )
     parser.add_argument(
+        "--tools",
+        dest="tools",
+        action="store_true",
+        help="Enable tool loop for this message",
+    )
+    parser.add_argument(
         "message",
         nargs=argparse.REMAINDER,
         help="Message to send (all remaining tokens are joined)",
@@ -86,13 +128,46 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
     try:
         conversation_id = _resolve_conversation_id(ctx, args.conversation_ref)
-        _conv_id, reply = run_conversation(
-            ctx,
-            user_text,
-            conversation_id=conversation_id,
-            model=args.model,
-            host=args.host,
-        )
+
+        if not args.tools:
+            _conv_id, reply = run_conversation(
+                ctx,
+                user_text,
+                conversation_id=conversation_id,
+                model=args.model,
+                host=args.host,
+            )
+        else:
+            config = load_config(ctx)
+            model = args.model or config.default_model
+            host = args.host or config.default_host
+
+            metadata = get_conversation(ctx, conversation_id)
+            messages = list(metadata.get("messages", []))
+            messages.append(
+                {
+                    "role": "user",
+                    "content": user_text,
+                }
+            )
+
+            reply, final_messages = run_tool_loop(
+                messages,
+                model=model,
+                host=host,
+                tools=TOOLS,
+                tool_impl=TOOL_IMPL,
+                max_steps=5,
+            )
+
+            update_conversation_messages(
+                ctx,
+                conversation_id,
+                final_messages,
+                model=model,
+                host=host,
+            )
+
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -72,6 +72,10 @@ class LLMClientChatTests(unittest.TestCase):
         self.assertEqual(result.text, "Hi there!")
         # Should have no tool calls
         self.assertEqual(result.tool_calls, [])
+        # assistant_message should exist and match normalized shape
+        self.assertEqual(result.assistant_message["role"], "assistant")
+        self.assertEqual(result.assistant_message["content"], "Hi there!")
+        self.assertNotIn("tool_calls", result.assistant_message)
         # Verify a single POST call was made
         self.assertEqual(len(dummy.calls), 1)
         url, payload, timeout = dummy.calls[0]
@@ -124,6 +128,17 @@ class LLMClientChatTests(unittest.TestCase):
         self.assertEqual(call.arguments, {"city": "NY"})
         # Arguments JSON should be canonical
         self.assertIn('"city":"NY"', call.arguments_json)
+        # assistant_message should include normalized tool_calls
+        assistant_msg = result.assistant_message
+        self.assertEqual(assistant_msg["role"], "assistant")
+        self.assertEqual(assistant_msg["content"], "Here is the weather.")
+        self.assertIn("tool_calls", assistant_msg)
+        self.assertEqual(len(assistant_msg["tool_calls"]), 1)
+
+        tc = assistant_msg["tool_calls"][0]
+        self.assertEqual(tc["name"], "get_weather")
+        self.assertEqual(tc["arguments"], {"city": "NY"})
+        self.assertTrue(tc["id"])  # must always exist
 
     def test_chat_request_includes_tools(self) -> None:
         """Supplying tools should include them in the request payload."""
@@ -195,6 +210,62 @@ class LLMClientChatTests(unittest.TestCase):
         with self.assertRaises(LLMClientError):
             client.chat([{"role": "user", "content": "anything"}], model=None)
 
+    def test_chat_roundtrip_normalized_history(self) -> None:
+        """Normalized assistant/tool history should round-trip through _convert_messages correctly."""
+        dummy_resp = {
+            "model": "m",
+            "message": {
+                "role": "assistant",
+                "content": "Done.",
+            },
+        }
+        dummy = DummyPost(dummy_resp)
+        client = LLMClient(http_post=dummy)
+
+        messages = [
+            {"role": "user", "content": "weather?"},
+
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "name": "get_weather",
+                        "arguments": {"city": "NY"},
+                    }
+                ],
+            },
+
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "tool_name": "get_weather",
+                "content": '{"city":"NY"}',
+            },
+        ]
+
+        client.chat(messages, model="m")
+
+        self.assertEqual(len(dummy.calls), 1)
+        _, payload, _ = dummy.calls[0]
+
+        sent_messages = payload["messages"]
+
+        # assistant tool call should be converted correctly
+        assistant_msg = sent_messages[1]
+        self.assertEqual(assistant_msg["role"], "assistant")
+        self.assertIn("tool_calls", assistant_msg)
+
+        tc = assistant_msg["tool_calls"][0]
+        self.assertEqual(tc["function"]["name"], "get_weather")
+        self.assertEqual(tc["function"]["arguments"], {"city": "NY"})
+
+        # tool message should be preserved correctly
+        tool_msg = sent_messages[2]
+        self.assertEqual(tool_msg["role"], "tool")
+        self.assertEqual(tool_msg["tool_name"], "get_weather")
+        self.assertEqual(tool_msg["content"], '{"city":"NY"}')
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

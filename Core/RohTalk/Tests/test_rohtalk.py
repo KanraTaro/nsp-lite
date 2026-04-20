@@ -1,10 +1,9 @@
 """Offline unit tests for the RohTalk core spine.
 
-These tests exercise the conversation pipeline without requiring any
-live LLM backend. The ``LLMClient`` class is patched to return a
-deterministic response for each call. The tests create a temporary
-root directory for each run, so they do not interfere with any real
-State/ or Config/ directories on disk.
+These tests exercise the conversation pipeline and early tool-loop
+helpers without requiring any live LLM backend. The tests create a
+temporary root directory for each run, so they do not interfere with
+any real State/ or Config/ directories on disk.
 """
 
 from __future__ import annotations
@@ -14,10 +13,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from Core.LLMClient.types import ChatResult
+from Core.LLMClient.types import ChatResult, ToolCall, ToolDef
 import Core.NSPL.NodeCTX as NodeCTX
 from Core.NSPL.SkillCLI.ctx import SkillContext
 from Core.RohTalk.conversations import append_message, create_conversation, list_conversations
+from Core.RohTalk.tool_loop import run_tool_loop
+from Core.RohTalk.tool_runner import execute_tool_call
 
 
 class RohTalkCoreTests(unittest.TestCase):
@@ -43,7 +44,15 @@ class RohTalkCoreTests(unittest.TestCase):
         patcher = patch("Core.RohTalk.conversations.LLMClient")
         mock_client = patcher.start()
         instance = mock_client.return_value
-        instance.chat.return_value = ChatResult(text=reply_text, tool_calls=[], raw={})
+        instance.chat.return_value = ChatResult(
+            text=reply_text,
+            tool_calls=[],
+            assistant_message={
+                "role": "assistant",
+                "content": reply_text,
+            },
+            raw={},
+        )
         self.addCleanup(patcher.stop)
 
     def _conversation_dir(self) -> Path:
@@ -161,6 +170,254 @@ class RohTalkCoreTests(unittest.TestCase):
 
         with self.assertRaises(FileNotFoundError):
             append_message(self.ctx, "doesnotexist", "hello")
+
+    def test_execute_tool_call_success(self) -> None:
+        def get_weather(city: str) -> dict:
+            return {"city": city, "forecast": "sunny"}
+
+        tool_call = ToolCall(
+            id="call_1",
+            name="get_weather",
+            arguments={"city": "Orlando"},
+            arguments_json='{"city":"Orlando"}',
+        )
+
+        result = execute_tool_call(tool_call, {"get_weather": get_weather})
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["tool_name"], "get_weather")
+        self.assertEqual(result["tool_call_id"], "call_1")
+        self.assertEqual(result["result"], {"city": "Orlando", "forecast": "sunny"})
+
+    def test_execute_tool_call_unknown_tool(self) -> None:
+        tool_call = ToolCall(
+            id="call_2",
+            name="missing_tool",
+            arguments={},
+            arguments_json="{}",
+        )
+
+        result = execute_tool_call(tool_call, {})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["tool_name"], "missing_tool")
+        self.assertEqual(result["tool_call_id"], "call_2")
+        self.assertIn("Unknown tool", result["error"])
+
+    def test_run_tool_loop_tool_then_final_reply(self) -> None:
+        tools = [
+            ToolDef(
+                name="get_weather",
+                description="Get weather for a city",
+                parameters={
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                    "required": ["city"],
+                },
+            )
+        ]
+
+        def get_weather(city: str) -> dict:
+            return {"city": city, "forecast": "Partly cloudy", "temp_f": 82}
+
+        first_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_1",
+                    name="get_weather",
+                    arguments={"city": "Orlando"},
+                    arguments_json='{"city":"Orlando"}',
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "name": "get_weather",
+                        "arguments": {"city": "Orlando"},
+                    }
+                ],
+            },
+            raw={},
+        )
+
+        second_result = ChatResult(
+            text="It looks partly cloudy in Orlando. You probably do not need an umbrella.",
+            tool_calls=[],
+            assistant_message={
+                "role": "assistant",
+                "content": "It looks partly cloudy in Orlando. You probably do not need an umbrella.",
+            },
+            raw={},
+        )
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.side_effect = [first_result, second_result]
+
+            messages = [
+                {"role": "system", "content": "You are Roh."},
+                {"role": "user", "content": "What is the weather in Orlando?"},
+            ]
+
+            final_text, final_messages = run_tool_loop(
+                messages,
+                model="qwen3:0.6b",
+                tools=tools,
+                tool_impl={"get_weather": get_weather},
+                max_steps=5,
+            )
+
+        self.assertEqual(
+            final_text,
+            "It looks partly cloudy in Orlando. You probably do not need an umbrella.",
+        )
+
+        self.assertEqual(final_messages[0]["role"], "system")
+        self.assertEqual(final_messages[1]["role"], "user")
+        self.assertEqual(final_messages[2]["role"], "assistant")
+        self.assertIn("tool_calls", final_messages[2])
+
+        self.assertEqual(final_messages[3]["role"], "tool")
+        self.assertEqual(final_messages[3]["tool_call_id"], "call_1")
+        self.assertEqual(final_messages[3]["tool_name"], "get_weather")
+
+        self.assertEqual(final_messages[4]["role"], "assistant")
+        self.assertEqual(
+            final_messages[4]["content"],
+            "It looks partly cloudy in Orlando. You probably do not need an umbrella.",
+        )
+
+    def test_run_tool_loop_unknown_tool_appends_failure_message(self) -> None:
+        tools = [
+            ToolDef(
+                name="missing_tool",
+                description="Missing tool",
+                parameters={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            )
+        ]
+
+        first_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_9",
+                    name="missing_tool",
+                    arguments={},
+                    arguments_json="{}",
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_9",
+                        "name": "missing_tool",
+                        "arguments": {},
+                    }
+                ],
+            },
+            raw={},
+        )
+
+        second_result = ChatResult(
+            text="That tool is unavailable.",
+            tool_calls=[],
+            assistant_message={
+                "role": "assistant",
+                "content": "That tool is unavailable.",
+            },
+            raw={},
+        )
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.side_effect = [first_result, second_result]
+
+            messages = [
+                {"role": "system", "content": "You are Roh."},
+                {"role": "user", "content": "Run the missing tool."},
+            ]
+
+            final_text, final_messages = run_tool_loop(
+                messages,
+                model="qwen3:0.6b",
+                tools=tools,
+                tool_impl={},
+                max_steps=5,
+            )
+
+        self.assertEqual(final_text, "That tool is unavailable.")
+        self.assertEqual(final_messages[3]["role"], "tool")
+        self.assertEqual(final_messages[3]["tool_call_id"], "call_9")
+        self.assertEqual(final_messages[3]["tool_name"], "missing_tool")
+        self.assertIn('"ok":false', final_messages[3]["content"])
+
+    def test_run_tool_loop_max_steps_raises(self) -> None:
+        tools = [
+            ToolDef(
+                name="loop_tool",
+                description="Loop forever",
+                parameters={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            )
+        ]
+
+        repeated_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_loop",
+                    name="loop_tool",
+                    arguments={},
+                    arguments_json="{}",
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_loop",
+                        "name": "loop_tool",
+                        "arguments": {},
+                    }
+                ],
+            },
+            raw={},
+        )
+
+        def loop_tool() -> dict:
+            return {"still": "looping"}
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.side_effect = [repeated_result, repeated_result]
+
+            messages = [
+                {"role": "system", "content": "You are Roh."},
+                {"role": "user", "content": "Loop forever."},
+            ]
+
+            with self.assertRaises(RuntimeError):
+                run_tool_loop(
+                    messages,
+                    model="qwen3:0.6b",
+                    tools=tools,
+                    tool_impl={"loop_tool": loop_tool},
+                    max_steps=2,
+                )
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -100,6 +100,7 @@ def create_conversation(
     model: Optional[str] = None,
     host: Optional[str] = None,
     title: Optional[str] = None,
+    skip_model: bool = False,
 ) -> Tuple[str, str]:
     """Create a new conversation, persist it and return the id and reply."""
     node_ctx = ctx.node_ctx
@@ -111,17 +112,21 @@ def create_conversation(
 
     initial_messages = assemble_initial_messages(config.agent_identity, user_message)
 
-    client = LLMClient()
-    result: ChatResult = client.chat(initial_messages, model=model_to_use, host=host_to_use)
-    assistant_text = result.text
+    assistant_text = ""
+    if not skip_model:
+        client = LLMClient()
+        result: ChatResult = client.chat(initial_messages, model=model_to_use, host=host_to_use)
+        assistant_text = result.text
 
     conversation_id = uuid.uuid4().hex
 
     conv_messages: List[Dict[str, Any]] = [
         {"role": "system", "content": config.agent_identity},
         {"role": "user", "content": user_message},
-        {"role": "assistant", "content": assistant_text},
     ]
+
+    if not skip_model:
+        conv_messages.append({"role": "assistant", "content": assistant_text})
 
     now_iso = _iso_now()
     metadata: Dict[str, Any] = {
@@ -216,6 +221,52 @@ def append_message(
 
     return assistant_text
 
+
+def update_conversation_messages(
+    ctx,
+    conversation_id: str,
+    messages: List[Dict[str, Any]],
+    *,
+    model: Optional[str] = None,
+    host: Optional[str] = None,
+) -> None:
+    """Persist an updated full message list back into an existing conversation.
+
+    This updates metadata in place and appends only newly-added messages
+    to the append-only event log.
+    """
+    node_ctx = ctx.node_ctx
+    metadata = get_conversation(ctx, conversation_id)
+
+    existing_messages = metadata.get("messages", [])
+    if not isinstance(existing_messages, list):
+        existing_messages = []
+
+    metadata["messages"] = list(messages)
+    metadata["updated_at"] = _iso_now()
+
+    if model is not None:
+        metadata["model"] = model
+    if host is not None:
+        metadata["host"] = host
+
+    meta_path = _metadata_path(ctx, conversation_id)
+    node_ctx.write_json_atomic(meta_path, metadata)
+
+    events_path = _events_path(ctx, conversation_id)
+    start_index = len(existing_messages)
+
+    for msg in messages[start_index:]:
+        if not isinstance(msg, dict):
+            continue
+
+        event = {
+            "timestamp": _iso_now(),
+            "role": msg.get("role"),
+            "content": msg.get("content"),
+        }
+        node_ctx.append_jsonl(events_path, event)
+        
 
 def list_conversations(
     ctx,

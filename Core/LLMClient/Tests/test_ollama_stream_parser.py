@@ -1,9 +1,9 @@
 """Unit tests for the LLMClient Ollama streaming chat backend.
 
 These tests verify that the streaming logic correctly parses NDJSON
-chunks into provider‑neutral ``StreamEvent`` objects and maps errors
+chunks into provider-neutral ``StreamEvent`` objects and maps errors
 into the appropriate exception types defined in
-``Core.LLMClient.types``.  The streaming layer is mocked so that no
+``Core.LLMClient.types``. The streaming layer is mocked so that no
 real network requests are made.
 """
 
@@ -28,10 +28,10 @@ from Core.LLMClient.http_json import HTTPError as JSONHTTPError
 class DummyStream:
     """Helper class to simulate a streaming JSON POST.
 
-    ``chunks``: an iterable of JSON‑serialisable objects or raw JSON
+    ``chunks``: an iterable of JSON-serialisable objects or raw JSON
         strings to yield to the client.
     ``exception``: optional exception to raise instead of returning a
-        normal iterator.  When set, no chunks are yielded and the
+        normal iterator. When set, no chunks are yielded and the
         exception is raised immediately.
     The callable records calls so that tests can inspect the URL and
     payload used by the client.
@@ -50,7 +50,6 @@ class DummyStream:
         self.calls.append((url, payload, timeout_s))
         if self.exception is not None:
             raise self.exception
-        # Return an iterator over the chunks
         for chunk in self.chunks:
             yield chunk
 
@@ -58,7 +57,6 @@ class DummyStream:
 class LLMClientStreamTests(unittest.TestCase):
     def test_stream_events_sequence(self) -> None:
         """A stream of chunks should produce the correct sequence of StreamEvent objects."""
-        # Define a sequence of chunks mixing text and tool calls
         chunks = [
             {"message": {"content": "Hel"}},
             {"message": {"content": "lo"}},
@@ -81,7 +79,7 @@ class LLMClientStreamTests(unittest.TestCase):
                 {"role": "user", "content": "Hello"},
             ], model="m")
         )
-        # Expect four events: text, text, tool_call, text
+
         self.assertEqual(len(events), 4)
         self.assertEqual(events[0].type, "text")
         self.assertEqual(events[0].text_delta, "Hel")
@@ -96,19 +94,124 @@ class LLMClientStreamTests(unittest.TestCase):
         assert tc is not None
         self.assertEqual(tc.name, "get_temp")
         self.assertEqual(tc.arguments, {"city": "NY"})
-        # The id should be derived from index 0
         self.assertEqual(tc.id, "0")
 
         self.assertEqual(events[3].type, "text")
         self.assertEqual(events[3].text_delta, " world")
 
-        # Verify only one call was recorded and payload was constructed properly
         self.assertEqual(len(dummy_stream.calls), 1)
         url, payload, timeout = dummy_stream.calls[0]
-        # URL should end with /api/chat
         self.assertTrue(url.endswith("/api/chat"))
         self.assertEqual(payload["model"], "m")
-        self.assertTrue(payload["stream"])  # stream must be True
+        self.assertTrue(payload["stream"])
+        self.assertIsNone(timeout)
+
+    def test_chat_stream_collect_text_only(self) -> None:
+        """Collected streaming text should return a ChatResult with assistant_message."""
+        chunks = [
+            {"message": {"content": "Hel"}},
+            {"message": {"content": "lo"}},
+            {"message": {"content": " world"}},
+        ]
+        dummy_stream = DummyStream(chunks)
+        client = LLMClient(http_stream=dummy_stream)
+
+        result = client.chat_stream_collect(
+            [{"role": "user", "content": "Hello"}],
+            model="m",
+        )
+
+        self.assertEqual(result.text, "Hello world")
+        self.assertEqual(result.tool_calls, [])
+        self.assertEqual(
+            result.assistant_message,
+            {
+                "role": "assistant",
+                "content": "Hello world",
+            },
+        )
+        self.assertEqual(len(result.raw), 3)
+
+    def test_chat_stream_collect_tool_calls(self) -> None:
+        """Collected streaming tool calls should produce normalized assistant_message."""
+        chunks = [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "Orlando"},
+                            },
+                        }
+                    ]
+                }
+            }
+        ]
+        dummy_stream = DummyStream(chunks)
+        client = LLMClient(http_stream=dummy_stream)
+
+        result = client.chat_stream_collect(
+            [{"role": "user", "content": "weather?"}],
+            model="m",
+        )
+
+        self.assertEqual(result.text, "")
+        self.assertEqual(len(result.tool_calls), 1)
+
+        call = result.tool_calls[0]
+        self.assertEqual(call.name, "get_weather")
+        self.assertEqual(call.arguments, {"city": "Orlando"})
+        self.assertTrue(call.id)
+
+        assistant_message = result.assistant_message
+        self.assertEqual(assistant_message["role"], "assistant")
+        self.assertEqual(assistant_message["content"], "")
+        self.assertIn("tool_calls", assistant_message)
+        self.assertEqual(len(assistant_message["tool_calls"]), 1)
+
+        tc = assistant_message["tool_calls"][0]
+        self.assertEqual(tc["name"], "get_weather")
+        self.assertEqual(tc["arguments"], {"city": "Orlando"})
+        self.assertTrue(tc["id"])
+
+    def test_chat_stream_collect_text_and_tool_calls(self) -> None:
+        """Collected streaming result should preserve both text and normalized tool calls."""
+        chunks = [
+            {"message": {"content": "Let me check."}},
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "Orlando"},
+                                "index": 0,
+                            },
+                        }
+                    ]
+                }
+            },
+        ]
+        dummy_stream = DummyStream(chunks)
+        client = LLMClient(http_stream=dummy_stream)
+
+        result = client.chat_stream_collect(
+            [{"role": "user", "content": "weather?"}],
+            model="m",
+        )
+
+        self.assertEqual(result.text, "Let me check.")
+        self.assertEqual(len(result.tool_calls), 1)
+        self.assertEqual(result.tool_calls[0].id, "0")
+
+        assistant_message = result.assistant_message
+        self.assertEqual(assistant_message["role"], "assistant")
+        self.assertEqual(assistant_message["content"], "Let me check.")
+        self.assertIn("tool_calls", assistant_message)
+        self.assertEqual(assistant_message["tool_calls"][0]["id"], "0")
 
     def test_stream_connection_error(self) -> None:
         """A URLError should map to ConnectionError."""
@@ -136,7 +239,7 @@ class LLMClientStreamTests(unittest.TestCase):
             list(client.chat_stream([{"role": "user", "content": "hi"}], model="bar"))
 
     def test_stream_http_status_error(self) -> None:
-        """Other non‑200 statuses should map to HTTPStatusError."""
+        """Other non-200 statuses should map to HTTPStatusError."""
         exc = JSONHTTPError(500, "internal error")
         dummy_stream = DummyStream(exception=exc)
         client = LLMClient(http_stream=dummy_stream)
@@ -145,7 +248,6 @@ class LLMClientStreamTests(unittest.TestCase):
 
     def test_stream_invalid_chunk(self) -> None:
         """Invalid JSON chunks should raise LLMClientError."""
-        # Provide a chunk that is not a dict and not valid JSON string
         chunks = ["not-json"]
         dummy_stream = DummyStream(chunks)
         client = LLMClient(http_stream=dummy_stream)

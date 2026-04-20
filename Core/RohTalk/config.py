@@ -55,7 +55,7 @@ _DEFAULTS: Dict[str, Any] = {
         "You are Roh, a succinct and helpful assistant. "
         "Answer the user's questions clearly and concisely."
     ),
-    "default_model": "qwen3:0.6b",
+    "default_model": "qwen3:1.7b",
     "default_host": None,
 }
 
