@@ -2,8 +2,8 @@
 
 This is a proving skill for the RohTalk tool loop.
 
-It runs a simple tool-enabled conversation using a hardcoded tool
-implementation to verify end-to-end behavior with a real model.
+It runs a simple tool-enabled conversation using shared local tools
+to verify end-to-end behavior with a real model.
 
 This skill does NOT persist conversations. It is intended purely as a
 runtime smoke test for tool calling.
@@ -16,36 +16,8 @@ import json
 import sys
 from typing import Any, Dict, List
 
-from Core.LLMClient.types import ToolDef
 from Core.RohTalk import load_config, run_tool_loop
-
-
-def get_weather(city: str) -> Dict[str, Any]:
-    return {
-        "city": city,
-        "forecast": "Partly cloudy",
-        "temp_f": 82,
-    }
-
-
-TOOLS: List[ToolDef] = [
-    ToolDef(
-        name="get_weather",
-        description="Get the weather for a city.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "city": {"type": "string"}
-            },
-            "required": ["city"],
-        },
-    )
-]
-
-
-TOOL_IMPL = {
-    "get_weather": get_weather,
-}
+from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
 
 
 def _print_step(step_index: int) -> None:
@@ -158,8 +130,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             messages,
             model=model,
             host=host,
-            tools=TOOLS,
-            tool_impl=TOOL_IMPL,
+            tools=LOCAL_TOOLS,
+            tool_impl=LOCAL_TOOL_IMPL,
             max_steps=5,
             **callback_kwargs,
         )

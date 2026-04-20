@@ -27,7 +27,7 @@ import argparse
 import sys
 from typing import Any, Dict, List
 
-from Core.LLMClient.types import LLMClientError, ToolDef
+from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import (
     list_conversations,
     load_config,
@@ -35,35 +35,8 @@ from Core.RohTalk import (
     update_conversation_messages,
 )
 from Core.RohTalk.conversations import get_conversation
+from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
 from Core.RohTalk.tool_loop import run_tool_loop
-
-
-def _get_weather(city: str) -> Dict[str, Any]:
-    return {
-        "city": city,
-        "forecast": "Partly cloudy",
-        "temp_f": 82,
-    }
-
-
-TOOLS: List[ToolDef] = [
-    ToolDef(
-        name="get_weather",
-        description="Get the weather for a city.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "city": {"type": "string"},
-            },
-            "required": ["city"],
-        },
-    )
-]
-
-
-TOOL_IMPL = {
-    "get_weather": _get_weather,
-}
 
 
 def _resolve_conversation_id(ctx: Any, raw_value: str) -> str:
@@ -155,8 +128,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 messages,
                 model=model,
                 host=host,
-                tools=TOOLS,
-                tool_impl=TOOL_IMPL,
+                tools=LOCAL_TOOLS,
+                tool_impl=LOCAL_TOOL_IMPL,
                 max_steps=5,
             )
 

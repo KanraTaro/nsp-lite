@@ -11,6 +11,7 @@ The argument may be either:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Any, Dict, List
 
@@ -33,10 +34,64 @@ def _resolve_conversation_id(ctx: Any, raw_value: str, *, include_oneshots: bool
     return text
 
 
+def _print_tool_calls(tool_calls: Any) -> None:
+    """Print normalized assistant tool call entries."""
+    if not isinstance(tool_calls, list):
+        return
+
+    for tool_call in tool_calls:
+        if not isinstance(tool_call, dict):
+            continue
+
+        tool_name = str(tool_call.get("name", "") or "")
+        tool_id = str(tool_call.get("id", "") or "")
+        arguments = tool_call.get("arguments", {})
+
+        try:
+            args_text = json.dumps(arguments, separators=(",", ":"), sort_keys=True)
+        except Exception:
+            args_text = str(arguments)
+
+        label = tool_name if tool_name != "" else "<unknown_tool>"
+        if tool_id != "":
+            print(f"[tool_call:{label}] id={tool_id} args={args_text}")
+        else:
+            print(f"[tool_call:{label}] args={args_text}")
+
+
 def _print_message(message: Dict[str, Any]) -> None:
+    """Print a single normalized conversation message."""
     role = str(message.get("role", "unknown"))
-    content = str(message.get("content", ""))
+    content = str(message.get("content", "") or "")
+    tool_calls = message.get("tool_calls")
+
     print(f"[{role}]")
+
+    if role == "assistant" and isinstance(tool_calls, list) and len(tool_calls) > 0:
+        if content.strip() != "":
+            print(content)
+            print("")
+        else:
+            print("<tool call requested>")
+            print("")
+
+        _print_tool_calls(tool_calls)
+        print("")
+        return
+
+    if role == "tool":
+        tool_name = str(message.get("tool_name", "") or "")
+        tool_call_id = str(message.get("tool_call_id", "") or "")
+
+        if tool_name != "":
+            print(f"tool_name: {tool_name}")
+        if tool_call_id != "":
+            print(f"tool_call_id: {tool_call_id}")
+        if content != "":
+            print(content)
+        print("")
+        return
+
     print(content)
     print("")
 
