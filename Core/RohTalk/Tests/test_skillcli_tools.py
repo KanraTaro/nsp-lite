@@ -149,7 +149,7 @@ class SkillCLIToolsTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
 
-    def test_execute_skill_returns_stdout_fallback_for_non_json_skill(self) -> None:
+    def test_execute_skill_runs_time_skill_as_json(self) -> None:
         result = execute_skill(
             self.ctx,
             "NSPL.Tools.Time.now",
@@ -157,12 +157,25 @@ class SkillCLIToolsTests(unittest.TestCase):
         )
 
         self.assertIsInstance(result, dict)
-        self.assertIn("exit_code", result)
-        self.assertIn("stdout", result)
-        self.assertIn("stderr", result)
-        self.assertEqual(result["exit_code"], 0)
-        self.assertEqual(result["stderr"], "")
-        self.assertTrue(str(result["stdout"]).strip() != "")
+        self.assertIn("utc_iso", result)
+        self.assertIn("local_iso", result)
+        self.assertIn("date", result)
+        self.assertIn("time", result)
+        self.assertIn("weekday", result)
+        self.assertIn("timezone", result)
+        self.assertIn("timezone_abbreviation", result)
+        self.assertIn("utc_offset", result)
+        
+    def test_execute_skill_runs_time_skill_with_timezone_argument(self) -> None:
+        result = execute_skill(
+            self.ctx,
+            "NSPL.Tools.Time.now",
+            {"timezone": "America/New_York"},
+        )
+
+        self.assertEqual(result["timezone"], "America/New_York")
+        self.assertEqual(result["timezone_abbreviation"], "EDT")
+        self.assertEqual(result["utc_offset"], "-04:00")
 
     def test_execute_skill_raises_for_missing_skill(self) -> None:
         with self.assertRaises(Exception):

@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.shell",
+  "version": "0.1.0",
+  "description": "Interactive RohTalk shell for persistent conversations",
+  "entry": "skill.py"
+}

@@ -1,15 +1,6 @@
 """RohTalk.start skill.
 
-This skill starts a new persistent RohTalk conversation, runs the first
-model turn, and prints the new conversation id along with the assistant
-reply.
-
-If --title is omitted, the conversation title is derived automatically
-from the first user message.
-
-When --tools is enabled, the first turn is executed through the
-tool-capable RohTalk loop and the resulting normalized history is
-persisted back into the conversation.
+Start a new persistent RohTalk conversation and print the id and reply.
 """
 
 from __future__ import annotations
@@ -19,37 +10,26 @@ import sys
 from typing import Any, List
 
 from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import load_config, run_conversation, update_conversation_messages
-from Core.RohTalk.conversations import create_conversation, get_conversation
-from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
-from Core.RohTalk.tool_loop import run_tool_loop
+from Core.RohTalk import run_turn
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
-    """Extend the parser with arguments for starting a conversation."""
+    parser.add_argument("--title", dest="title", default=None, help="Optional conversation title")
+    parser.add_argument("--model", dest="model", default=None, help="Optional model override")
+    parser.add_argument("--host", dest="host", default=None, help="Optional backend URL override")
+    parser.add_argument("--tools", dest="tools", action="store_true", help="Enable tool-capable turn")
     parser.add_argument(
-        "--title",
-        dest="title",
-        default=None,
-        help="Optional conversation title",
+        "--tool-backend",
+        dest="tool_backend",
+        choices=["skillcli", "local"],
+        default="skillcli",
+        help="Tool execution backend when --tools is enabled",
     )
     parser.add_argument(
-        "--model",
-        dest="model",
-        default=None,
-        help="Optional model override",
-    )
-    parser.add_argument(
-        "--host",
-        dest="host",
-        default=None,
-        help="Optional backend URL override",
-    )
-    parser.add_argument(
-        "--tools",
-        dest="tools",
-        action="store_true",
-        help="Enable tool loop for this conversation",
+        "--toolkit",
+        dest="toolkit",
+        default="basic",
+        help="Tool kit to expose when --tools is enabled",
     )
     parser.add_argument(
         "prompt",
@@ -59,64 +39,30 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    """Start a new persistent conversation and print the id and reply."""
     tokens: List[str] = []
     if hasattr(args, "prompt") and args.prompt:
         tokens = list(args.prompt)
         if tokens and tokens[0] == "--":
             tokens = tokens[1:]
 
-    user_text: str = " ".join(str(token) for token in tokens).strip()
+    user_text = " ".join(str(token) for token in tokens).strip()
     if user_text == "":
         print("Missing prompt text.", file=sys.stderr)
         return 2
 
     try:
-        if not args.tools:
-            conversation_id, reply = run_conversation(
-                ctx,
-                user_text,
-                conversation_id=None,
-                kind="conversation",
-                model=args.model,
-                host=args.host,
-                title=args.title,
-            )
-        else:
-            config = load_config(ctx)
-            model = args.model or config.default_model
-            host = args.host or config.default_host
-
-            conversation_id, _ = create_conversation(
-                ctx,
-                user_text,
-                kind="conversation",
-                model=model,
-                host=host,
-                title=args.title,
-                skip_model=True,
-            )
-
-            metadata = get_conversation(ctx, conversation_id)
-            messages = list(metadata.get("messages", []))
-
-            reply, final_messages = run_tool_loop(
-                messages,
-                model=model,
-                host=host,
-                tools=LOCAL_TOOLS,
-                tool_impl=LOCAL_TOOL_IMPL,
-                max_steps=5,
-            )
-
-            update_conversation_messages(
-                ctx,
-                conversation_id,
-                final_messages,
-                model=model,
-                host=host,
-            )
-
+        conversation_id, reply = run_turn(
+            ctx,
+            user_text,
+            conversation_id=None,
+            kind="conversation",
+            model=args.model,
+            host=args.host,
+            title=args.title,
+            use_tools=bool(args.tools),
+            tool_backend=str(args.tool_backend),
+            toolkit=str(args.toolkit),
+        )
     except LLMClientError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -129,4 +75,5 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     print(f"title: {title_text}")
     if reply:
         print(reply)
+
     return 0

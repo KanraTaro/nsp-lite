@@ -1,13 +1,10 @@
 """RohTalk.tool_test skill.
 
-This is a proving skill for the RohTalk tool loop.
+Runtime smoke test for RohTalk tool calling.
 
-It can run against either:
-- shared local in-process tools
-- SkillCLI-backed tools executed in-process through the SkillCLI loader
-
-This skill does NOT persist conversations. It is intended purely as a
-runtime smoke test for tool calling.
+This skill does not persist conversations. It verifies that the tool
+loop can run against either local tools or a named SkillCLI-backed
+toolkit.
 """
 
 from __future__ import annotations
@@ -17,54 +14,9 @@ import json
 import sys
 from typing import Any, Dict, List
 
-from Core.LLMClient.types import ToolDef
-from Core.RohTalk import load_config, run_tool_loop
+from Core.RohTalk import load_config, run_tool_loop, resolve_toolkit
 from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
-from Core.RohTalk.skillcli_tools import (
-    build_tool_name_map,
-    canonical_skill_name_to_tool_name,
-    execute_skill,
-)
-
-
-SKILLCLI_SKILL_NAMES: List[str] = [
-    "NSPL.Tools.Weather.get",
-    "NSPL.Tools.Time.now",
-]
-
-SKILLCLI_TOOLS: List[ToolDef] = [
-    ToolDef(
-        name=canonical_skill_name_to_tool_name("NSPL.Tools.Weather.get"),
-        description=(
-            "Get the weather for a city. "
-            "Use this when the user asks about weather in a specific place."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "city": {
-                    "type": "string",
-                    "description": "City name to get weather for",
-                }
-            },
-            "required": ["city"],
-        },
-    ),
-    ToolDef(
-        name=canonical_skill_name_to_tool_name("NSPL.Tools.Time.now"),
-        description=(
-            "Get the current time. "
-            "Use this when the user asks for the current time or date."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    ),
-]
-
-SKILLCLI_TOOL_NAME_MAP: Dict[str, str] = build_tool_name_map(SKILLCLI_SKILL_NAMES)
+from Core.RohTalk.skillcli_tools import execute_skill
 
 
 def _print_step(step_index: int) -> None:
@@ -91,7 +43,8 @@ def _print_assistant_message(message: Dict[str, Any]) -> None:
 def _print_tool_call(tool_call: Any) -> None:
     arguments = getattr(tool_call, "arguments", {})
     print(
-        f"[tool_call] {getattr(tool_call, 'name', '')} {json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
+        f"[tool_call] {getattr(tool_call, 'name', '')} "
+        f"{json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
         file=sys.stderr,
     )
 
@@ -104,24 +57,20 @@ def _print_tool_result(tool_result: Dict[str, Any]) -> None:
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--model",
-        dest="model",
-        default=None,
-        help="Optional model override",
-    )
-    parser.add_argument(
-        "--host",
-        dest="host",
-        default=None,
-        help="Optional backend host override",
-    )
+    parser.add_argument("--model", dest="model", default=None, help="Optional model override")
+    parser.add_argument("--host", dest="host", default=None, help="Optional backend host override")
     parser.add_argument(
         "--tool-backend",
         dest="tool_backend",
-        choices=["local", "skillcli"],
-        default="local",
-        help="Tool execution backend to use (default: local)",
+        choices=["skillcli", "local"],
+        default="skillcli",
+        help="Tool execution backend to use",
+    )
+    parser.add_argument(
+        "--toolkit",
+        dest="toolkit",
+        default="basic",
+        help="SkillCLI toolkit to expose when --tool-backend skillcli is used",
     )
     parser.add_argument(
         "--show-history",
@@ -167,10 +116,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                     "After receiving tool results, respond normally."
                 ),
             },
-            {
-                "role": "user",
-                "content": user_text,
-            },
+            {"role": "user", "content": user_text},
         ]
 
         callback_kwargs: Dict[str, Any] = {}
@@ -196,15 +142,16 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 **callback_kwargs,
             )
         else:
+            toolkit = resolve_toolkit(str(args.toolkit))
             final_text, final_messages = run_tool_loop(
                 messages,
                 model=model,
                 host=host,
-                tools=SKILLCLI_TOOLS,
+                tools=toolkit.tools,
                 tool_impl=None,
                 execution_mode="skillcli",
                 ctx=ctx,
-                skill_name_map=SKILLCLI_TOOL_NAME_MAP,
+                skill_name_map=toolkit.skill_name_map,
                 skill_executor=execute_skill,
                 max_steps=5,
                 **callback_kwargs,
