@@ -2,7 +2,7 @@
 
 This simple skill prints the current UTC timestamp in ISO 8601 format.
 It is useful for verifying that ChatOps can execute skills that
-produce artifacts or side effects.  No arguments are required.
+produce artifacts or side effects. No arguments are required.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    now = _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    now = _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     print(now)
     return 0
-

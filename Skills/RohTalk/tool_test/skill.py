@@ -2,8 +2,9 @@
 
 This is a proving skill for the RohTalk tool loop.
 
-It runs a simple tool-enabled conversation using shared local tools
-to verify end-to-end behavior with a real model.
+It can run against either:
+- shared local in-process tools
+- SkillCLI-backed tools executed in-process through the SkillCLI loader
 
 This skill does NOT persist conversations. It is intended purely as a
 runtime smoke test for tool calling.
@@ -16,8 +17,54 @@ import json
 import sys
 from typing import Any, Dict, List
 
+from Core.LLMClient.types import ToolDef
 from Core.RohTalk import load_config, run_tool_loop
 from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
+from Core.RohTalk.skillcli_tools import (
+    build_tool_name_map,
+    canonical_skill_name_to_tool_name,
+    execute_skill,
+)
+
+
+SKILLCLI_SKILL_NAMES: List[str] = [
+    "NSPL.Tools.Weather.get",
+    "NSPL.Tools.Time.now",
+]
+
+SKILLCLI_TOOLS: List[ToolDef] = [
+    ToolDef(
+        name=canonical_skill_name_to_tool_name("NSPL.Tools.Weather.get"),
+        description=(
+            "Get the weather for a city. "
+            "Use this when the user asks about weather in a specific place."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "description": "City name to get weather for",
+                }
+            },
+            "required": ["city"],
+        },
+    ),
+    ToolDef(
+        name=canonical_skill_name_to_tool_name("NSPL.Tools.Time.now"),
+        description=(
+            "Get the current time. "
+            "Use this when the user asks for the current time or date."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
+]
+
+SKILLCLI_TOOL_NAME_MAP: Dict[str, str] = build_tool_name_map(SKILLCLI_SKILL_NAMES)
 
 
 def _print_step(step_index: int) -> None:
@@ -70,6 +117,13 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Optional backend host override",
     )
     parser.add_argument(
+        "--tool-backend",
+        dest="tool_backend",
+        choices=["local", "skillcli"],
+        default="local",
+        help="Tool execution backend to use (default: local)",
+    )
+    parser.add_argument(
         "--show-history",
         dest="show_history",
         action="store_true",
@@ -108,7 +162,10 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         messages: List[Dict[str, Any]] = [
             {
                 "role": "system",
-                "content": "Use tools when helpful. After receiving tool results, respond normally.",
+                "content": (
+                    "Use tools when helpful. "
+                    "After receiving tool results, respond normally."
+                ),
             },
             {
                 "role": "user",
@@ -126,15 +183,32 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 "on_tool_result": _print_tool_result,
             }
 
-        final_text, final_messages = run_tool_loop(
-            messages,
-            model=model,
-            host=host,
-            tools=LOCAL_TOOLS,
-            tool_impl=LOCAL_TOOL_IMPL,
-            max_steps=5,
-            **callback_kwargs,
-        )
+        if args.tool_backend == "local":
+            final_text, final_messages = run_tool_loop(
+                messages,
+                model=model,
+                host=host,
+                tools=LOCAL_TOOLS,
+                tool_impl=LOCAL_TOOL_IMPL,
+                execution_mode="local",
+                ctx=ctx,
+                max_steps=5,
+                **callback_kwargs,
+            )
+        else:
+            final_text, final_messages = run_tool_loop(
+                messages,
+                model=model,
+                host=host,
+                tools=SKILLCLI_TOOLS,
+                tool_impl=None,
+                execution_mode="skillcli",
+                ctx=ctx,
+                skill_name_map=SKILLCLI_TOOL_NAME_MAP,
+                skill_executor=execute_skill,
+                max_steps=5,
+                **callback_kwargs,
+            )
 
     except Exception as exc:
         print(str(exc), file=sys.stderr)

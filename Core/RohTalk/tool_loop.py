@@ -28,7 +28,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from Core.LLMClient.client import LLMClient
 from Core.LLMClient.types import ToolDef
 
-from .tool_runner import ToolImplMap, execute_tool_call
+from .tool_runner import (
+    SkillExecutor,
+    SkillNameMap,
+    ToolExecutionMode,
+    ToolImplMap,
+    execute_tool_call,
+)
 
 
 StepCallback = Callable[[int], None]
@@ -53,7 +59,11 @@ def run_tool_loop(
     *,
     model: str,
     tools: List[ToolDef],
-    tool_impl: ToolImplMap,
+    tool_impl: Optional[ToolImplMap] = None,
+    execution_mode: ToolExecutionMode = "local",
+    ctx: Any = None,
+    skill_name_map: Optional[SkillNameMap] = None,
+    skill_executor: Optional[SkillExecutor] = None,
     host: Optional[str] = None,
     timeout_s: Optional[float] = None,
     max_steps: int = 5,
@@ -64,33 +74,7 @@ def run_tool_loop(
     on_tool_call: Optional[ToolCallCallback] = None,
     on_tool_result: Optional[ToolResultCallback] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    """Run a tool-capable conversation loop and return final text plus history.
-
-    Parameters:
-        messages: Existing normalized conversation history to continue from.
-        model: Model name for the LLM backend.
-        tools: Tool definitions exposed to the model.
-        tool_impl: Mapping of tool name to callable implementation.
-        host: Optional backend host override.
-        timeout_s: Optional timeout passed to the backend.
-        max_steps: Maximum number of assistant turns before aborting.
-        client: Optional injected ``LLMClient`` for tests or custom backends.
-        on_step: Optional callback fired at the beginning of each loop step.
-        on_text_delta: Optional callback fired for each streamed text delta.
-        on_assistant_message: Optional callback fired after the assistant
-            message is appended to history.
-        on_tool_call: Optional callback fired before each tool execution.
-        on_tool_result: Optional callback fired after each tool result is produced.
-
-    Returns:
-        A tuple ``(final_text, final_messages)`` where:
-        - ``final_text`` is the assistant's last text response
-        - ``final_messages`` is the fully updated normalized history
-
-    Raises:
-        RuntimeError: if the loop exceeds ``max_steps`` without resolving.
-        LLMClientError subclasses: propagated from the underlying client.
-    """
+    """Run a tool-capable conversation loop and return final text plus history."""
     active_messages: List[Dict[str, Any]] = list(messages)
     active_client = client or LLMClient()
 
@@ -119,7 +103,14 @@ def run_tool_loop(
             if on_tool_call is not None:
                 on_tool_call(tool_call)
 
-            tool_result = execute_tool_call(tool_call, tool_impl)
+            tool_result = execute_tool_call(
+                tool_call,
+                tool_impl,
+                execution_mode=execution_mode,
+                ctx=ctx,
+                skill_name_map=skill_name_map,
+                skill_executor=skill_executor,
+            )
 
             if on_tool_result is not None:
                 on_tool_result(tool_result)

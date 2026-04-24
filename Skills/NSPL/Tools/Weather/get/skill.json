@@ -1,0 +1,6 @@
+{
+  "name": "NSPL.Tools.Weather.get",
+  "version": "0.1.0",
+  "description": "Return a fake weather payload for a requested city",
+  "entry": "skill.py"
+}

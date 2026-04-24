@@ -1,5 +1,5 @@
 {
-  "name": "Tools.Time.now",
+  "name": "NSPL.Tools.Time.now",
   "version": "0.1.0",
   "description": "Print the current UTC timestamp.",
   "entry": "skill.py"
