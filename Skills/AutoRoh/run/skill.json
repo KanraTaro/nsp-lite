@@ -1,0 +1,6 @@
+{
+  "name": "AutoRoh.run",
+  "version": "0.1.0",
+  "description": "Run a small supervised AutoRoh loop against a RohTalk conversation",
+  "entry": "skill.py"
+}
