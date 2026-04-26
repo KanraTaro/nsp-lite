@@ -52,17 +52,35 @@ def _format_offset(value: _dt.datetime) -> str:
     return f"{sign}{hours:02d}:{minutes:02d}"
 
 
+def _format_12h(value: _dt.datetime) -> str:
+    text = value.strftime("%I:%M:%S %p")
+    return text.lstrip("0")
+
+
+def _format_display(value: _dt.datetime) -> str:
+    return (
+        f"{value.strftime('%A')}, "
+        f"{value.strftime('%B')} {value.day}, {value.year} "
+        f"at {_format_12h(value)} {value.tzname()}"
+    )
+
+
 def _build_payload(timezone_name: str | None) -> Dict[str, Any]:
     target_tz = _load_timezone(timezone_name)
 
     utc_now = _dt.datetime.now(_dt.UTC).replace(microsecond=0)
     local_now = utc_now.astimezone(target_tz)
+    time_24h = local_now.strftime("%H:%M:%S")
+    time_12h = _format_12h(local_now)
 
     return {
         "utc_iso": utc_now.isoformat().replace("+00:00", "Z"),
         "local_iso": local_now.isoformat(),
         "date": local_now.date().isoformat(),
-        "time": local_now.strftime("%H:%M:%S"),
+        "time": time_24h,
+        "time_24h": time_24h,
+        "time_12h": time_12h,
+        "display": _format_display(local_now),
         "weekday": local_now.strftime("%A"),
         "timezone": str(getattr(target_tz, "key", None) or local_now.tzname() or "local"),
         "timezone_abbreviation": local_now.tzname(),
@@ -78,9 +96,5 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
         return 0
 
-    print(
-        f"{payload['weekday']}, {payload['date']} "
-        f"{payload['time']} {payload['timezone_abbreviation']} "
-        f"({payload['timezone']}, UTC{payload['utc_offset']})"
-    )
+    print(payload["display"] + f" ({payload['timezone']}, UTC{payload['utc_offset']})")
     return 0
