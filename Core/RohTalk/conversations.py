@@ -222,6 +222,32 @@ def append_message(
     return assistant_text
 
 
+def _message_signature(message: Dict[str, Any]) -> str:
+    import json
+
+    return json.dumps(message, separators=(",", ":"), sort_keys=True)
+
+
+def _common_prefix_length(
+    left: List[Dict[str, Any]],
+    right: List[Dict[str, Any]],
+) -> int:
+    import json
+
+    def sig(m):
+        return json.dumps(m, separators=(",", ":"), sort_keys=True)
+
+    limit = min(len(left), len(right))
+
+    for i in range(limit):
+        if not isinstance(left[i], dict) or not isinstance(right[i], dict):
+            return i
+        if sig(left[i]) != sig(right[i]):
+            return i
+
+    return limit
+
+
 def update_conversation_messages(
     ctx,
     conversation_id: str,
@@ -242,7 +268,22 @@ def update_conversation_messages(
     if not isinstance(existing_messages, list):
         existing_messages = []
 
-    metadata["messages"] = list(messages)
+    incoming_messages = [
+        msg for msg in list(messages)
+        if isinstance(msg, dict)
+    ]
+
+    current_messages = [
+        msg for msg in existing_messages
+        if isinstance(msg, dict)
+    ]
+
+    prefix_len = _common_prefix_length(current_messages, incoming_messages)
+
+    merged_messages = list(current_messages)
+    merged_messages.extend(incoming_messages[prefix_len:])
+
+    metadata["messages"] = merged_messages
     metadata["updated_at"] = _iso_now()
 
     if model is not None:
@@ -256,7 +297,7 @@ def update_conversation_messages(
     events_path = _events_path(ctx, conversation_id)
     start_index = len(existing_messages)
 
-    for msg in messages[start_index:]:
+    for msg in metadata["messages"][start_index:]:
         if not isinstance(msg, dict):
             continue
 
@@ -267,6 +308,29 @@ def update_conversation_messages(
         }
         node_ctx.append_jsonl(events_path, event)
         
+
+def append_note(
+    ctx,
+    conversation_id: str,
+    note_text: str,
+    *,
+    prefix: str = "[human note]",
+) -> None:
+    """Append a human note to a conversation without running the model."""
+    cleaned = str(note_text).strip()
+    if cleaned == "":
+        raise ValueError("Note text cannot be empty.")
+
+    metadata = get_conversation(ctx, conversation_id)
+    messages = metadata.get("messages", [])
+    if not isinstance(messages, list):
+        messages = []
+
+    content = f"{prefix} {cleaned}"
+    messages.append({"role": "user", "content": content})
+
+    update_conversation_messages(ctx, conversation_id, messages)
+
 
 def list_conversations(
     ctx,

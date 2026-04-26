@@ -10,6 +10,7 @@ from .config import RohTalkConfig, load_config
 from .messages import assemble_initial_messages
 from .conversations import (
     append_message,
+    append_note,
     create_conversation,
     get_conversation,
     list_conversations,
@@ -20,6 +21,7 @@ from .tool_runner import execute_tool_call
 from .tool_loop import run_tool_loop
 from .toolkits import ToolKit, resolve_toolkit
 from .orchestrator import run_turn
+from .refs import resolve_conversation_ref, short_conversation_id
 
 __all__ = [
     "load_config",
@@ -36,4 +38,7 @@ __all__ = [
     "ToolKit",
     "resolve_toolkit",
     "run_turn",
+    "resolve_conversation_ref",
+    "short_conversation_id",
+    "append_note",
 ]

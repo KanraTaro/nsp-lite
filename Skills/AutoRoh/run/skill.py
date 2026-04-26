@@ -18,35 +18,22 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import list_conversations, run_turn
+from Core.RohTalk import resolve_conversation_ref, run_turn
 
 
 DEFAULT_LOOP_PROMPT = (
-    "AutoRoh loop tick. Briefly review the current conversation state. "
-    "Decide whether to wait, comment, suggest, or act. "
-    "If nothing meaningful changed, say that you will wait."
+    "AutoRoh loop tick.\n\n"
+    "You must follow these rules:\n"
+    "- If the task requires real-world or external data such as time, weather, files, or game state, you MUST use an available tool.\n"
+    "- Do not guess, approximate, or reuse stale real-world data when a tool can check it.\n"
+    "- Pay special attention to recent [human note] messages. Treat them as guidance for this tick.\n"
+    "- Decide whether to wait, comment, suggest, or act.\n"
+    "- If nothing meaningful changed, say that you will wait.\n"
+    "- If you cannot act safely or cannot access the needed tool, say you will wait and explain briefly.\n"
 )
-
-
-def _resolve_conversation_id(ctx: Any, raw_value: Optional[str]) -> Optional[str]:
-    if raw_value is None:
-        return None
-
-    text = str(raw_value).strip()
-    if text == "":
-        return None
-
-    if text.isdigit():
-        index = int(text)
-        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=False)
-        if index < 0 or index >= len(conversations):
-            raise IndexError(f"Conversation index {index} is out of range.")
-        return str(conversations[index].get("id", ""))
-
-    return text
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -55,7 +42,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         "--conversation-id",
         dest="conversation_ref",
         default=None,
-        help="Existing RohTalk conversation id or numeric index. If omitted, a new conversation is created.",
+        help="Existing RohTalk conversation id, short id, or numeric index. If omitted, a new conversation is created.",
     )
     parser.add_argument(
         "--prompt",
@@ -118,7 +105,11 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
     try:
-        conversation_id = _resolve_conversation_id(ctx, args.conversation_ref)
+        conversation_id: Optional[str] = (
+            resolve_conversation_ref(ctx, args.conversation_ref)
+            if args.conversation_ref
+            else None
+        )
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1

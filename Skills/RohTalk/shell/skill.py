@@ -7,6 +7,7 @@ Design goals:
 - reload conversation state before each turn
 - allow outside writers to update the same conversation
 - optionally run tool-capable turns through Core.RohTalk.run_turn
+- support passive read-only watch mode
 """
 
 from __future__ import annotations
@@ -14,29 +15,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from typing import Any, Dict, List, Optional
 
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import (
+    append_note,
     get_conversation,
-    list_conversations,
+    resolve_conversation_ref,
     run_turn,
 )
-
-
-def _resolve_conversation_id(ctx: Any, raw_value: str) -> str:
-    text = str(raw_value).strip()
-    if text == "":
-        raise ValueError("Missing conversation identifier.")
-
-    if text.isdigit():
-        index = int(text)
-        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=False)
-        if index < 0 or index >= len(conversations):
-            raise IndexError(f"Conversation index {index} is out of range.")
-        return str(conversations[index].get("id", ""))
-
-    return text
 
 
 def _get_messages(ctx: Any, conversation_id: str) -> List[Dict[str, Any]]:
@@ -170,7 +158,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         "--conversation-id",
         dest="conversation_ref",
         default=None,
-        help="Existing conversation id or numeric index from RohTalk.list_conversations",
+        help="Existing conversation id, short id, or numeric index from RohTalk.list_conversations",
     )
     parser.add_argument(
         "--title",
@@ -228,6 +216,22 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         default="basic",
         help="Tool kit to expose when --tools is enabled",
     )
+    parser.add_argument(
+        "--watch",
+        dest="watch",
+        action="store_true",
+        help="Read-only watch mode for new external messages",
+    )
+
+
+def _print_interactive_commands() -> None:
+    print("Commands:")
+    print("  /exit, /quit     leave shell")
+    print("  /id              show current conversation id")
+    print("  /refresh         show messages added externally")
+    print("  /recent          show recent conversation messages")
+    print("  /note TEXT       append guidance without running a model turn")
+    print("  /history         show full conversation history")
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
@@ -237,7 +241,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
     try:
         if args.conversation_ref:
-            conversation_id = _resolve_conversation_id(ctx, args.conversation_ref)
+            conversation_id = resolve_conversation_ref(ctx, args.conversation_ref)
             metadata = get_conversation(ctx, conversation_id)
             seen_count = _latest_message_count(ctx, conversation_id)
 
@@ -249,6 +253,10 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             if args.show_history:
                 _print_history(ctx, conversation_id)
         else:
+            if args.watch:
+                print("--watch requires an existing conversation.", file=sys.stderr)
+                return 2
+
             print("Starting new RohTalk shell conversation.")
             print("First message will create the conversation.")
 
@@ -257,12 +265,19 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 1
 
     print("")
-    print("Commands:")
-    print("  /exit, /quit     leave shell")
-    print("  /id              show current conversation id")
-    print("  /refresh         show messages added externally")
-    print("  /recent          show recent conversation messages")
-    print("  /history         show full conversation history")
+
+    if args.watch:
+        print("Watching conversation read-only. Press Ctrl+C to exit.")
+        try:
+            while True:
+                if conversation_id is not None:
+                    seen_count = _print_new_external_messages(ctx, conversation_id, seen_count)
+                time.sleep(1.0)
+        except KeyboardInterrupt:
+            print("")
+            return 0
+
+    _print_interactive_commands()
     print("")
 
     if args.tools:
@@ -305,6 +320,25 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 print("(no conversation yet)")
                 continue
             _print_history(ctx, conversation_id)
+            continue
+
+        if user_text.startswith("/note "):
+            if conversation_id is None:
+                print("(no conversation yet)")
+                continue
+
+            note_text = user_text[len("/note "):].strip()
+            if note_text == "":
+                print("Missing note text.")
+                continue
+
+            try:
+                append_note(ctx, conversation_id, note_text)
+                seen_count = _latest_message_count(ctx, conversation_id)
+                print("(note added)")
+            except Exception as exc:
+                print(str(exc), file=sys.stderr)
+
             continue
 
         try:

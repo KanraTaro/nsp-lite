@@ -7,25 +7,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any, Dict, List
+from typing import Any, List
 
 from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import list_conversations, run_turn
-
-
-def _resolve_conversation_id(ctx: Any, raw_value: str) -> str:
-    text = str(raw_value).strip()
-    if text == "":
-        raise ValueError("Missing conversation identifier.")
-
-    if text.isdigit():
-        index = int(text)
-        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=False)
-        if index < 0 or index >= len(conversations):
-            raise IndexError(f"Conversation index {index} is out of range.")
-        return str(conversations[index].get("id", ""))
-
-    return text
+from Core.RohTalk import resolve_conversation_ref, run_turn
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -69,7 +54,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 2
 
     try:
-        conversation_id = _resolve_conversation_id(ctx, args.conversation_ref)
+        conversation_id = resolve_conversation_ref(ctx, args.conversation_ref)
 
         _conv_id, reply = run_turn(
             ctx,

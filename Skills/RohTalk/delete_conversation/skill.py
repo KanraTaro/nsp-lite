@@ -14,9 +14,9 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from Core.RohTalk import get_conversation, list_conversations
+from Core.RohTalk import get_conversation, resolve_conversation_ref
 
 
 def _conversation_dir(ctx: Any) -> Path:
@@ -56,21 +56,6 @@ def _events_path(ctx: Any, conversation_id: str) -> Path:
     return _conversation_dir(ctx) / prefixed
 
 
-def _resolve_conversation_id(ctx: Any, raw_value: str, *, include_oneshots: bool) -> str:
-    text = str(raw_value).strip()
-    if text == "":
-        raise ValueError("Missing conversation identifier.")
-
-    if text.isdigit():
-        index = int(text)
-        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=include_oneshots)
-        if index < 0 or index >= len(conversations):
-            raise IndexError(f"Conversation index {index} is out of range.")
-        return str(conversations[index].get("id", ""))
-
-    return text
-
-
 def build_parser(parser: argparse.ArgumentParser) -> None:
     """Extend the parser with arguments for deleting a conversation."""
     parser.add_argument(
@@ -91,7 +76,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     include_oneshots = bool(getattr(args, "include_oneshots", False))
 
     try:
-        conversation_id = _resolve_conversation_id(
+        conversation_id = resolve_conversation_ref(
             ctx,
             args.conversation_ref,
             include_oneshots=include_oneshots,

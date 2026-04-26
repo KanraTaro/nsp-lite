@@ -13,25 +13,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List
+from typing import Any
 
-from Core.RohTalk import get_conversation, list_conversations
-
-
-def _resolve_conversation_id(ctx: Any, raw_value: str, *, include_oneshots: bool) -> str:
-    """Resolve either a conversation id or a numeric list index."""
-    text = str(raw_value).strip()
-    if text == "":
-        raise ValueError("Missing conversation identifier.")
-
-    if text.isdigit():
-        index = int(text)
-        conversations: List[Dict[str, Any]] = list_conversations(ctx, include_oneshots=include_oneshots)
-        if index < 0 or index >= len(conversations):
-            raise IndexError(f"Conversation index {index} is out of range.")
-        return str(conversations[index].get("id", ""))
-
-    return text
+from Core.RohTalk import get_conversation, resolve_conversation_ref
 
 
 def _print_tool_calls(tool_calls: Any) -> None:
@@ -115,7 +99,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     include_oneshots = bool(getattr(args, "include_oneshots", False))
 
     try:
-        conversation_id = _resolve_conversation_id(
+        conversation_id = resolve_conversation_ref(
             ctx,
             args.conversation_ref,
             include_oneshots=include_oneshots,
