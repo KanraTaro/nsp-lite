@@ -1,0 +1,6 @@
+{
+  "name": "NSPL.File.write",
+  "version": "0.1.0",
+  "description": "Write text or JSON content to a file.",
+  "entry": "skill.py"
+}

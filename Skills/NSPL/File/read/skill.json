@@ -1,0 +1,6 @@
+{
+  "name": "NSPL.File.read",
+  "version": "0.1.0",
+  "description": "Read a file from disk. Supports plain text and JSON output.",
+  "entry": "skill.py"
+}

@@ -26,15 +26,11 @@ from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
 
 
 DEFAULT_LOOP_PROMPT = (
-    "AutoRoh loop tick.\n\n"
-    "You must follow these rules:\n"
-    "- If the task requires real-world or external data such as time, weather, files, or game state, you MUST use an available tool.\n"
-    "- Do not guess, approximate, or reuse stale real-world data when a tool can check it.\n"
-    "- If you need real-world or external data, call a tool during this tick. Do not rely on old tool results from previous ticks unless summarizing history.\n"
-    "- Pay special attention to recent [human note] messages. Treat them as guidance for this tick.\n"
-    "- Decide whether to wait, comment, suggest, or act.\n"
-    "- If nothing meaningful changed, say that you will wait.\n"
-    "- If you cannot act safely or cannot access the needed tool, say you will wait and explain briefly.\n"
+    "AutoRoh tick.\n"
+    "Use tools for live/external truth such as game state, time, weather, or files.\n"
+    "Do not guess live data or reuse old tool results as current truth.\n"
+    "Handle new human notes or new observed state. Avoid repeating the last action.\n"
+    "If nothing meaningful changed, wait.\n"
 )
 
 
@@ -85,22 +81,23 @@ def _build_tick_prompt(
 
     return (
         f"{base_prompt}\n\n"
-        "Loop state:\n"
-        f"- Last action: {last_action}\n"
-        f"- Last processed message index: {last_processed}\n"
-        f"- Last handled human note index: {last_note_index}\n\n"
-        "New human note:\n"
-        f"{note_block}\n\n"
-        "When handling a human note, choose one:\n"
-        "- act_now: act on it this tick\n"
-        "- remember: acknowledge it internally and wait for a better moment\n"
-        "- ignore: ignore it if it is irrelevant or already handled\n"
-        "- wait: take no action\n\n"
-        "Do not repeat the same action as the last tick unless there is new relevant state.\n"
-        "If the note asks for real-world data like time or weather, use a tool this tick.\n"
-        "When reporting time, prefer the tool result's display field exactly if it exists.\n"
+        "State:\n"
+        f"- last_action: {last_action}\n"
+        f"- last_message_index: {last_processed}\n"
+        f"- last_note_index: {last_note_index}\n"
+        f"- new_note: {note_block}\n\n"
+        "Decide one:\n"
+        "- wait\n"
+        "- comment\n"
+        "- suggest\n"
+        "- act_now\n"
+        "- remember\n"
+        "- ignore\n\n"
+        "Rules:\n"
+        "- Do not repeat the last action unless new state exists\n"
+        "- If a note asks for real-world data, use a tool this tick\n"
+        "- Prefer tool results over assumptions\n"
     )
-
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(

@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Snapshot.read",
+  "version": "0.1.0",
+  "description": "Read and summarize a RohBridge Don't Starve Together snapshot.",
+  "entry": "skill.py"
+}
