@@ -18,9 +18,18 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import hashlib
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
-from Core.AutoRoh.state import load_loop_state, save_loop_state, update_after_tick
+from Core.AutoRoh.state import (
+    load_loop_state,
+    mark_idle_skip,
+    reset_idle_skip,
+    save_loop_state,
+    update_after_tick,
+    update_observation,
+)
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
 
@@ -99,6 +108,46 @@ def _build_tick_prompt(
         "- Prefer tool results over assumptions\n"
     )
 
+
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+
+
+def _hash_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _call_observation_tool(
+    ctx: Any,
+    *,
+    toolkit_name: str,
+    tool_name: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    from Core.RohTalk.skillcli_tools import execute_skill
+    from Core.RohTalk.toolkits import resolve_toolkit
+
+    clean_tool_name = str(tool_name or "").strip()
+    if clean_tool_name == "":
+        return None, None
+
+    toolkit = resolve_toolkit(toolkit_name)
+    skill_name = toolkit.skill_name_map.get(clean_tool_name)
+
+    if skill_name is None:
+        raise ValueError(f"Observation tool not found in toolkit: {clean_tool_name}")
+
+    result = execute_skill(ctx, skill_name, {})
+
+    signature_source = result
+    if isinstance(result, dict) and isinstance(result.get("signature_basis"), dict):
+        signature_source = result["signature_basis"]
+
+    summary = _stable_json(result)
+    signature = _hash_text(_stable_json(signature_source))
+
+    return signature, summary
+
+
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--conversation",
@@ -128,6 +177,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Maximum loop turns to run.",
     )
     parser.add_argument(
+        "--forever",
+        dest="forever",
+        action="store_true",
+        help="Run until interrupted with Ctrl+C. Ignores --max-turns.",
+    )
+    parser.add_argument(
         "--title",
         dest="title",
         default="AutoRoh Loop",
@@ -149,6 +204,18 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         default="basic",
         help="Tool kit to expose when --tools is enabled.",
     )
+    parser.add_argument(
+        "--idle-skip",
+        dest="idle_skip",
+        action="store_true",
+        help="Skip model calls when no new note and observed state has not changed.",
+    )
+    parser.add_argument(
+        "--observation-tool",
+        dest="observation_tool",
+        default=None,
+        help="Model-facing tool name to call before each tick, e.g. snapshot_read.",
+    )
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
@@ -165,8 +232,10 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     max_turns = int(getattr(args, "max_turns", 5) or 5)
     interval = float(getattr(args, "interval", 10.0) or 10.0)
 
-    if max_turns <= 0:
-        print("max-turns must be greater than 0.", file=sys.stderr)
+    forever = bool(getattr(args, "forever", False))
+
+    if not forever and max_turns <= 0:
+        print("max-turns must be greater than 0 unless --forever is used.", file=sys.stderr)
         return 2
 
     if interval < 0:
@@ -177,32 +246,88 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     if prompt == "":
         print("prompt cannot be empty.", file=sys.stderr)
         return 2
+        
+    idle_skip = bool(getattr(args, "idle_skip", False))
+    observation_tool = getattr(args, "observation_tool", None)
+    observation_tool = str(observation_tool).strip() if observation_tool else None
 
     print("AutoRoh loop starting.")
     print(f"conversation: {conversation_id or '(new)'}")
-    print(f"max_turns: {max_turns}")
+    print(f"max_turns: {'forever' if forever else max_turns}")
     print(f"interval: {interval}")
     print(f"tools: {bool(args.tools)}")
     if args.tools:
         print(f"tool_backend: {args.tool_backend}")
         print(f"toolkit: {args.toolkit}")
+        print(f"idle_skip: {idle_skip}")
+        if observation_tool:
+            print(f"observation_tool: {observation_tool}")
     print("")
 
     try:
-        for turn_index in range(max_turns):
-            print(f"[AutoRoh turn {turn_index + 1}/{max_turns}]")
+        turn_index = 0
+
+        while forever or turn_index < max_turns:
+            turn_index += 1
+            total_label = "∞" if forever else str(max_turns)
+            print(f"[AutoRoh turn {turn_index}/{total_label}]")
 
             latest_note_index: Optional[int] = None
             tick_prompt = prompt
+            observation_signature: Optional[str] = None
+            observation_summary: Optional[str] = None
+            observation_changed = True
 
             if conversation_id is not None:
                 state = load_loop_state(ctx, conversation_id)
+
+                if observation_tool:
+                    observation_signature, observation_summary = _call_observation_tool(
+                        ctx,
+                        toolkit_name=str(args.toolkit),
+                        tool_name=observation_tool,
+                    )
+                    previous_signature = state.get("last_observation_signature")
+                    observation_changed = observation_signature != previous_signature
+
                 latest_note_index, latest_note = _latest_unhandled_note(
                     ctx,
                     conversation_id,
                     int(state.get("last_human_note_index", -1)),
                 )
+
+                has_new_note = latest_note_index is not None
+
+                if idle_skip and observation_tool and not observation_changed and not has_new_note:
+                    mark_idle_skip(state)
+                    update_observation(
+                        state,
+                        observation_signature=observation_signature,
+                        observation_summary=observation_summary,
+                    )
+                    save_loop_state(ctx, state)
+                    print(f"conversation_id: {conversation_id}")
+                    print("(idle skip: no new note or observation change)")
+
+                    should_continue = forever or turn_index < max_turns
+                    if should_continue and interval > 0:
+                        time.sleep(interval)
+                    continue
+
+                reset_idle_skip(state)
+                update_observation(
+                    state,
+                    observation_signature=observation_signature,
+                    observation_summary=observation_summary,
+                )
+                save_loop_state(ctx, state)
+
                 tick_prompt = _build_tick_prompt(prompt, state, latest_note)
+
+                if observation_summary:
+                    tick_prompt += "\nObservation:\n"
+                    tick_prompt += observation_summary
+                    tick_prompt += "\n"
 
             conversation_id, reply = run_turn(
                 ctx,
@@ -240,7 +365,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             )
             save_loop_state(ctx, state)
 
-            if turn_index < max_turns - 1 and interval > 0:
+            should_continue = forever or turn_index < max_turns
+            if should_continue and interval > 0:
                 time.sleep(interval)
 
         print("")

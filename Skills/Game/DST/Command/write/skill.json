@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Command.write",
+  "version": "0.1.0",
+  "description": "Write a RohBridge Don't Starve Together command file.",
+  "entry": "skill.py"
+}

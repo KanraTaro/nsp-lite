@@ -51,6 +51,36 @@ def _summarize_player(player: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _build_signature_basis(
+    world: Dict[str, Any],
+    players: List[Dict[str, Any]],
+    signals: List[str],
+) -> Dict[str, Any]:
+    signature_players: List[Dict[str, Any]] = []
+
+    for player in players:
+        signature_players.append(
+            {
+                "userid": player.get("userid"),
+                "name": player.get("name"),
+                "prefab": player.get("prefab"),
+                "is_ghost": bool(player.get("is_ghost", False)),
+            }
+        )
+
+    return {
+        "world": {
+            "day": world.get("day"),
+            "season": world.get("season"),
+            "phase": world.get("phase"),
+            "is_raining": bool(world.get("is_raining", False)),
+            "is_snowing": bool(world.get("is_snowing", False)),
+        },
+        "players": signature_players,
+        "signals": list(signals),
+    }
+
+
 def _build_summary(snapshot: Dict[str, Any], path: str) -> Dict[str, Any]:
     world = snapshot.get("world", {})
     if not isinstance(world, dict):
@@ -84,6 +114,14 @@ def _build_summary(snapshot: Dict[str, Any], path: str) -> Dict[str, Any]:
     if any(player.get("is_ghost") for player in players):
         signals.append("player_ghost_detected")
 
+    world_summary = {
+        "day": world.get("day"),
+        "season": season,
+        "phase": phase,
+        "is_raining": bool(world.get("is_raining", False)),
+        "is_snowing": bool(world.get("is_snowing", False)),
+    }
+
     return {
         "ok": True,
         "source": "RohBridge",
@@ -91,16 +129,11 @@ def _build_summary(snapshot: Dict[str, Any], path: str) -> Dict[str, Any]:
         "schema_version": snapshot.get("schema_version"),
         "run_id": snapshot.get("run_id"),
         "side": snapshot.get("side"),
-        "world": {
-            "day": world.get("day"),
-            "season": season,
-            "phase": phase,
-            "is_raining": bool(world.get("is_raining", False)),
-            "is_snowing": bool(world.get("is_snowing", False)),
-        },
+        "world": world_summary,
         "players": players,
         "player_count": len(players),
         "signals": signals,
+        "signature_basis": _build_signature_basis(world_summary, players, signals),
         "director_hint": _build_director_hint(phase, players, signals),
     }
 

@@ -12,7 +12,7 @@ This module ensures:
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 # =========================
@@ -34,7 +34,7 @@ def _state_path(ctx: Any, conversation_id: str):
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 # =========================
@@ -95,6 +95,35 @@ def update_after_tick(
     return state
 
 
+def update_observation(
+    state: Dict[str, Any],
+    *,
+    observation_signature: Optional[str],
+    observation_summary: Optional[str],
+) -> Dict[str, Any]:
+    """Update the last observed external state for this loop."""
+    if observation_signature is not None:
+        state["last_observation_signature"] = str(observation_signature)
+        state["last_observation_at"] = _now_iso()
+
+    if observation_summary is not None:
+        state["last_observation_summary"] = str(observation_summary)
+
+    return state
+
+
+def mark_idle_skip(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Track a skipped inference because nothing meaningful changed."""
+    state["idle_skip_count"] = int(state.get("idle_skip_count", 0) or 0) + 1
+    state["last_idle_skip_at"] = _now_iso()
+    return state
+
+
+def reset_idle_skip(state: Dict[str, Any]) -> Dict[str, Any]:
+    state["idle_skip_count"] = 0
+    return state
+
+
 # =========================
 # 🔁 Cooldowns (simple)
 # =========================
@@ -123,6 +152,13 @@ def _default_state(conversation_id: str) -> Dict[str, Any]:
 
         "last_action_signature": None,
         "last_action_at": None,
+
+        "last_observation_signature": None,
+        "last_observation_summary": None,
+        "last_observation_at": None,
+
+        "idle_skip_count": 0,
+        "last_idle_skip_at": None,
 
         "cooldowns": {},
 
