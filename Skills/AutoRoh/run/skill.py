@@ -32,6 +32,7 @@ from Core.AutoRoh.state import (
 )
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
+from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 
 
 DEFAULT_LOOP_PROMPT = (
@@ -150,26 +151,6 @@ def _call_observation_tool(
     signature = _hash_text(_stable_json(signature_source))
 
     return signature, summary
-
-
-def _print_step(step_index: int) -> None:
-    print(f"[step {step_index + 1}]", file=sys.stderr)
-
-
-def _print_tool_call(tool_call: Any) -> None:
-    arguments = getattr(tool_call, "arguments", {})
-    print(
-        f"[tool_call] {getattr(tool_call, 'name', '')} "
-        f"{json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
-
-
-def _print_tool_result(tool_result: Dict[str, Any]) -> None:
-    print(
-        f"[tool_result] {json.dumps(tool_result, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -371,9 +352,9 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 use_tools=bool(args.tools),
                 tool_backend=str(args.tool_backend),
                 toolkit=str(args.toolkit),
-                on_step=_print_step if args.tools and tool_trace else None,
-                on_tool_call=_print_tool_call if args.tools and tool_trace else None,
-                on_tool_result=_print_tool_result if args.tools and tool_trace else None,
+                on_step=print_step if args.tools and tool_trace else None,
+                on_tool_call=print_tool_call if args.tools and tool_trace else None,
+                on_tool_result=print_tool_result if args.tools and tool_trace else None,
             )
 
             print(f"conversation_id: {conversation_id}")
