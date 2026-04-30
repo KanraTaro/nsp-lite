@@ -31,8 +31,8 @@ BASIC_SKILL_NAMES: List[str] = [
 DST_DIRECTOR_SKILL_NAMES: List[str] = [
     "NSPL.Tools.Time.now",
     "Game.DST.Snapshot.read",
+    "Game.DST.Command.write",
 ]
-
 
 def _time_tool() -> ToolDef:
     return ToolDef(
@@ -87,6 +87,43 @@ def _dst_snapshot_tool() -> ToolDef:
             "required": [],
         },
     )
+    
+    
+def _dst_command_tool() -> ToolDef:
+    return ToolDef(
+        name=canonical_skill_name_to_tool_name("Game.DST.Command.write"),
+        description=(
+            "Issue a Don't Starve Together director command. "
+            "Use this to affect the game world. "
+            "Prefer small, meaningful actions. Do not spam.\n\n"
+            "Common uses:\n"
+            "- announce_text → send a message to players\n"
+            "- set_objective_collect_item → create a small task\n"
+            "- clear_objective → remove current task\n\n"
+            "Safe prefabs: log, cutgrass, twigs, flint, silk, goldnugget."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "announce_text",
+                        "set_objective_collect_item",
+                        "clear_objective",
+                    ],
+                },
+                "text": {"type": "string"},
+                "title": {"type": "string"},
+                "target_prefab": {"type": "string"},
+                "target_count": {"type": "integer"},
+                "reward_prefab": {"type": "string"},
+                "reward_count": {"type": "integer"},
+                "target_userid": {"type": "string"},
+            },
+            "required": ["type"],
+        },
+    )
 
 
 def _basic_tools() -> List[ToolDef]:
@@ -100,6 +137,7 @@ def _dst_director_tools() -> List[ToolDef]:
     return [
         _time_tool(),
         _dst_snapshot_tool(),
+        _dst_command_tool(),
     ]
 
 

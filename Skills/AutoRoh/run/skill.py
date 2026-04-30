@@ -9,17 +9,17 @@ This is not full AutoRoh yet. This is the first heartbeat:
 - wait between turns
 - stop after max turns
 
-Later this grows into observation, policy, compression, and game/session
-state handling.
+Later this grows into observation, policy, compression, tracing, and
+game/session state handling.
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
-import time
 import hashlib
 import json
+import sys
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from Core.AutoRoh.state import (
@@ -36,10 +36,12 @@ from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
 
 DEFAULT_LOOP_PROMPT = (
     "AutoRoh tick.\n"
+    "You are running inside a supervised automation loop.\n"
     "Use tools for live/external truth such as game state, time, weather, or files.\n"
     "Do not guess live data or reuse old tool results as current truth.\n"
-    "Handle new human notes or new observed state. Avoid repeating the last action.\n"
-    "If nothing meaningful changed, wait.\n"
+    "Handle new human notes or new observed state.\n"
+    "If you need to affect the game or external systems, use tools.\n"
+    "If nothing meaningful changed, reply exactly: wait\n"
 )
 
 
@@ -53,6 +55,7 @@ def _get_messages(ctx: Any, conversation_id: str) -> List[Dict[str, Any]]:
     for message in messages:
         if isinstance(message, dict):
             clean_messages.append(message)
+
     return clean_messages
 
 
@@ -95,17 +98,18 @@ def _build_tick_prompt(
         f"- last_message_index: {last_processed}\n"
         f"- last_note_index: {last_note_index}\n"
         f"- new_note: {note_block}\n\n"
-        "Decide one:\n"
-        "- wait\n"
-        "- comment\n"
-        "- suggest\n"
-        "- act_now\n"
-        "- remember\n"
-        "- ignore\n\n"
+        "Behavior:\n"
+        "- If nothing meaningful changed, reply exactly: wait\n"
+        "- If you want to say something only to the terminal, reply with a short message\n"
+        "- If you want to affect the game or external world, call an available tool\n"
+        "- If the user asks you to announce something in game, call command_write with type announce_text\n"
+        "- If the user asks for an objective or recovery task, call command_write with type set_objective_collect_item\n\n"
         "Rules:\n"
-        "- Do not repeat the last action unless new state exists\n"
-        "- If a note asks for real-world data, use a tool this tick\n"
-        "- Prefer tool results over assumptions\n"
+        "- Do not repeat the last action unless new state or a new human note exists\n"
+        "- Prefer provided observations and tool results over assumptions\n"
+        "- Never use XML-style tags like <act_now>, <comment>, <tool_action>, or <wait>\n"
+        "- Do not describe a game action in text when command_write can perform it\n"
+        "- Keep terminal-only replies short\n"
     )
 
 
@@ -146,6 +150,26 @@ def _call_observation_tool(
     signature = _hash_text(_stable_json(signature_source))
 
     return signature, summary
+
+
+def _print_step(step_index: int) -> None:
+    print(f"[step {step_index + 1}]", file=sys.stderr)
+
+
+def _print_tool_call(tool_call: Any) -> None:
+    arguments = getattr(tool_call, "arguments", {})
+    print(
+        f"[tool_call] {getattr(tool_call, 'name', '')} "
+        f"{json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
+        file=sys.stderr,
+    )
+
+
+def _print_tool_result(tool_result: Dict[str, Any]) -> None:
+    print(
+        f"[tool_result] {json.dumps(tool_result, separators=(',', ':'), sort_keys=True)}",
+        file=sys.stderr,
+    )
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -205,6 +229,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Tool kit to expose when --tools is enabled.",
     )
     parser.add_argument(
+        "--tool-trace",
+        dest="tool_trace",
+        action="store_true",
+        help="Print model tool calls and tool results during tool-capable turns.",
+    )
+    parser.add_argument(
         "--idle-skip",
         dest="idle_skip",
         action="store_true",
@@ -231,8 +261,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
     max_turns = int(getattr(args, "max_turns", 5) or 5)
     interval = float(getattr(args, "interval", 10.0) or 10.0)
-
     forever = bool(getattr(args, "forever", False))
+    tool_trace = bool(getattr(args, "tool_trace", False))
 
     if not forever and max_turns <= 0:
         print("max-turns must be greater than 0 unless --forever is used.", file=sys.stderr)
@@ -246,7 +276,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     if prompt == "":
         print("prompt cannot be empty.", file=sys.stderr)
         return 2
-        
+
     idle_skip = bool(getattr(args, "idle_skip", False))
     observation_tool = getattr(args, "observation_tool", None)
     observation_tool = str(observation_tool).strip() if observation_tool else None
@@ -259,6 +289,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     if args.tools:
         print(f"tool_backend: {args.tool_backend}")
         print(f"toolkit: {args.toolkit}")
+        print(f"tool_trace: {tool_trace}")
         print(f"idle_skip: {idle_skip}")
         if observation_tool:
             print(f"observation_tool: {observation_tool}")
@@ -340,6 +371,9 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 use_tools=bool(args.tools),
                 tool_backend=str(args.tool_backend),
                 toolkit=str(args.toolkit),
+                on_step=_print_step if args.tools and tool_trace else None,
+                on_tool_call=_print_tool_call if args.tools and tool_trace else None,
+                on_tool_result=_print_tool_result if args.tools and tool_trace else None,
             )
 
             print(f"conversation_id: {conversation_id}")
