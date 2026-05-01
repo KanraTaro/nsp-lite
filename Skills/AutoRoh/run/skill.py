@@ -16,12 +16,11 @@ game/session state handling.
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from Core.AutoRoh.observations import call_observation_tool
 from Core.AutoRoh.policy import build_action_cooldown_block
 from Core.AutoRoh.state import (
     load_loop_state,
@@ -117,45 +116,6 @@ def _build_tick_prompt(
         "- Do not describe a game action in text when command_write can perform it\n"
         "- Keep terminal-only replies short\n"
     )
-
-
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, separators=(",", ":"), sort_keys=True)
-
-
-def _hash_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _call_observation_tool(
-    ctx: Any,
-    *,
-    toolkit_name: str,
-    tool_name: str,
-) -> Tuple[Optional[str], Optional[str]]:
-    from Core.RohTalk.skillcli_tools import execute_skill
-    from Core.RohTalk.toolkits import resolve_toolkit
-
-    clean_tool_name = str(tool_name or "").strip()
-    if clean_tool_name == "":
-        return None, None
-
-    toolkit = resolve_toolkit(toolkit_name)
-    skill_name = toolkit.skill_name_map.get(clean_tool_name)
-
-    if skill_name is None:
-        raise ValueError(f"Observation tool not found in toolkit: {clean_tool_name}")
-
-    result = execute_skill(ctx, skill_name, {})
-
-    signature_source = result
-    if isinstance(result, dict) and isinstance(result.get("signature_basis"), dict):
-        signature_source = result["signature_basis"]
-
-    summary = _stable_json(result)
-    signature = _hash_text(_stable_json(signature_source))
-
-    return signature, summary
 
 
 def _safe_tool_arguments(tool_call: Any) -> Dict[str, Any]:
@@ -345,7 +305,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 state = load_loop_state(ctx, conversation_id)
 
                 if observation_tool:
-                    observation_signature, observation_summary = _call_observation_tool(
+                    observation_signature, observation_summary = call_observation_tool(
                         ctx,
                         toolkit_name=str(args.toolkit),
                         tool_name=observation_tool,
