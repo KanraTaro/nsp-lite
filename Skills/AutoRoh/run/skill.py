@@ -18,10 +18,11 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
+from Core.AutoRoh.notes import get_messages, latest_unhandled_note
 from Core.AutoRoh.observations import call_observation_tool
-from Core.AutoRoh.policy import build_action_cooldown_block
+from Core.AutoRoh.prompts import DEFAULT_LOOP_PROMPT, build_tick_prompt
 from Core.AutoRoh.state import (
     load_loop_state,
     mark_idle_skip,
@@ -36,91 +37,8 @@ from Core.AutoRoh.tool_events import (
     record_tool_result,
 )
 from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
+from Core.RohTalk import resolve_conversation_ref, run_turn
 from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
-
-
-DEFAULT_LOOP_PROMPT = (
-    "AutoRoh tick.\n"
-    "You are running inside a supervised automation loop.\n"
-    "Use tools for live/external truth such as game state, time, weather, or files.\n"
-    "Do not guess live data or reuse old tool results as current truth.\n"
-    "Handle new human notes or new observed state.\n"
-    "If you need to affect the game or external systems, use tools.\n"
-    "If nothing meaningful changed, reply exactly: wait\n"
-)
-
-
-def _get_messages(ctx: Any, conversation_id: str) -> List[Dict[str, Any]]:
-    metadata = get_conversation(ctx, conversation_id)
-    messages = metadata.get("messages", [])
-    if not isinstance(messages, list):
-        return []
-
-    clean_messages: List[Dict[str, Any]] = []
-    for message in messages:
-        if isinstance(message, dict):
-            clean_messages.append(message)
-
-    return clean_messages
-
-
-def _latest_unhandled_note(
-    ctx: Any,
-    conversation_id: str,
-    last_human_note_index: int,
-) -> Tuple[Optional[int], Optional[str]]:
-    messages = _get_messages(ctx, conversation_id)
-
-    latest_index: Optional[int] = None
-    latest_note: Optional[str] = None
-
-    for index, message in enumerate(messages):
-        if index <= last_human_note_index:
-            continue
-
-        content = str(message.get("content", "") or "").strip()
-        if content.startswith("[human note]"):
-            latest_index = index
-            latest_note = content
-
-    return latest_index, latest_note
-
-
-def _build_tick_prompt(
-    base_prompt: str,
-    state: Dict[str, Any],
-    latest_note: Optional[str],
-) -> str:
-    last_action = str(state.get("last_action_signature") or "none")
-    last_processed = int(state.get("last_processed_message_index", 0) or 0)
-    last_note_index = int(state.get("last_human_note_index", -1))
-    note_block = latest_note if latest_note else "(no new human note)"
-    cooldown_block = build_action_cooldown_block(state)
-
-    return (
-        f"{base_prompt}\n\n"
-        "State:\n"
-        f"- last_action: {last_action}\n"
-        f"- last_message_index: {last_processed}\n"
-        f"- last_note_index: {last_note_index}\n"
-        f"- new_note: {note_block}\n\n"
-        "Action cooldowns:\n"
-        f"{cooldown_block}\n\n"
-        "Behavior:\n"
-        "- If nothing meaningful changed, reply exactly: wait\n"
-        "- If you want to say something only to the terminal, reply with a short message\n"
-        "- If you want to affect the game or external world, call an available tool\n"
-        "- If the user asks you to announce something in game, call command_write with type announce_text\n"
-        "- If the user asks for an objective or recovery task, call command_write with type set_objective_collect_item\n\n"
-        "Rules:\n"
-        "- Do not repeat the last action unless new state or a new human note exists\n"
-        "- Respect action cooldowns unless there is a human note or critical state change\n"
-        "- Prefer provided observations and tool results over assumptions\n"
-        "- Never use XML-style tags like <act_now>, <comment>, <tool_action>, or <wait>\n"
-        "- Do not describe a game action in text when command_write can perform it\n"
-        "- Keep terminal-only replies short\n"
-    )
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -272,7 +190,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                     previous_signature = state.get("last_observation_signature")
                     observation_changed = observation_signature != previous_signature
 
-                latest_note_index, latest_note = _latest_unhandled_note(
+                latest_note_index, latest_note = latest_unhandled_note(
                     ctx,
                     conversation_id,
                     int(state.get("last_human_note_index", -1)),
@@ -304,7 +222,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 )
                 save_loop_state(ctx, state)
 
-                tick_prompt = _build_tick_prompt(prompt, state, latest_note)
+                tick_prompt = build_tick_prompt(prompt, state, latest_note)
 
                 if observation_summary:
                     tick_prompt += "\nObservation:\n"
@@ -351,7 +269,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 print("(empty reply)")
 
             state = load_loop_state(ctx, conversation_id)
-            message_count = len(_get_messages(ctx, conversation_id))
+            message_count = len(get_messages(ctx, conversation_id))
             action_signature: Optional[str] = action_signature_from_tool_events(tool_events)
 
             if action_signature is None and reply:
