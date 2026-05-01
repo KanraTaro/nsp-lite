@@ -14,14 +14,9 @@ but tools are not hard-blocked here yet.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
-
-DEFAULT_COMMAND_COOLDOWNS_SEC: Dict[str, int] = {
-    "announce_text": 60,
-    "set_objective_collect_item": 180,
-    "clear_objective": 30,
-}
+from Core.AutoRoh.profiles import ActionCooldown
 
 
 def parse_utc_iso(value: Any) -> Optional[datetime]:
@@ -60,19 +55,15 @@ def seconds_since(value: Any) -> Optional[float]:
 def build_action_cooldown_block(
     state: Dict[str, Any],
     *,
-    cooldowns_sec: Optional[Dict[str, int]] = None,
+    cooldowns: Sequence[ActionCooldown] = (),
 ) -> str:
     """Build an advisory cooldown block for the AutoRoh tick prompt.
 
-    The current implementation understands command_write action signatures:
-
-        tool:command_write:announce_text
-        tool:command_write:set_objective_collect_item
-        tool:command_write:clear_objective
-
-    Later this can be expanded to toolkit/director-pack supplied policy.
+    This is profile supplied policy. Cooldowns are advisory only; tools are
+    not hard-blocked here.
     """
-    cooldowns = cooldowns_sec or DEFAULT_COMMAND_COOLDOWNS_SEC
+    if not cooldowns:
+        return "- none"
 
     last_action = str(state.get("last_action_signature") or "")
     last_action_at = state.get("last_action_at")
@@ -80,17 +71,19 @@ def build_action_cooldown_block(
 
     lines: List[str] = []
 
-    for command_type, cooldown_sec in cooldowns.items():
-        action_key = f"tool:command_write:{command_type}"
-
-        if last_action == action_key and elapsed is not None and elapsed < cooldown_sec:
-            remaining = int(round(cooldown_sec - elapsed))
+    for cooldown in cooldowns:
+        if (
+            last_action == cooldown.signature
+            and elapsed is not None
+            and elapsed < cooldown.seconds
+        ):
+            remaining = int(round(cooldown.seconds - elapsed))
             elapsed_int = int(round(elapsed))
             lines.append(
-                f"- {command_type}: cooling down, last used {elapsed_int}s ago, "
+                f"- {cooldown.label}: cooling down, last used {elapsed_int}s ago, "
                 f"wait about {remaining}s unless a human note or critical event requires it"
             )
         else:
-            lines.append(f"- {command_type}: available")
+            lines.append(f"- {cooldown.label}: available")
 
     return "\n".join(lines)

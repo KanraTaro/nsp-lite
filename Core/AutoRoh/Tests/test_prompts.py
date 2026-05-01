@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from Core.AutoRoh.prompts import DEFAULT_LOOP_PROMPT, build_tick_prompt
+from Core.AutoRoh.profiles import DST_DIRECTOR_PROFILE
 
 
 class AutoRohPromptTests(unittest.TestCase):
@@ -36,9 +37,20 @@ class AutoRohPromptTests(unittest.TestCase):
         prompt = build_tick_prompt("Base prompt.", {}, None)
 
         self.assertIn("Action cooldowns:", prompt)
+        self.assertIn("- none", prompt)
 
-    def test_build_tick_prompt_includes_command_write_guidance(self) -> None:
+    def test_basic_profile_excludes_command_write_guidance(self) -> None:
         prompt = build_tick_prompt("Base prompt.", {}, None)
+
+        self.assertNotIn("command_write", prompt)
+
+    def test_dst_profile_includes_command_write_guidance(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            None,
+            profile=DST_DIRECTOR_PROFILE,
+        )
 
         self.assertIn(
             "- If the user asks you to announce something in game, call command_write with type announce_text",

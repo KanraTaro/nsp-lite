@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from Core.AutoRoh.notes import get_messages, latest_unhandled_note
 from Core.AutoRoh.observations import call_observation_tool
 from Core.AutoRoh.prompts import DEFAULT_LOOP_PROMPT, build_tick_prompt
+from Core.AutoRoh.profiles import resolve_autoroh_profile
 from Core.AutoRoh.state import (
     load_loop_state,
     mark_idle_skip,
@@ -132,6 +133,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     interval = float(getattr(args, "interval", 10.0) or 10.0)
     forever = bool(getattr(args, "forever", False))
     tool_trace = bool(getattr(args, "tool_trace", False))
+    profile = resolve_autoroh_profile(str(args.toolkit) if args.tools else "basic")
 
     if not forever and max_turns <= 0:
         print("max-turns must be greater than 0 unless --forever is used.", file=sys.stderr)
@@ -222,7 +224,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 )
                 save_loop_state(ctx, state)
 
-                tick_prompt = build_tick_prompt(prompt, state, latest_note)
+                tick_prompt = build_tick_prompt(prompt, state, latest_note, profile=profile)
 
                 if observation_summary:
                     tick_prompt += "\nObservation:\n"
