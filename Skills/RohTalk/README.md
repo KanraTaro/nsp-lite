@@ -269,15 +269,16 @@ This keeps the basic CLI simple while allowing richer agent behavior when needed
 
 ### Execution is Moving Toward Unification
 
-Current tool execution uses direct Python callables.
+RohTalk can execute model-requested tools through SkillCLI-backed skills.
+Named toolkits expose model-facing tool definitions and map those names back
+to canonical SkillCLI skill names. Local in-process callables remain available
+as a bootstrap/testing backend.
 
-Planned direction:
+This gives one execution surface for:
 
-- tool execution routed through SkillCLI
-- shared execution surface for:
-  - humans
-  - agents
-  - automation workers
+- humans using SkillCLI
+- agents using RohTalk tool loops
+- automation workers
 
 ---
 
@@ -319,7 +320,7 @@ Skills handle:
 Current implementation still has some temporary proving-layer duplication:
 
 - weather tool definition is duplicated across tool-enabled skills
-- tool execution is still callable-based
+- local callable tool execution still exists as a bootstrap/testing backend
 - tool-call rendering in `show_conversation` can still be improved
 
 These are known next-step cleanup items, not architectural blockers.
@@ -332,6 +333,5 @@ Planned follow-up work:
 
 - centralize shared tool definitions
 - improve `show_conversation` rendering for tool calls
-- route tool execution through SkillCLI
 - add profile-based backend capability handling
 - expand streaming visibility into more user-facing skills
