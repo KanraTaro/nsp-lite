@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from Core.AutoRoh.director_packs import render_director_pack_prompt
 from Core.AutoRoh.policy import build_action_cooldown_block
 from Core.AutoRoh.profiles import BASIC_PROFILE, AutoRohProfile
 
@@ -47,6 +48,12 @@ def build_tick_prompt(
     )
     behavior_block = "\n".join(behavior_lines)
     rule_block = "\n".join(rule_lines)
+    director_pack_block = ""
+    if profile.director_pack is not None:
+        director_pack_block = (
+            "\nDirector pack:\n"
+            f"{render_director_pack_prompt(profile.director_pack)}\n"
+        )
 
     return (
         f"{base_prompt}\n\n"
@@ -61,4 +68,5 @@ def build_tick_prompt(
         f"{behavior_block}\n\n"
         "Rules:\n"
         f"{rule_block}\n"
+        f"{director_pack_block}"
     )

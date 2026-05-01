@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+from Core.AutoRoh.director_packs import DirectorPack, load_director_pack
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,17 @@ class AutoRohProfile:
     behavior_lines: tuple[str, ...] = ()
     rule_lines: tuple[str, ...] = ()
     cooldowns: tuple[ActionCooldown, ...] = ()
+    director_pack: DirectorPack | None = None
+
+
+DST_DIRECTOR_PACK_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "Game"
+    / "DST"
+    / "DirectorPacks"
+    / "dst_director_v0.json"
+)
+DST_DIRECTOR_PACK = load_director_pack(DST_DIRECTOR_PACK_PATH)
 
 
 BASIC_PROFILE = AutoRohProfile(name="basic")
@@ -48,6 +62,7 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
             seconds=30,
         ),
     ),
+    director_pack=DST_DIRECTOR_PACK,
 )
 
 

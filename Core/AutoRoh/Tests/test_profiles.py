@@ -25,6 +25,13 @@ class AutoRohProfileTests(unittest.TestCase):
     def test_unknown_resolves_to_basic(self) -> None:
         self.assertIs(resolve_autoroh_profile("unknown"), BASIC_PROFILE)
 
+    def test_basic_profile_has_no_director_pack(self) -> None:
+        self.assertIsNone(BASIC_PROFILE.director_pack)
+
+    def test_dst_profile_has_director_pack(self) -> None:
+        self.assertIsNotNone(DST_DIRECTOR_PROFILE.director_pack)
+        self.assertEqual(DST_DIRECTOR_PROFILE.director_pack.name, "dst_director_v0")
+
     def test_dst_profile_contains_expected_cooldown_signatures(self) -> None:
         signatures = {cooldown.signature for cooldown in DST_DIRECTOR_PROFILE.cooldowns}
 

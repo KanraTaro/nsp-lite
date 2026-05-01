@@ -44,6 +44,11 @@ class AutoRohPromptTests(unittest.TestCase):
 
         self.assertNotIn("command_write", prompt)
 
+    def test_basic_profile_excludes_director_pack_section(self) -> None:
+        prompt = build_tick_prompt("Base prompt.", {}, None)
+
+        self.assertNotIn("Director pack:", prompt)
+
     def test_dst_profile_includes_command_write_guidance(self) -> None:
         prompt = build_tick_prompt(
             "Base prompt.",
@@ -64,6 +69,28 @@ class AutoRohPromptTests(unittest.TestCase):
             "- Do not describe a game action in text when command_write can perform it",
             prompt,
         )
+
+    def test_dst_profile_includes_director_pack_section(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            None,
+            profile=DST_DIRECTOR_PROFILE,
+        )
+
+        self.assertIn("Director pack:", prompt)
+        self.assertIn("Pack: dst_director_v0 (dst)", prompt)
+
+    def test_dst_profile_includes_safe_prefab_names(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            None,
+            profile=DST_DIRECTOR_PROFILE,
+        )
+
+        for prefab in ("log", "cutgrass", "twigs", "flint", "silk", "goldnugget"):
+            self.assertIn(prefab, prompt)
 
     def test_default_loop_prompt_includes_tick_and_wait_guidance(self) -> None:
         self.assertIn("AutoRoh tick.", DEFAULT_LOOP_PROMPT)
