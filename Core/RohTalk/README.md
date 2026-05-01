@@ -231,15 +231,16 @@ RohTalk only consumes normalized messages.
 
 ### Tool Execution is Abstracted
 
-Current implementation uses direct Python callables.
+RohTalk can execute model-requested tools through SkillCLI-backed skills.
+Named toolkits expose model-facing tool definitions and map those names back
+to canonical SkillCLI skill names. Local in-process callables remain available
+as a bootstrap/testing backend.
 
-Planned evolution:
+This gives one execution surface for:
 
-- route tool execution through SkillCLI
-- unify execution across:
-  - humans (CLI)
-  - agents (RohTalk)
-  - automation (ChatOps / workers)
+- humans using SkillCLI
+- agents using RohTalk tool loops
+- automation such as AutoRoh
 
 ---
 
@@ -253,7 +254,7 @@ Planned evolution:
 ## What It Does NOT Do (Yet)
 
 - no persona system (beyond config identity)
-- no tool registry or capability profiles
+- no dynamic tool registry or capability profiles
 - no automatic context compression
 - no ChatOps orchestration
 - no GUI layer (CLI only)
