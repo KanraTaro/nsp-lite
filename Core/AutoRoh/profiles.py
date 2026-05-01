@@ -44,6 +44,7 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
     ),
     rule_lines=(
         "- Do not describe a game action in text when command_write can perform it",
+        "- Use at most one command_write action per tick unless a human explicitly asks for multiple",
     ),
     cooldowns=(
         ActionCooldown(

@@ -7,8 +7,14 @@ import unittest
 from Core.Game.DST.commands import (
     CANONICAL_COMMAND_TYPES,
     MODEL_SAFE_COMMAND_TYPES,
+    SAFE_COLLECT_PREFABS,
+    SAFE_REWARD_PREFABS,
+    clamp_positive_int,
+    clamp_reward_count,
     normalize_command_type,
+    validate_collect_prefab,
     validate_command_type,
+    validate_reward_prefab,
 )
 
 
@@ -30,6 +36,35 @@ class DSTCommandContractTests(unittest.TestCase):
 
     def test_model_safe_types_are_canonical(self) -> None:
         self.assertTrue(set(MODEL_SAFE_COMMAND_TYPES).issubset(CANONICAL_COMMAND_TYPES))
+
+    def test_safe_collect_prefab_validates_and_lowercases(self) -> None:
+        self.assertEqual(validate_collect_prefab(" Log "), "log")
+
+    def test_unsafe_collect_prefab_raises_value_error(self) -> None:
+        with self.assertRaisesRegex(ValueError, "dragonfruit"):
+            validate_collect_prefab("dragonfruit")
+
+    def test_safe_reward_prefab_validates(self) -> None:
+        self.assertEqual(validate_reward_prefab("flint"), "flint")
+
+    def test_unsafe_reward_prefab_raises_value_error(self) -> None:
+        with self.assertRaisesRegex(ValueError, "amulet"):
+            validate_reward_prefab("amulet")
+
+    def test_clamp_positive_int_handles_invalid_bounds(self) -> None:
+        self.assertEqual(clamp_positive_int(0), 1)
+        self.assertEqual(clamp_positive_int(-5), 1)
+        self.assertEqual(clamp_positive_int(99, max_value=40), 40)
+
+    def test_clamp_reward_count_uses_prefab_range(self) -> None:
+        self.assertEqual(clamp_reward_count("goldnugget", 99), 2)
+        self.assertEqual(clamp_reward_count("cutgrass", 0), 2)
+
+    def test_safe_prefabs_include_expected_set(self) -> None:
+        expected = {"log", "cutgrass", "twigs", "flint", "silk", "goldnugget"}
+
+        self.assertTrue(expected.issubset(set(SAFE_COLLECT_PREFABS)))
+        self.assertTrue(expected.issubset(set(SAFE_REWARD_PREFABS)))
 
 
 if __name__ == "__main__":

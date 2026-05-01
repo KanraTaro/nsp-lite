@@ -65,6 +65,16 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("announce_text", prompt)
         self.assertNotIn("use type announce", prompt.lower())
 
+    def test_render_director_pack_prompt_includes_reliability_guidance(self) -> None:
+        pack = load_director_pack(DST_PACK_PATH)
+
+        prompt = render_director_pack_prompt(pack)
+
+        self.assertIn("Use only listed safe prefabs", prompt)
+        self.assertIn("log, cutgrass, twigs, flint, silk, goldnugget", prompt)
+        self.assertIn("conservative reward counts", prompt)
+        self.assertIn("at most one command_write action per tick", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,12 @@ class AutoRohProfileTests(unittest.TestCase):
             },
         )
 
+    def test_dst_profile_includes_one_command_write_per_tick_rule(self) -> None:
+        rules = "\n".join(DST_DIRECTOR_PROFILE.rule_lines)
+
+        self.assertIn("at most one command_write action per tick", rules)
+        self.assertIn("unless a human explicitly asks for multiple", rules)
+
 
 if __name__ == "__main__":
     unittest.main()

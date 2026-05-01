@@ -9,7 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from Core.Game.DST.commands import MODEL_SAFE_COMMAND_TYPES
+from Core.Game.DST.commands import (
+    MODEL_SAFE_COMMAND_TYPES,
+    SAFE_COLLECT_PREFABS,
+    SAFE_REWARD_PREFABS,
+)
 from Core.LLMClient.types import ToolDef
 
 from .skillcli_tools import build_tool_name_map, canonical_skill_name_to_tool_name
@@ -112,10 +116,16 @@ def _dst_command_tool() -> ToolDef:
                 },
                 "text": {"type": "string"},
                 "title": {"type": "string"},
-                "target_prefab": {"type": "string"},
-                "target_count": {"type": "integer"},
-                "reward_prefab": {"type": "string"},
-                "reward_count": {"type": "integer"},
+                "target_prefab": {
+                    "type": "string",
+                    "enum": list(SAFE_COLLECT_PREFABS),
+                },
+                "target_count": {"type": "integer", "minimum": 1},
+                "reward_prefab": {
+                    "type": "string",
+                    "enum": list(SAFE_REWARD_PREFABS),
+                },
+                "reward_count": {"type": "integer", "minimum": 1},
                 "target_userid": {"type": "string"},
             },
             "required": ["type"],

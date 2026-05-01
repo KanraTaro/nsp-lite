@@ -18,7 +18,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from Core.Game.DST.commands import ACCEPTED_COMMAND_TYPES, validate_command_type
+from Core.Game.DST.commands import (
+    ACCEPTED_COMMAND_TYPES,
+    clamp_positive_int,
+    clamp_reward_count,
+    validate_collect_prefab,
+    validate_command_type,
+    validate_reward_prefab,
+)
 from Core.NSPL.File.write import write_json
 
 
@@ -55,21 +62,6 @@ def _clean_text(value: str) -> str:
     return str(value or "").strip()
 
 
-def _positive_int(value: int, *, default: int = 1, max_value: int = 40) -> int:
-    try:
-        number = int(value)
-    except Exception:
-        number = default
-
-    if number < 1:
-        number = default
-
-    if number > max_value:
-        number = max_value
-
-    return number
-
-
 def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
     command_type = validate_command_type(args.command_type)
 
@@ -94,7 +86,7 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
             "type": "grant_reward_item",
             "payload": {
                 "prefab": prefab,
-                "count": _positive_int(args.count),
+                "count": clamp_positive_int(args.count),
                 "target_userid": _clean_text(args.target_userid),
             },
         }
@@ -114,10 +106,13 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
     if command_type == "set_objective_collect_item":
         title = _clean_text(args.title) or "Objective"
         text = _clean_text(args.text)
-        target_prefab = _clean_text(args.target_prefab)
+        raw_target_prefab = _clean_text(args.target_prefab)
+        reward_prefab = validate_reward_prefab(_clean_text(args.reward_prefab) or "cutgrass")
 
-        if target_prefab == "":
+        if raw_target_prefab == "":
             raise ValueError("set_objective_collect_item requires --target-prefab.")
+
+        target_prefab = validate_collect_prefab(raw_target_prefab)
 
         return {
             "type": "set_objective_collect_item",
@@ -126,9 +121,9 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
                 "text": text,
                 "target_userid": _clean_text(args.target_userid),
                 "target_prefab": target_prefab,
-                "target_count": _positive_int(args.target_count),
-                "reward_prefab": _clean_text(args.reward_prefab) or "cutgrass",
-                "reward_count": _positive_int(args.reward_count),
+                "target_count": clamp_positive_int(args.target_count),
+                "reward_prefab": reward_prefab,
+                "reward_count": clamp_reward_count(reward_prefab, args.reward_count),
             },
         }
 
