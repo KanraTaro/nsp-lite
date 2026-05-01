@@ -66,7 +66,7 @@ class ChatOpsSkillsSmokeTests(unittest.TestCase):
                 "--instance",
                 self.instance_id,
                 "--skill",
-                "Tools.Echo.echo",
+                "NSPL.Tools.Echo.echo",
                 "--",
                 "smoke",
                 "test",
@@ -89,4 +89,3 @@ class ChatOpsSkillsSmokeTests(unittest.TestCase):
             counts[name.strip()] = int(count.strip())
 
         self.assertEqual(counts.get("Inbox", 0), 1)
-

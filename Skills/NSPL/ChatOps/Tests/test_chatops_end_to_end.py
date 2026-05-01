@@ -79,7 +79,7 @@ class ChatOpsE2ETests(unittest.TestCase):
             "--instance",
             self.instance,
             "--skill",
-            "Tools.Echo.echo",
+            "NSPL.Tools.Echo.echo",
             "--",
             "hello",
             "world",
@@ -116,18 +116,18 @@ class ChatOpsE2ETests(unittest.TestCase):
         data = json.loads(files[0].read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "done")
         self.assertEqual(data["exit_code"], 0)
-        self.assertEqual(data["skill"], "Tools.Echo.echo")
+        self.assertEqual(data["skill"], "NSPL.Tools.Echo.echo")
         self.assertEqual(data["args"], ["hello", "world"])
 
     def test_failing_task(self) -> None:
-        # Enqueue a failing task using Tools.TestFail.fail
+        # Enqueue a failing task using NSPL.Tools.TestFail.fail
         cmd_send = [
             "skill",
             "ChatOps.send_task",
             "--instance",
             self.instance,
             "--skill",
-            "Tools.TestFail.fail",
+            "NSPL.Tools.TestFail.fail",
         ]
         proc = _run_skill(cmd_send)
         self.assertEqual(proc.returncode, 0, msg=proc.stderr)
@@ -161,7 +161,7 @@ class ChatOpsE2ETests(unittest.TestCase):
         data = json.loads(files[0].read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "failed")
         self.assertNotEqual(data["exit_code"], 0)
-        self.assertEqual(data["skill"], "Tools.TestFail.fail")
+        self.assertEqual(data["skill"], "NSPL.Tools.TestFail.fail")
 
     def test_queue_status_counts(self) -> None:
         # Enqueue two tasks; one will succeed, one will fail
@@ -172,7 +172,7 @@ class ChatOpsE2ETests(unittest.TestCase):
                 "--instance",
                 self.instance,
                 "--skill",
-                "Tools.Echo.echo",
+                "NSPL.Tools.Echo.echo",
                 "--",
                 "hi",
             ],
@@ -182,7 +182,7 @@ class ChatOpsE2ETests(unittest.TestCase):
                 "--instance",
                 self.instance,
                 "--skill",
-                "Tools.TestFail.fail",
+                "NSPL.Tools.TestFail.fail",
             ],
         ]
         for cmd in cmds:
