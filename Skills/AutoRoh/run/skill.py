@@ -20,6 +20,7 @@ import hashlib
 import json
 import sys
 import time
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from Core.AutoRoh.state import (
@@ -44,6 +45,13 @@ DEFAULT_LOOP_PROMPT = (
     "If you need to affect the game or external systems, use tools.\n"
     "If nothing meaningful changed, reply exactly: wait\n"
 )
+
+
+COMMAND_COOLDOWNS_SEC: Dict[str, int] = {
+    "announce_text": 60,
+    "set_objective_collect_item": 180,
+    "clear_objective": 30,
+}
 
 
 def _get_messages(ctx: Any, conversation_id: str) -> List[Dict[str, Any]]:
@@ -82,6 +90,56 @@ def _latest_unhandled_note(
     return latest_index, latest_note
 
 
+def _parse_utc_iso(value: Any) -> Optional[datetime]:
+    text = str(value or "").strip()
+    if text == "":
+        return None
+
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+
+    return parsed.astimezone(UTC)
+
+
+def _seconds_since(value: Any) -> Optional[float]:
+    parsed = _parse_utc_iso(value)
+    if parsed is None:
+        return None
+
+    return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
+
+
+def _build_action_cooldown_block(state: Dict[str, Any]) -> str:
+    last_action = str(state.get("last_action_signature") or "")
+    last_action_at = state.get("last_action_at")
+    elapsed = _seconds_since(last_action_at)
+
+    lines: List[str] = []
+
+    for command_type, cooldown_sec in COMMAND_COOLDOWNS_SEC.items():
+        action_key = f"tool:command_write:{command_type}"
+
+        if last_action == action_key and elapsed is not None and elapsed < cooldown_sec:
+            remaining = int(round(cooldown_sec - elapsed))
+            elapsed_int = int(round(elapsed))
+            lines.append(
+                f"- {command_type}: cooling down, last used {elapsed_int}s ago, "
+                f"wait about {remaining}s unless a human note or critical event requires it"
+            )
+        else:
+            lines.append(f"- {command_type}: available")
+
+    return "\n".join(lines)
+
+
 def _build_tick_prompt(
     base_prompt: str,
     state: Dict[str, Any],
@@ -91,6 +149,7 @@ def _build_tick_prompt(
     last_processed = int(state.get("last_processed_message_index", 0) or 0)
     last_note_index = int(state.get("last_human_note_index", -1))
     note_block = latest_note if latest_note else "(no new human note)"
+    cooldown_block = _build_action_cooldown_block(state)
 
     return (
         f"{base_prompt}\n\n"
@@ -99,6 +158,8 @@ def _build_tick_prompt(
         f"- last_message_index: {last_processed}\n"
         f"- last_note_index: {last_note_index}\n"
         f"- new_note: {note_block}\n\n"
+        "Action cooldowns:\n"
+        f"{cooldown_block}\n\n"
         "Behavior:\n"
         "- If nothing meaningful changed, reply exactly: wait\n"
         "- If you want to say something only to the terminal, reply with a short message\n"
@@ -107,6 +168,7 @@ def _build_tick_prompt(
         "- If the user asks for an objective or recovery task, call command_write with type set_objective_collect_item\n\n"
         "Rules:\n"
         "- Do not repeat the last action unless new state or a new human note exists\n"
+        "- Respect action cooldowns unless there is a human note or critical state change\n"
         "- Prefer provided observations and tool results over assumptions\n"
         "- Never use XML-style tags like <act_now>, <comment>, <tool_action>, or <wait>\n"
         "- Do not describe a game action in text when command_write can perform it\n"
