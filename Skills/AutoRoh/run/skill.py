@@ -153,6 +153,52 @@ def _call_observation_tool(
     return signature, summary
 
 
+def _safe_tool_arguments(tool_call: Any) -> Dict[str, Any]:
+    arguments = getattr(tool_call, "arguments", {})
+    if isinstance(arguments, dict):
+        return dict(arguments)
+    return {}
+
+
+def _recorded_tool_call(tool_call: Any) -> Dict[str, Any]:
+    return {
+        "type": "tool_call",
+        "name": str(getattr(tool_call, "name", "") or ""),
+        "arguments": _safe_tool_arguments(tool_call),
+    }
+
+
+def _recorded_tool_result(tool_result: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "type": "tool_result",
+        "name": str(tool_result.get("tool_name", "") or ""),
+        "ok": bool(tool_result.get("ok", False)),
+        "result": tool_result.get("result"),
+    }
+
+
+def _action_signature_from_tool_events(
+    tool_events: List[Dict[str, Any]],
+) -> Optional[str]:
+    for event in reversed(tool_events):
+        if event.get("type") != "tool_call":
+            continue
+
+        name = str(event.get("name", "") or "")
+        arguments = event.get("arguments", {})
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        if name == "command_write":
+            command_type = str(arguments.get("type", "") or "unknown")
+            return f"tool:command_write:{command_type}"
+
+        if name:
+            return f"tool:{name}"
+
+    return None
+
+
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--conversation",
@@ -341,6 +387,22 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                     tick_prompt += observation_summary
                     tick_prompt += "\n"
 
+            tool_events: List[Dict[str, Any]] = []
+
+            def on_step(step_index: int) -> None:
+                if tool_trace:
+                    print_step(step_index)
+
+            def on_tool_call(tool_call: Any) -> None:
+                tool_events.append(_recorded_tool_call(tool_call))
+                if tool_trace:
+                    print_tool_call(tool_call)
+
+            def on_tool_result(tool_result: Dict[str, Any]) -> None:
+                tool_events.append(_recorded_tool_result(tool_result))
+                if tool_trace:
+                    print_tool_result(tool_result)
+
             conversation_id, reply = run_turn(
                 ctx,
                 tick_prompt,
@@ -352,9 +414,9 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 use_tools=bool(args.tools),
                 tool_backend=str(args.tool_backend),
                 toolkit=str(args.toolkit),
-                on_step=print_step if args.tools and tool_trace else None,
-                on_tool_call=print_tool_call if args.tools and tool_trace else None,
-                on_tool_result=print_tool_result if args.tools and tool_trace else None,
+                on_step=on_step if args.tools and tool_trace else None,
+                on_tool_call=on_tool_call if args.tools else None,
+                on_tool_result=on_tool_result if args.tools else None,
             )
 
             print(f"conversation_id: {conversation_id}")
@@ -366,9 +428,9 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
             state = load_loop_state(ctx, conversation_id)
             message_count = len(_get_messages(ctx, conversation_id))
-            action_signature: Optional[str] = None
+            action_signature: Optional[str] = _action_signature_from_tool_events(tool_events)
 
-            if reply:
+            if action_signature is None and reply:
                 action_signature = str(reply).strip()[:160]
 
             update_after_tick(
