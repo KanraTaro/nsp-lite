@@ -30,6 +30,11 @@ from Core.AutoRoh.state import (
     update_after_tick,
     update_observation,
 )
+from Core.AutoRoh.tool_events import (
+    action_signature_from_tool_events,
+    record_tool_call,
+    record_tool_result,
+)
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import get_conversation, resolve_conversation_ref, run_turn
 from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
@@ -116,52 +121,6 @@ def _build_tick_prompt(
         "- Do not describe a game action in text when command_write can perform it\n"
         "- Keep terminal-only replies short\n"
     )
-
-
-def _safe_tool_arguments(tool_call: Any) -> Dict[str, Any]:
-    arguments = getattr(tool_call, "arguments", {})
-    if isinstance(arguments, dict):
-        return dict(arguments)
-    return {}
-
-
-def _recorded_tool_call(tool_call: Any) -> Dict[str, Any]:
-    return {
-        "type": "tool_call",
-        "name": str(getattr(tool_call, "name", "") or ""),
-        "arguments": _safe_tool_arguments(tool_call),
-    }
-
-
-def _recorded_tool_result(tool_result: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "type": "tool_result",
-        "name": str(tool_result.get("tool_name", "") or ""),
-        "ok": bool(tool_result.get("ok", False)),
-        "result": tool_result.get("result"),
-    }
-
-
-def _action_signature_from_tool_events(
-    tool_events: List[Dict[str, Any]],
-) -> Optional[str]:
-    for event in reversed(tool_events):
-        if event.get("type") != "tool_call":
-            continue
-
-        name = str(event.get("name", "") or "")
-        arguments = event.get("arguments", {})
-        if not isinstance(arguments, dict):
-            arguments = {}
-
-        if name == "command_write":
-            command_type = str(arguments.get("type", "") or "unknown")
-            return f"tool:command_write:{command_type}"
-
-        if name:
-            return f"tool:{name}"
-
-    return None
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -359,12 +318,12 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                     print_step(step_index)
 
             def on_tool_call(tool_call: Any) -> None:
-                tool_events.append(_recorded_tool_call(tool_call))
+                tool_events.append(record_tool_call(tool_call))
                 if tool_trace:
                     print_tool_call(tool_call)
 
             def on_tool_result(tool_result: Dict[str, Any]) -> None:
-                tool_events.append(_recorded_tool_result(tool_result))
+                tool_events.append(record_tool_result(tool_result))
                 if tool_trace:
                     print_tool_result(tool_result)
 
@@ -393,7 +352,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
             state = load_loop_state(ctx, conversation_id)
             message_count = len(_get_messages(ctx, conversation_id))
-            action_signature: Optional[str] = _action_signature_from_tool_events(tool_events)
+            action_signature: Optional[str] = action_signature_from_tool_events(tool_events)
 
             if action_signature is None and reply:
                 action_signature = str(reply).strip()[:160]
