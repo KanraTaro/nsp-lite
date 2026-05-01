@@ -101,6 +101,8 @@
   },
   "constraints": [
     "Do not invent prefab names; use only listed safe prefabs for collect and reward objectives.",
+    "Use only canonical command_write type values: announce_text, set_objective_collect_item, clear_objective.",
+    "Never use shorthand command types such as announce; use announce_text.",
     "Do not grant high-impact rewards yet.",
     "Do not use giant narration or lore monologues.",
     "Do not create objectives during urgent danger unless the objective directly helps recovery.",

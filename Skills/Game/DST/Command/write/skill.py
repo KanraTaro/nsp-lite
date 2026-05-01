@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+from Core.Game.DST.commands import ACCEPTED_COMMAND_TYPES, validate_command_type
 from Core.NSPL.File.write import write_json
 
 
@@ -25,21 +26,12 @@ DEFAULT_COMMAND_PATH = (
     "~/.klei/DoNotStarveTogether/42802241/Cluster_4/Master/save/roh_dst_command.json"
 )
 
-SUPPORTED_TYPES = {
-    "announce_text",
-    "grant_reward_item",
-    "set_objective",
-    "set_objective_collect_item",
-    "clear_objective",
-}
-
-
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--type",
         dest="command_type",
         required=True,
-        choices=sorted(SUPPORTED_TYPES),
+        choices=sorted(ACCEPTED_COMMAND_TYPES),
         help="RohBridge command type",
     )
     parser.add_argument("--text", dest="text", default="", help="Text for announce/objective commands")
@@ -79,7 +71,7 @@ def _positive_int(value: int, *, default: int = 1, max_value: int = 40) -> int:
 
 
 def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
-    command_type = str(args.command_type).strip()
+    command_type = validate_command_type(args.command_type)
 
     if command_type == "announce_text":
         text = _clean_text(args.text)

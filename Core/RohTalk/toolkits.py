@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
+from Core.Game.DST.commands import MODEL_SAFE_COMMAND_TYPES
 from Core.LLMClient.types import ToolDef
 
 from .skillcli_tools import build_tool_name_map, canonical_skill_name_to_tool_name
@@ -107,11 +108,7 @@ def _dst_command_tool() -> ToolDef:
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": [
-                        "announce_text",
-                        "set_objective_collect_item",
-                        "clear_objective",
-                    ],
+                    "enum": list(MODEL_SAFE_COMMAND_TYPES),
                 },
                 "text": {"type": "string"},
                 "title": {"type": "string"},

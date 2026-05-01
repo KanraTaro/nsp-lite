@@ -56,6 +56,15 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("Announce examples:", prompt)
         self.assertIn("Dusk is settling in", prompt)
 
+    def test_render_director_pack_prompt_includes_canonical_command_guidance(self) -> None:
+        pack = load_director_pack(DST_PACK_PATH)
+
+        prompt = render_director_pack_prompt(pack)
+
+        self.assertIn("Use only canonical command_write type values", prompt)
+        self.assertIn("announce_text", prompt)
+        self.assertNotIn("use type announce", prompt.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
