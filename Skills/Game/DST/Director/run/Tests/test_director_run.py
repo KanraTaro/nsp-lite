@@ -156,6 +156,20 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertIn("snapshot_read preflight failed: missing snapshot", stderr)
         run_loop.assert_not_called()
 
+    def test_snapshot_preflight_uses_snapshot_read_without_direct_path_resolver(self) -> None:
+        args = parse_args("--max-turns", "1")
+
+        with patch.object(skill, "create_conversation", return_value=("new_conv", "")):
+            with patch.object(skill, "call_observation_tool") as preflight:
+                with patch.object(skill, "run_autoroh_loop", return_value=0):
+                    code, _stdout, _stderr = self.run_skill(args)
+
+        self.assertEqual(code, 0)
+        preflight.assert_called_once()
+        self.assertEqual(preflight.call_args.kwargs["toolkit_name"], "dst_director")
+        self.assertEqual(preflight.call_args.kwargs["tool_name"], "snapshot_read")
+        self.assertFalse(hasattr(skill, "resolve_rohbridge_paths"))
+
     def test_printed_shell_command_includes_conversation_id(self) -> None:
         args = parse_args("--skip-checks")
 

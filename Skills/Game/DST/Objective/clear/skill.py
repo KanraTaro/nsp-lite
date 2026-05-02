@@ -9,27 +9,25 @@ from pathlib import Path
 from typing import Any
 
 from Core.Game.DST.commands import build_clear_objective_command
+from Core.Game.DST.paths import resolve_command_path
 from Core.NSPL.File.write import write_json
-
-
-DEFAULT_COMMAND_PATH = (
-    "~/.klei/DoNotStarveTogether/42802241/Cluster_4/Master/save/roh_dst_command.json"
-)
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--path",
         dest="path",
-        default=DEFAULT_COMMAND_PATH,
-        help="Path to roh_dst_command.json",
+        default=None,
+        help=argparse.SUPPRESS,
     )
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    path = str(getattr(args, "path", DEFAULT_COMMAND_PATH) or DEFAULT_COMMAND_PATH)
+    path = str(Path(getattr(args, "path", "") or "roh_dst_command.json").expanduser())
 
     try:
+        explicit_path = getattr(args, "path", None)
+        path = str(Path(explicit_path).expanduser()) if explicit_path else str(resolve_command_path())
         payload = build_clear_objective_command()
         written_path = write_json(path, payload)
         result = {

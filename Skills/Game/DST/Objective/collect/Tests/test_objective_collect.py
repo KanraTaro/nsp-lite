@@ -11,6 +11,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 skill = importlib.import_module("Skills.Game.DST.Objective.collect.skill")
@@ -87,6 +88,52 @@ class ObjectiveCollectSkillTests(unittest.TestCase):
                     },
                 },
             )
+
+    def test_no_path_writes_to_discovered_command_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "save" / "roh_dst_command.json"
+            args = argparse.Namespace(
+                title="Supply Run",
+                text="Gather logs.",
+                target_prefab="log",
+                target_count=2,
+                reward_prefab="flint",
+                reward_count=1,
+                target_userid="",
+                path=None,
+            )
+            stdout = StringIO()
+
+            with patch.object(skill, "resolve_command_path", return_value=path) as resolve:
+                with redirect_stdout(stdout):
+                    exit_code = skill.run(args, SimpleNamespace(json=True))
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["type"], "set_objective_collect_item")
+            resolve.assert_called_once_with()
+
+    def test_path_preserves_explicit_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "manual_command.json"
+            args = argparse.Namespace(
+                title="Supply Run",
+                text="Gather logs.",
+                target_prefab="log",
+                target_count=2,
+                reward_prefab="flint",
+                reward_count=1,
+                target_userid="",
+                path=str(path),
+            )
+            stdout = StringIO()
+
+            with patch.object(skill, "resolve_command_path") as resolve:
+                with redirect_stdout(stdout):
+                    exit_code = skill.run(args, SimpleNamespace(json=True))
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(path.exists())
+            resolve.assert_not_called()
 
 
 if __name__ == "__main__":

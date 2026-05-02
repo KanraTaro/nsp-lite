@@ -11,19 +11,16 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
+
+from Core.Game.DST.paths import resolve_rohbridge_paths
 from Core.NSPL.File.read import read_text
-
-
-DEFAULT_SNAPSHOT_PATH = (
-    "~/.klei/DoNotStarveTogether/42802241/Cluster_4/Master/save/roh_dst_snapshot.json"
-)
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--path",
         dest="path",
-        default=DEFAULT_SNAPSHOT_PATH,
+        default=None,
         help="Path to roh_dst_snapshot.json",
     )
     parser.add_argument(
@@ -81,7 +78,13 @@ def _build_signature_basis(
     }
 
 
-def _build_summary(snapshot: Dict[str, Any], path: str) -> Dict[str, Any]:
+def _build_summary(
+    snapshot: Dict[str, Any],
+    path: str,
+    command_path: str,
+    save_dir: str,
+    path_source: str,
+) -> Dict[str, Any]:
     world = snapshot.get("world", {})
     if not isinstance(world, dict):
         world = {}
@@ -126,6 +129,9 @@ def _build_summary(snapshot: Dict[str, Any], path: str) -> Dict[str, Any]:
         "ok": True,
         "source": "RohBridge",
         "path": str(Path(path).expanduser()),
+        "command_path": str(Path(command_path).expanduser()),
+        "save_dir": str(Path(save_dir).expanduser()),
+        "path_source": path_source,
         "schema_version": snapshot.get("schema_version"),
         "run_id": snapshot.get("run_id"),
         "side": snapshot.get("side"),
@@ -159,9 +165,22 @@ def _build_director_hint(
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    path = str(getattr(args, "path", DEFAULT_SNAPSHOT_PATH) or DEFAULT_SNAPSHOT_PATH)
+    path = str(Path(getattr(args, "path", "") or "roh_dst_snapshot.json").expanduser())
 
     try:
+        explicit_path = getattr(args, "path", None)
+        if explicit_path:
+            path = str(Path(explicit_path).expanduser())
+            command_path = str(Path(path).parent / "roh_dst_command.json")
+            save_dir = str(Path(path).parent)
+            path_source = "argument:path"
+        else:
+            paths = resolve_rohbridge_paths()
+            path = str(paths.snapshot_path)
+            command_path = str(paths.command_path)
+            save_dir = str(paths.save_dir)
+            path_source = paths.source
+
         raw = read_text(path)
         start_index = raw.find("{")
         if start_index < 0:
@@ -172,9 +191,13 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             raise ValueError("Snapshot JSON root must be an object.")
 
         if bool(getattr(args, "raw", False)):
-            payload = snapshot
+            payload = dict(snapshot)
+            payload["path"] = str(Path(path).expanduser())
+            payload["command_path"] = str(Path(command_path).expanduser())
+            payload["save_dir"] = str(Path(save_dir).expanduser())
+            payload["path_source"] = path_source
         else:
-            payload = _build_summary(snapshot, path)
+            payload = _build_summary(snapshot, path, command_path, save_dir, path_source)
 
         print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
         return 0

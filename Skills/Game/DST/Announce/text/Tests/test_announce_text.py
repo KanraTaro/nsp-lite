@@ -11,6 +11,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 skill = importlib.import_module("Skills.Game.DST.Announce.text.skill")
@@ -48,6 +49,34 @@ class AnnounceTextSkillTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertIn("requires text", json.loads(stdout.getvalue())["error"])
             self.assertFalse(path.exists())
+
+    def test_no_path_writes_to_discovered_command_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "save" / "roh_dst_command.json"
+            args = argparse.Namespace(text="Stay near camp.", path=None)
+            stdout = StringIO()
+
+            with patch.object(skill, "resolve_command_path", return_value=path) as resolve:
+                with redirect_stdout(stdout):
+                    exit_code = skill.run(args, SimpleNamespace(json=True))
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["type"], "announce_text")
+            resolve.assert_called_once_with()
+
+    def test_path_preserves_explicit_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "manual_command.json"
+            args = argparse.Namespace(text="Manual target.", path=str(path))
+            stdout = StringIO()
+
+            with patch.object(skill, "resolve_command_path") as resolve:
+                with redirect_stdout(stdout):
+                    exit_code = skill.run(args, SimpleNamespace(json=True))
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(path.exists())
+            resolve.assert_not_called()
 
 
 if __name__ == "__main__":
