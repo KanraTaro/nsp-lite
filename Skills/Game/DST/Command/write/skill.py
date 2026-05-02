@@ -20,11 +20,12 @@ from typing import Any, Dict
 
 from Core.Game.DST.commands import (
     ACCEPTED_COMMAND_TYPES,
+    build_announce_text_command,
+    build_clear_objective_command,
+    build_collect_objective_command,
     clamp_positive_int,
-    clamp_reward_count,
-    validate_collect_prefab,
+    clean_text,
     validate_command_type,
-    validate_reward_prefab,
 )
 from Core.NSPL.File.write import write_json
 
@@ -58,27 +59,14 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _clean_text(value: str) -> str:
-    return str(value or "").strip()
-
-
 def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
     command_type = validate_command_type(args.command_type)
 
     if command_type == "announce_text":
-        text = _clean_text(args.text)
-        if text == "":
-            raise ValueError("announce_text requires --text.")
-
-        return {
-            "type": "announce_text",
-            "payload": {
-                "text": text,
-            },
-        }
+        return build_announce_text_command(args.text)
 
     if command_type == "grant_reward_item":
-        prefab = _clean_text(args.prefab)
+        prefab = clean_text(args.prefab)
         if prefab == "":
             raise ValueError("grant_reward_item requires --prefab.")
 
@@ -87,13 +75,13 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
             "payload": {
                 "prefab": prefab,
                 "count": clamp_positive_int(args.count),
-                "target_userid": _clean_text(args.target_userid),
+                "target_userid": clean_text(args.target_userid),
             },
         }
 
     if command_type == "set_objective":
-        title = _clean_text(args.title) or "Objective"
-        text = _clean_text(args.text)
+        title = clean_text(args.title) or "Objective"
+        text = clean_text(args.text)
 
         return {
             "type": "set_objective",
@@ -104,34 +92,21 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
         }
 
     if command_type == "set_objective_collect_item":
-        title = _clean_text(args.title) or "Objective"
-        text = _clean_text(args.text)
-        raw_target_prefab = _clean_text(args.target_prefab)
-        reward_prefab = validate_reward_prefab(_clean_text(args.reward_prefab) or "cutgrass")
-
-        if raw_target_prefab == "":
+        if clean_text(args.target_prefab) == "":
             raise ValueError("set_objective_collect_item requires --target-prefab.")
 
-        target_prefab = validate_collect_prefab(raw_target_prefab)
-
-        return {
-            "type": "set_objective_collect_item",
-            "payload": {
-                "title": title,
-                "text": text,
-                "target_userid": _clean_text(args.target_userid),
-                "target_prefab": target_prefab,
-                "target_count": clamp_positive_int(args.target_count),
-                "reward_prefab": reward_prefab,
-                "reward_count": clamp_reward_count(reward_prefab, args.reward_count),
-            },
-        }
+        return build_collect_objective_command(
+            args.title,
+            args.text,
+            args.target_prefab,
+            args.target_count,
+            args.reward_prefab,
+            args.reward_count,
+            args.target_userid,
+        )
 
     if command_type == "clear_objective":
-        return {
-            "type": "clear_objective",
-            "payload": {},
-        }
+        return build_clear_objective_command()
 
     raise ValueError(f"Unsupported command type: {command_type}")
 

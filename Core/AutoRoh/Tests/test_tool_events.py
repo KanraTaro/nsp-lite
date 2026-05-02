@@ -70,6 +70,14 @@ class ToolEventsTests(unittest.TestCase):
             "tool:command_write:announce_text",
         )
 
+    def test_action_signature_returns_wrapper_tool_name(self) -> None:
+        events = [{"type": "tool_call", "name": "objective_collect", "arguments": {}}]
+
+        self.assertEqual(
+            action_signature_from_tool_events(events),
+            "tool:objective_collect",
+        )
+
     def test_action_signature_returns_unknown_for_command_write_without_type(self) -> None:
         events = [{"type": "tool_call", "name": "command_write", "arguments": {}}]
 

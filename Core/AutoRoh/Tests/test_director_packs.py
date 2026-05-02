@@ -56,13 +56,16 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("Announce examples:", prompt)
         self.assertIn("Dusk is settling in", prompt)
 
-    def test_render_director_pack_prompt_includes_canonical_command_guidance(self) -> None:
+    def test_render_director_pack_prompt_includes_wrapper_tool_guidance(self) -> None:
         pack = load_director_pack(DST_PACK_PATH)
 
         prompt = render_director_pack_prompt(pack)
 
-        self.assertIn("Use only canonical command_write type values", prompt)
+        self.assertIn("Use announce_text for short in-game messages", prompt)
+        self.assertIn("Use objective_collect for safe collection tasks", prompt)
+        self.assertIn("Use objective_clear to remove the current objective", prompt)
         self.assertIn("announce_text", prompt)
+        self.assertNotIn("command_write type", prompt)
         self.assertNotIn("use type announce", prompt.lower())
 
     def test_render_director_pack_prompt_includes_reliability_guidance(self) -> None:
@@ -73,7 +76,7 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("Use only listed safe prefabs", prompt)
         self.assertIn("log, cutgrass, twigs, flint, silk, goldnugget", prompt)
         self.assertIn("conservative reward counts", prompt)
-        self.assertIn("at most one command_write action per tick", prompt)
+        self.assertIn("at most one DST action/tool action per tick", prompt)
 
 
 if __name__ == "__main__":

@@ -38,16 +38,16 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertEqual(
             signatures,
             {
-                "tool:command_write:announce_text",
-                "tool:command_write:set_objective_collect_item",
-                "tool:command_write:clear_objective",
+                "tool:announce_text",
+                "tool:objective_collect",
+                "tool:objective_clear",
             },
         )
 
-    def test_dst_profile_includes_one_command_write_per_tick_rule(self) -> None:
+    def test_dst_profile_includes_one_dst_action_per_tick_rule(self) -> None:
         rules = "\n".join(DST_DIRECTOR_PROFILE.rule_lines)
 
-        self.assertIn("at most one command_write action per tick", rules)
+        self.assertIn("at most one DST action/tool action per tick", rules)
         self.assertIn("unless a human explicitly asks for multiple", rules)
 
 

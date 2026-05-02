@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Objective.collect",
+  "version": "0.1.0",
+  "description": "Write a safe Don't Starve Together collection objective command.",
+  "entry": "skill.py"
+}

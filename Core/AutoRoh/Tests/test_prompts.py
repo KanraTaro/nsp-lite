@@ -49,7 +49,7 @@ class AutoRohPromptTests(unittest.TestCase):
 
         self.assertNotIn("Director pack:", prompt)
 
-    def test_dst_profile_includes_command_write_guidance(self) -> None:
+    def test_dst_profile_includes_wrapper_tool_guidance(self) -> None:
         prompt = build_tick_prompt(
             "Base prompt.",
             {},
@@ -58,17 +58,22 @@ class AutoRohPromptTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "- If the user asks you to announce something in game, call command_write with type announce_text",
+            "- If the user asks you to announce something in game, call announce_text",
             prompt,
         )
         self.assertIn(
-            "- If the user asks for an objective or recovery task, call command_write with type set_objective_collect_item",
+            "- If the user asks for an objective or recovery task, call objective_collect",
             prompt,
         )
         self.assertIn(
-            "- Do not describe a game action in text when command_write can perform it",
+            "- If the user asks you to remove the current objective, call objective_clear",
             prompt,
         )
+        self.assertIn(
+            "- Do not describe a game action in text when a DST tool can perform it",
+            prompt,
+        )
+        self.assertNotIn("with type set_objective_collect_item", prompt)
 
     def test_dst_profile_includes_director_pack_section(self) -> None:
         prompt = build_tick_prompt(

@@ -9,6 +9,9 @@ from Core.Game.DST.commands import (
     MODEL_SAFE_COMMAND_TYPES,
     SAFE_COLLECT_PREFABS,
     SAFE_REWARD_PREFABS,
+    build_announce_text_command,
+    build_clear_objective_command,
+    build_collect_objective_command,
     clamp_positive_int,
     clamp_reward_count,
     normalize_command_type,
@@ -65,6 +68,66 @@ class DSTCommandContractTests(unittest.TestCase):
 
         self.assertTrue(expected.issubset(set(SAFE_COLLECT_PREFABS)))
         self.assertTrue(expected.issubset(set(SAFE_REWARD_PREFABS)))
+
+    def test_build_announce_text_command_preserves_payload_shape(self) -> None:
+        self.assertEqual(
+            build_announce_text_command(" Keep the fire fed. "),
+            {
+                "type": "announce_text",
+                "payload": {
+                    "text": "Keep the fire fed.",
+                },
+            },
+        )
+
+    def test_build_announce_text_command_rejects_empty_text(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires text"):
+            build_announce_text_command(" ")
+
+    def test_build_collect_objective_command_preserves_payload_shape(self) -> None:
+        self.assertEqual(
+            build_collect_objective_command(
+                " Supply Run ",
+                " Gather basics. ",
+                " Twigs ",
+                5,
+                " CutGrass ",
+                99,
+                " KU_test ",
+            ),
+            {
+                "type": "set_objective_collect_item",
+                "payload": {
+                    "title": "Supply Run",
+                    "text": "Gather basics.",
+                    "target_userid": "KU_test",
+                    "target_prefab": "twigs",
+                    "target_count": 5,
+                    "reward_prefab": "cutgrass",
+                    "reward_count": 6,
+                },
+            },
+        )
+
+    def test_build_collect_objective_command_validates_target_prefab(self) -> None:
+        with self.assertRaisesRegex(ValueError, "dragonfruit"):
+            build_collect_objective_command(
+                "Objective",
+                "",
+                "dragonfruit",
+                1,
+                "cutgrass",
+                3,
+            )
+
+    def test_build_clear_objective_command_preserves_payload_shape(self) -> None:
+        self.assertEqual(
+            build_clear_objective_command(),
+            {
+                "type": "clear_objective",
+                "payload": {},
+            },
+        )
 
 
 if __name__ == "__main__":

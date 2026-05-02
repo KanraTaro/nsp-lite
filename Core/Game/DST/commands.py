@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict
+
 
 CANONICAL_COMMAND_TYPES = (
     "announce_text",
@@ -62,6 +64,10 @@ def validate_command_type(value: str) -> str:
         f"Unsupported DST command type {value!r}. "
         f"Supported canonical types: {supported}."
     )
+
+
+def clean_text(value: str) -> str:
+    return str(value or "").strip()
 
 
 def normalize_prefab(value: str) -> str:
@@ -125,3 +131,56 @@ def clamp_reward_count(prefab: str, value: int) -> int:
         number = maximum
 
     return number
+
+
+def build_announce_text_command(text: str) -> Dict[str, Any]:
+    validate_command_type("announce_text")
+    cleaned_text = clean_text(text)
+
+    if cleaned_text == "":
+        raise ValueError("announce_text requires text.")
+
+    return {
+        "type": "announce_text",
+        "payload": {
+            "text": cleaned_text,
+        },
+    }
+
+
+def build_collect_objective_command(
+    title: str,
+    text: str,
+    target_prefab: str,
+    target_count: int,
+    reward_prefab: str,
+    reward_count: int,
+    target_userid: str = "",
+) -> Dict[str, Any]:
+    validate_command_type("set_objective_collect_item")
+    objective_title = clean_text(title) or "Objective"
+    objective_text = clean_text(text)
+    normalized_target_prefab = validate_collect_prefab(target_prefab)
+    normalized_reward_prefab = validate_reward_prefab(reward_prefab or "cutgrass")
+
+    return {
+        "type": "set_objective_collect_item",
+        "payload": {
+            "title": objective_title,
+            "text": objective_text,
+            "target_userid": clean_text(target_userid),
+            "target_prefab": normalized_target_prefab,
+            "target_count": clamp_positive_int(target_count),
+            "reward_prefab": normalized_reward_prefab,
+            "reward_count": clamp_reward_count(normalized_reward_prefab, reward_count),
+        },
+    }
+
+
+def build_clear_objective_command() -> Dict[str, Any]:
+    validate_command_type("clear_objective")
+
+    return {
+        "type": "clear_objective",
+        "payload": {},
+    }

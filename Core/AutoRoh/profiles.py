@@ -39,27 +39,28 @@ BASIC_PROFILE = AutoRohProfile(name="basic")
 DST_DIRECTOR_PROFILE = AutoRohProfile(
     name="dst_director",
     behavior_lines=(
-        "- If the user asks you to announce something in game, call command_write with type announce_text",
-        "- If the user asks for an objective or recovery task, call command_write with type set_objective_collect_item",
+        "- If the user asks you to announce something in game, call announce_text",
+        "- If the user asks for an objective or recovery task, call objective_collect",
+        "- If the user asks you to remove the current objective, call objective_clear",
     ),
     rule_lines=(
-        "- Do not describe a game action in text when command_write can perform it",
-        "- Use at most one command_write action per tick unless a human explicitly asks for multiple",
+        "- Do not describe a game action in text when a DST tool can perform it",
+        "- Use at most one DST action/tool action per tick unless a human explicitly asks for multiple",
     ),
     cooldowns=(
         ActionCooldown(
-            signature="tool:command_write:announce_text",
+            signature="tool:announce_text",
             label="announce_text",
             seconds=60,
         ),
         ActionCooldown(
-            signature="tool:command_write:set_objective_collect_item",
-            label="set_objective_collect_item",
+            signature="tool:objective_collect",
+            label="objective_collect",
             seconds=180,
         ),
         ActionCooldown(
-            signature="tool:command_write:clear_objective",
-            label="clear_objective",
+            signature="tool:objective_clear",
+            label="objective_clear",
             seconds=30,
         ),
     ),

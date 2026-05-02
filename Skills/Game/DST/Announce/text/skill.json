@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Announce.text",
+  "version": "0.1.0",
+  "description": "Write a safe Don't Starve Together announcement command.",
+  "entry": "skill.py"
+}

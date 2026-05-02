@@ -1,0 +1,86 @@
+"""Game.DST.Objective.collect skill."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from Core.Game.DST.commands import (
+    build_collect_objective_command,
+    clamp_positive_int,
+    normalize_prefab,
+)
+from Core.NSPL.File.write import write_json
+
+
+DEFAULT_COMMAND_PATH = (
+    "~/.klei/DoNotStarveTogether/42802241/Cluster_4/Master/save/roh_dst_command.json"
+)
+
+
+def build_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--title", dest="title", default="Objective", help="Objective title")
+    parser.add_argument("--text", dest="text", default="", help="Objective text")
+    parser.add_argument("--target-prefab", dest="target_prefab", required=True, help="Target prefab")
+    parser.add_argument("--target-count", dest="target_count", type=int, default=1, help="Target count")
+    parser.add_argument("--reward-prefab", dest="reward_prefab", default="cutgrass", help="Reward prefab")
+    parser.add_argument("--reward-count", dest="reward_count", type=int, default=3, help="Reward count")
+    parser.add_argument("--target-userid", dest="target_userid", default="", help="Target DST userid")
+    parser.add_argument(
+        "--path",
+        dest="path",
+        default=DEFAULT_COMMAND_PATH,
+        help="Path to roh_dst_command.json",
+    )
+
+
+def _objective_text(text: str, target_count: int, target_prefab: str) -> str:
+    cleaned = str(text or "").strip()
+    if cleaned != "":
+        return cleaned
+
+    count = clamp_positive_int(target_count)
+    prefab = normalize_prefab(target_prefab)
+    return f"Collect {count} {prefab} for camp supplies."
+
+
+def run(args: argparse.Namespace, ctx: Any) -> int:
+    path = str(getattr(args, "path", DEFAULT_COMMAND_PATH) or DEFAULT_COMMAND_PATH)
+
+    try:
+        text = _objective_text(args.text, args.target_count, args.target_prefab)
+        payload = build_collect_objective_command(
+            args.title,
+            text,
+            args.target_prefab,
+            args.target_count,
+            args.reward_prefab,
+            args.reward_count,
+            args.target_userid,
+        )
+        written_path = write_json(path, payload)
+        result = {
+            "ok": True,
+            "path": str(Path(written_path).expanduser()),
+            "command": payload,
+        }
+
+        print(json.dumps(result, separators=(",", ":"), sort_keys=True))
+        return 0
+
+    except Exception as exc:
+        result = {
+            "ok": False,
+            "error": str(exc),
+            "path": str(Path(path).expanduser()),
+        }
+
+        if getattr(ctx, "json", False):
+            print(json.dumps(result, separators=(",", ":"), sort_keys=True))
+        else:
+            print(str(exc), file=sys.stderr)
+
+        return 1

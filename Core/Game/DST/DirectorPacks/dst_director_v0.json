@@ -100,11 +100,12 @@
     ]
   },
   "constraints": [
+    "Use announce_text for short in-game messages.",
+    "Use objective_collect for safe collection tasks.",
+    "Use objective_clear to remove the current objective.",
     "Use only listed safe prefabs for collect and reward objectives: log, cutgrass, twigs, flint, silk, goldnugget.",
     "Use conservative reward counts within listed ranges; prefer the low end unless a human asks otherwise.",
-    "Prefer at most one command_write action per tick unless a human explicitly asks for multiple.",
-    "Use only canonical command_write type values: announce_text, set_objective_collect_item, clear_objective.",
-    "Never use shorthand command types such as announce; use announce_text.",
+    "Prefer at most one DST action/tool action per tick unless a human explicitly asks for multiple.",
     "Do not grant high-impact rewards yet.",
     "Do not use giant narration or lore monologues.",
     "Do not create objectives during urgent danger unless the objective directly helps recovery.",

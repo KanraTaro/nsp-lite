@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Objective.clear",
+  "version": "0.1.0",
+  "description": "Write a Don't Starve Together clear objective command.",
+  "entry": "skill.py"
+}
