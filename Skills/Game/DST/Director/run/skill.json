@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Director.run",
+  "version": "0.1.0",
+  "description": "Run Roh as a live Don't Starve Together director.",
+  "entry": "skill.py"
+}
