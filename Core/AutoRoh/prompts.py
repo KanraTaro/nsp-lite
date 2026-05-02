@@ -20,6 +20,27 @@ DEFAULT_LOOP_PROMPT = (
 )
 
 
+def _build_note_routing_block(note: Optional[str], profile: AutoRohProfile) -> str:
+    if not note:
+        return ""
+
+    normalized_note = note.lower()
+    for hint in profile.note_routing_hints:
+        if not any(term in normalized_note for term in hint.match_terms):
+            continue
+
+        player_facing = "yes" if hint.player_facing_request else "no"
+        instruction = f"\n- {hint.instruction}" if hint.instruction else ""
+        return (
+            "Human note routing:\n"
+            f"- expected tool: {hint.expected_tool}\n"
+            f"- player-facing request: {player_facing}"
+            f"{instruction}\n\n"
+        )
+
+    return ""
+
+
 def build_tick_prompt(
     base_prompt: str,
     state: Dict[str, Any],
@@ -32,6 +53,7 @@ def build_tick_prompt(
     last_note_index = int(state.get("last_human_note_index", -1))
     note_block = latest_note if latest_note else "(no new human note)"
     cooldown_block = build_action_cooldown_block(state, cooldowns=profile.cooldowns)
+    note_routing_block = _build_note_routing_block(latest_note, profile)
     behavior_lines = (
         "- If nothing meaningful changed, reply exactly: wait",
         "- If you want to say something only to the terminal, reply with a short message",
@@ -62,6 +84,7 @@ def build_tick_prompt(
         f"- last_message_index: {last_processed}\n"
         f"- last_note_index: {last_note_index}\n"
         f"- new_note: {note_block}\n\n"
+        f"{note_routing_block}"
         "Action cooldowns:\n"
         f"{cooldown_block}\n\n"
         "Behavior:\n"

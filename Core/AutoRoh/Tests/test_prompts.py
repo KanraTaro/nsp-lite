@@ -69,7 +69,7 @@ class AutoRohPromptTests(unittest.TestCase):
             prompt,
         )
         self.assertIn(
-            "- If the user asks for a line, atmospheric line, warning, announcement, message, or tell players request, call announce_text",
+            "- If the user asks for an announcement, message to players, tell players request, atmospheric announcement, or warning to players, call announce_text",
             prompt,
         )
         self.assertIn(
@@ -89,6 +89,50 @@ class AutoRohPromptTests(unittest.TestCase):
             prompt,
         )
         self.assertNotIn("with type set_objective_collect_item", prompt)
+
+    def test_dst_prompt_renders_note_routing_for_announce_note(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            "[human note] Announce one short atmospheric warning to players about the current world state.",
+            profile=DST_DIRECTOR_PROFILE,
+        )
+
+        self.assertIn("Human note routing:", prompt)
+        self.assertIn("- expected tool: announce_text", prompt)
+        self.assertIn("- player-facing request: yes", prompt)
+        self.assertIn("- do not satisfy this note with terminal-only text", prompt)
+
+    def test_dst_prompt_does_not_route_say_note(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            "[human note] Say what you are thinking.",
+            profile=DST_DIRECTOR_PROFILE,
+        )
+
+        self.assertNotIn("Human note routing:", prompt)
+
+    def test_basic_prompt_does_not_render_dst_note_routing(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            "[human note] Announce one short atmospheric warning to players about the current world state.",
+            profile=BASIC_PROFILE,
+        )
+
+        self.assertNotIn("Human note routing:", prompt)
+        self.assertNotIn("- expected tool: announce_text", prompt)
+
+    def test_dst_prompt_does_not_route_explain_note(self) -> None:
+        prompt = build_tick_prompt(
+            "Base prompt.",
+            {},
+            "[human note] Explain what you are doing.",
+            profile=DST_DIRECTOR_PROFILE,
+        )
+
+        self.assertNotIn("Human note routing:", prompt)
 
     def test_dst_profile_includes_director_pack_section(self) -> None:
         prompt = build_tick_prompt(

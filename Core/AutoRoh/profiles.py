@@ -16,12 +16,21 @@ class ActionCooldown:
 
 
 @dataclass(frozen=True)
+class NoteRoutingHint:
+    match_terms: tuple[str, ...]
+    expected_tool: str
+    player_facing_request: bool = False
+    instruction: str = ""
+
+
+@dataclass(frozen=True)
 class AutoRohProfile:
     name: str
     behavior_lines: tuple[str, ...] = ()
     rule_lines: tuple[str, ...] = ()
     cooldowns: tuple[ActionCooldown, ...] = ()
     director_pack: DirectorPack | None = None
+    note_routing_hints: tuple[NoteRoutingHint, ...] = ()
 
 
 DST_DIRECTOR_PACK_PATH = (
@@ -40,7 +49,7 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
     name="dst_director",
     behavior_lines=(
         "- If the user asks you to announce something in game, call announce_text",
-        "- If the user asks for a line, atmospheric line, warning, announcement, message, or tell players request, call announce_text",
+        "- If the user asks for an announcement, message to players, tell players request, atmospheric announcement, or warning to players, call announce_text",
         "- If the user asks for an objective or recovery task, call objective_collect",
         "- If the user asks you to remove the current objective, call objective_clear",
     ),
@@ -67,6 +76,24 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
         ),
     ),
     director_pack=DST_DIRECTOR_PACK,
+    note_routing_hints=(
+        NoteRoutingHint(
+            match_terms=(
+                "announce",
+                "announcement",
+                "announce to players",
+                "player announcement",
+                "in-game announcement",
+                "message to players",
+                "tell players",
+                "atmospheric announcement",
+                "warning to players",
+            ),
+            expected_tool="announce_text",
+            player_facing_request=True,
+            instruction="do not satisfy this note with terminal-only text",
+        ),
+    ),
 )
 
 

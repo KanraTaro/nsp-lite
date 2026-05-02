@@ -58,15 +58,35 @@ class AutoRohProfileTests(unittest.TestCase):
             )
         )
 
-        self.assertIn("atmospheric line", guidance)
+        self.assertIn("atmospheric announcement", guidance)
         self.assertIn("tell players", guidance)
         self.assertIn("call announce_text", guidance)
         self.assertIn("terminal-only replies for status, explanation, or analysis", guidance)
 
+    def test_dst_profile_has_note_routing_hint_for_announce_text(self) -> None:
+        self.assertEqual(len(DST_DIRECTOR_PROFILE.note_routing_hints), 1)
+
+        hint = DST_DIRECTOR_PROFILE.note_routing_hints[0]
+        self.assertEqual(hint.expected_tool, "announce_text")
+        self.assertTrue(hint.player_facing_request)
+        self.assertEqual(
+            hint.instruction,
+            "do not satisfy this note with terminal-only text",
+        )
+
+        self.assertIn("announce", hint.match_terms)
+        self.assertIn("announcement", hint.match_terms)
+        self.assertIn("message to players", hint.match_terms)
+        self.assertIn("tell players", hint.match_terms)
+        self.assertNotIn("say", hint.match_terms)
+
+    def test_basic_profile_has_no_note_routing_hints(self) -> None:
+        self.assertEqual(BASIC_PROFILE.note_routing_hints, ())
+
     def test_basic_profile_has_no_dst_announce_guidance(self) -> None:
         guidance = "\n".join((*BASIC_PROFILE.behavior_lines, *BASIC_PROFILE.rule_lines))
 
-        self.assertNotIn("atmospheric line", guidance)
+        self.assertNotIn("atmospheric announcement", guidance)
         self.assertNotIn("tell players", guidance)
         self.assertNotIn("announce_text", guidance)
 
