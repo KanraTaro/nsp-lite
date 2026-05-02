@@ -28,6 +28,17 @@ class AutoRohProfileTests(unittest.TestCase):
     def test_basic_profile_has_no_director_pack(self) -> None:
         self.assertIsNone(BASIC_PROFILE.director_pack)
 
+    def test_basic_profile_has_no_action_tool_limit(self) -> None:
+        self.assertEqual(BASIC_PROFILE.action_tool_names, ())
+        self.assertIsNone(BASIC_PROFILE.max_successful_action_tools_per_tick)
+
+    def test_dst_profile_has_action_tool_limit(self) -> None:
+        self.assertEqual(
+            DST_DIRECTOR_PROFILE.action_tool_names,
+            ("announce_text", "objective_collect", "objective_clear"),
+        )
+        self.assertEqual(DST_DIRECTOR_PROFILE.max_successful_action_tools_per_tick, 1)
+
     def test_dst_profile_has_director_pack(self) -> None:
         self.assertIsNotNone(DST_DIRECTOR_PROFILE.director_pack)
         self.assertEqual(DST_DIRECTOR_PROFILE.director_pack.name, "dst_director_v0")

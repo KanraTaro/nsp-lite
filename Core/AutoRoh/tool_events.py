@@ -31,7 +31,21 @@ def record_tool_result(tool_result: Dict[str, Any]) -> Dict[str, Any]:
 
 def action_signature_from_tool_events(
     tool_events: List[Dict[str, Any]],
+    *,
+    action_tool_names: tuple[str, ...] = (),
 ) -> Optional[str]:
+    if action_tool_names:
+        action_names = set(action_tool_names)
+        for event in reversed(tool_events):
+            if event.get("type") != "tool_result":
+                continue
+
+            name = str(event.get("name", "") or "")
+            if bool(event.get("ok", False)) and name in action_names:
+                return f"tool:{name}"
+
+        return None
+
     for event in reversed(tool_events):
         if event.get("type") != "tool_call":
             continue

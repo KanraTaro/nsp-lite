@@ -42,6 +42,7 @@ TextDeltaCallback = Callable[[str], None]
 AssistantCallback = Callable[[Dict[str, Any]], None]
 ToolCallCallback = Callable[[Any], None]
 ToolResultCallback = Callable[[Dict[str, Any]], None]
+ShouldStopAfterToolResult = Callable[[Dict[str, Any]], bool]
 
 @dataclass(frozen=True)
 class CompatToolCall:
@@ -131,6 +132,7 @@ def run_tool_loop(
     on_assistant_message: Optional[AssistantCallback] = None,
     on_tool_call: Optional[ToolCallCallback] = None,
     on_tool_result: Optional[ToolResultCallback] = None,
+    should_stop_after_tool_result: Optional[ShouldStopAfterToolResult] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Run a tool-capable conversation loop and return final text plus history."""
     active_messages: List[Dict[str, Any]] = list(messages)
@@ -180,5 +182,9 @@ def run_tool_loop(
                 on_tool_result(tool_result)
 
             active_messages.append(_build_tool_result_message(tool_result))
+
+            if should_stop_after_tool_result is not None:
+                if should_stop_after_tool_result(tool_result):
+                    return "", active_messages
 
     raise RuntimeError(f"Hit max_steps={max_steps} without resolving tool calls.")

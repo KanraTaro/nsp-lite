@@ -368,6 +368,192 @@ class RohTalkCoreTests(unittest.TestCase):
         self.assertEqual(final_messages[3]["tool_name"], "missing_tool")
         self.assertIn('"ok":false', final_messages[3]["content"])
 
+    def test_run_tool_loop_stop_hook_appends_result_and_stops_before_next_model_call(self) -> None:
+        tools = [
+            ToolDef(
+                name="announce_text",
+                description="Announce text",
+                parameters={
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                },
+            )
+        ]
+
+        first_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_action",
+                    name="announce_text",
+                    arguments={"text": "hello"},
+                    arguments_json='{"text":"hello"}',
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_action",
+                        "name": "announce_text",
+                        "arguments": {"text": "hello"},
+                    }
+                ],
+            },
+            raw={},
+        )
+
+        def announce_text(text: str) -> dict:
+            return {"announced": text}
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.return_value = first_result
+
+            final_text, final_messages = run_tool_loop(
+                [{"role": "user", "content": "announce hello"}],
+                model="qwen3:0.6b",
+                tools=tools,
+                tool_impl={"announce_text": announce_text},
+                should_stop_after_tool_result=lambda result: bool(result.get("ok"))
+                and result.get("tool_name") == "announce_text",
+            )
+
+        self.assertEqual(final_text, "")
+        self.assertEqual(instance.chat_stream_collect.call_count, 1)
+        self.assertEqual(final_messages[-1]["role"], "tool")
+        self.assertEqual(final_messages[-1]["tool_call_id"], "call_action")
+        self.assertEqual(final_messages[-1]["tool_name"], "announce_text")
+        self.assertIn('"ok":true', final_messages[-1]["content"])
+
+    def test_run_tool_loop_failed_action_result_does_not_stop(self) -> None:
+        tools = [
+            ToolDef(
+                name="announce_text",
+                description="Announce text",
+                parameters={
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                },
+            )
+        ]
+
+        first_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_action",
+                    name="announce_text",
+                    arguments={"text": "hello"},
+                    arguments_json='{"text":"hello"}',
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_action",
+                        "name": "announce_text",
+                        "arguments": {"text": "hello"},
+                    }
+                ],
+            },
+            raw={},
+        )
+        second_result = ChatResult(
+            text="Action failed.",
+            tool_calls=[],
+            assistant_message={"role": "assistant", "content": "Action failed."},
+            raw={},
+        )
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.side_effect = [first_result, second_result]
+
+            final_text, final_messages = run_tool_loop(
+                [{"role": "user", "content": "announce hello"}],
+                model="qwen3:0.6b",
+                tools=tools,
+                tool_impl={},
+                should_stop_after_tool_result=lambda result: bool(result.get("ok"))
+                and result.get("tool_name") == "announce_text",
+            )
+
+        self.assertEqual(final_text, "Action failed.")
+        self.assertEqual(instance.chat_stream_collect.call_count, 2)
+        self.assertEqual(final_messages[-2]["role"], "tool")
+        self.assertIn('"ok":false', final_messages[-2]["content"])
+        self.assertEqual(final_messages[-1]["content"], "Action failed.")
+
+    def test_run_tool_loop_successful_read_only_result_does_not_stop_when_hook_false(self) -> None:
+        tools = [
+            ToolDef(
+                name="snapshot_read",
+                description="Read snapshot",
+                parameters={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            )
+        ]
+
+        first_result = ChatResult(
+            text="",
+            tool_calls=[
+                ToolCall(
+                    id="call_read",
+                    name="snapshot_read",
+                    arguments={},
+                    arguments_json="{}",
+                )
+            ],
+            assistant_message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_read",
+                        "name": "snapshot_read",
+                        "arguments": {},
+                    }
+                ],
+            },
+            raw={},
+        )
+        second_result = ChatResult(
+            text="Snapshot ready.",
+            tool_calls=[],
+            assistant_message={"role": "assistant", "content": "Snapshot ready."},
+            raw={},
+        )
+
+        def snapshot_read() -> dict:
+            return {"summary": "ready"}
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.side_effect = [first_result, second_result]
+
+            final_text, final_messages = run_tool_loop(
+                [{"role": "user", "content": "read snapshot"}],
+                model="qwen3:0.6b",
+                tools=tools,
+                tool_impl={"snapshot_read": snapshot_read},
+                should_stop_after_tool_result=lambda _result: False,
+            )
+
+        self.assertEqual(final_text, "Snapshot ready.")
+        self.assertEqual(instance.chat_stream_collect.call_count, 2)
+        self.assertEqual(final_messages[-2]["role"], "tool")
+        self.assertIn('"ok":true', final_messages[-2]["content"])
+        self.assertEqual(final_messages[-1]["content"], "Snapshot ready.")
+
     def test_run_tool_loop_max_steps_raises(self) -> None:
         tools = [
             ToolDef(

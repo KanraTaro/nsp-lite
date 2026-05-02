@@ -78,6 +78,58 @@ class ToolEventsTests(unittest.TestCase):
             "tool:objective_collect",
         )
 
+    def test_successful_action_tool_result_returns_profile_action_signature(self) -> None:
+        events = [
+            {
+                "type": "tool_result",
+                "name": "announce_text",
+                "ok": True,
+                "result": {"message": "hello"},
+            }
+        ]
+
+        self.assertEqual(
+            action_signature_from_tool_events(
+                events,
+                action_tool_names=("announce_text", "objective_collect", "objective_clear"),
+            ),
+            "tool:announce_text",
+        )
+
+    def test_failed_action_tool_result_returns_no_profile_action_signature(self) -> None:
+        events = [
+            {
+                "type": "tool_result",
+                "name": "announce_text",
+                "ok": False,
+                "result": None,
+            }
+        ]
+
+        self.assertIsNone(
+            action_signature_from_tool_events(
+                events,
+                action_tool_names=("announce_text", "objective_collect", "objective_clear"),
+            )
+        )
+
+    def test_successful_read_only_tool_result_returns_no_profile_action_signature(self) -> None:
+        events = [
+            {
+                "type": "tool_result",
+                "name": "snapshot_read",
+                "ok": True,
+                "result": {"summary": "ready"},
+            }
+        ]
+
+        self.assertIsNone(
+            action_signature_from_tool_events(
+                events,
+                action_tool_names=("announce_text", "objective_collect", "objective_clear"),
+            )
+        )
+
     def test_action_signature_returns_unknown_for_command_write_without_type(self) -> None:
         events = [{"type": "tool_call", "name": "command_write", "arguments": {}}]
 

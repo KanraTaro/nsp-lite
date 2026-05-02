@@ -247,6 +247,29 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 if tool_trace:
                     print_tool_result(tool_result)
 
+            should_stop_after_tool_result = None
+            if (
+                args.tools
+                and profile.action_tool_names
+                and profile.max_successful_action_tools_per_tick is not None
+            ):
+                action_tool_names = set(profile.action_tool_names)
+                max_action_tools = profile.max_successful_action_tools_per_tick
+                successful_action_tools = 0
+
+                def should_stop_after_tool_result(tool_result: Dict[str, Any]) -> bool:
+                    nonlocal successful_action_tools
+
+                    if not bool(tool_result.get("ok", False)):
+                        return False
+
+                    tool_name = str(tool_result.get("tool_name", "") or "")
+                    if tool_name not in action_tool_names:
+                        return False
+
+                    successful_action_tools += 1
+                    return successful_action_tools >= max_action_tools
+
             conversation_id, reply = run_turn(
                 ctx,
                 tick_prompt,
@@ -261,6 +284,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 on_step=on_step if args.tools and tool_trace else None,
                 on_tool_call=on_tool_call if args.tools else None,
                 on_tool_result=on_tool_result if args.tools else None,
+                should_stop_after_tool_result=should_stop_after_tool_result,
             )
 
             print(f"conversation_id: {conversation_id}")
@@ -272,9 +296,12 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
             state = load_loop_state(ctx, conversation_id)
             message_count = len(get_messages(ctx, conversation_id))
-            action_signature: Optional[str] = action_signature_from_tool_events(tool_events)
+            action_signature: Optional[str] = action_signature_from_tool_events(
+                tool_events,
+                action_tool_names=profile.action_tool_names,
+            )
 
-            if action_signature is None and reply:
+            if action_signature is None and reply and str(reply).strip() != "wait":
                 action_signature = str(reply).strip()[:160]
 
             update_after_tick(

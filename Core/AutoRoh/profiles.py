@@ -31,6 +31,8 @@ class AutoRohProfile:
     cooldowns: tuple[ActionCooldown, ...] = ()
     director_pack: DirectorPack | None = None
     note_routing_hints: tuple[NoteRoutingHint, ...] = ()
+    action_tool_names: tuple[str, ...] = ()
+    max_successful_action_tools_per_tick: int | None = None
 
 
 DST_DIRECTOR_PACK_PATH = (
@@ -47,6 +49,8 @@ BASIC_PROFILE = AutoRohProfile(name="basic")
 
 DST_DIRECTOR_PROFILE = AutoRohProfile(
     name="dst_director",
+    action_tool_names=("announce_text", "objective_collect", "objective_clear"),
+    max_successful_action_tools_per_tick=1,
     behavior_lines=(
         "- If the user asks you to announce something in game, call announce_text",
         "- If the user asks for an announcement, message to players, tell players request, atmospheric announcement, or warning to players, call announce_text",

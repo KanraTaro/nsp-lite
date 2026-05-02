@@ -26,6 +26,7 @@ StepCallback = Callable[[int], None]
 TextDeltaCallback = Callable[[str], None]
 ToolCallCallback = Callable[[Any], None]
 ToolResultCallback = Callable[[Dict[str, Any]], None]
+ShouldStopAfterToolResult = Callable[[Dict[str, Any]], bool]
 
 
 def _load_or_create_messages(
@@ -75,6 +76,7 @@ def run_turn(
     on_text_delta: Optional[TextDeltaCallback] = None,
     on_tool_call: Optional[ToolCallCallback] = None,
     on_tool_result: Optional[ToolResultCallback] = None,
+    should_stop_after_tool_result: Optional[ShouldStopAfterToolResult] = None,
 ) -> Tuple[str, str]:
     """Run one RohTalk turn.
 
@@ -122,6 +124,8 @@ def run_turn(
         callback_kwargs["on_tool_call"] = on_tool_call
     if on_tool_result is not None:
         callback_kwargs["on_tool_result"] = on_tool_result
+    if should_stop_after_tool_result is not None:
+        callback_kwargs["should_stop_after_tool_result"] = should_stop_after_tool_result
 
     if tool_backend == "local":
         final_text, final_messages = run_tool_loop(
