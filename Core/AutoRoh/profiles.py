@@ -40,11 +40,13 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
     name="dst_director",
     behavior_lines=(
         "- If the user asks you to announce something in game, call announce_text",
+        "- If the user asks for a line, atmospheric line, warning, announcement, message, or tell players request, call announce_text",
         "- If the user asks for an objective or recovery task, call objective_collect",
         "- If the user asks you to remove the current objective, call objective_clear",
     ),
     rule_lines=(
         "- Do not describe a game action in text when a DST tool can perform it",
+        "- Use terminal-only replies for status, explanation, or analysis, not player-facing in-game lines",
         "- Use at most one DST action/tool action per tick unless a human explicitly asks for multiple",
     ),
     cooldowns=(

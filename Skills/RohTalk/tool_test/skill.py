@@ -10,17 +10,13 @@ toolkit.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from typing import Any, Dict, List
 
 from Core.RohTalk import load_config, run_tool_loop, resolve_toolkit
 from Core.RohTalk.local_tools import LOCAL_TOOLS, LOCAL_TOOL_IMPL
 from Core.RohTalk.skillcli_tools import execute_skill
-
-
-def _print_step(step_index: int) -> None:
-    print(f"[step {step_index + 1}]", file=sys.stderr)
+from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 
 
 def _print_text_delta(text: str) -> None:
@@ -38,22 +34,6 @@ def _print_assistant_message(message: Dict[str, Any]) -> None:
         print("\n[assistant text] <empty>", file=sys.stderr)
     else:
         print("", file=sys.stderr)
-
-
-def _print_tool_call(tool_call: Any) -> None:
-    arguments = getattr(tool_call, "arguments", {})
-    print(
-        f"[tool_call] {getattr(tool_call, 'name', '')} "
-        f"{json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
-
-
-def _print_tool_result(tool_result: Dict[str, Any]) -> None:
-    print(
-        f"[tool_result] {json.dumps(tool_result, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -83,6 +63,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         dest="quiet",
         action="store_true",
         help="Suppress streaming output and only print final response",
+    )
+    parser.add_argument(
+        "--tool-trace",
+        dest="tool_trace",
+        action="store_true",
+        help="Print tool calls and tool results during tool-capable turns",
     )
     parser.add_argument(
         "prompt",
@@ -122,12 +108,13 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         callback_kwargs: Dict[str, Any] = {}
         if not args.quiet:
             callback_kwargs = {
-                "on_step": _print_step,
                 "on_text_delta": _print_text_delta,
                 "on_assistant_message": _print_assistant_message,
-                "on_tool_call": _print_tool_call,
-                "on_tool_result": _print_tool_result,
             }
+            if bool(getattr(args, "tool_trace", False)):
+                callback_kwargs["on_step"] = print_step
+                callback_kwargs["on_tool_call"] = print_tool_call
+                callback_kwargs["on_tool_result"] = print_tool_result
 
         if args.tool_backend == "local":
             final_text, final_messages = run_tool_loop(

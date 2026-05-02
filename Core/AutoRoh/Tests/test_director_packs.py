@@ -62,6 +62,9 @@ class DirectorPackTests(unittest.TestCase):
         prompt = render_director_pack_prompt(pack)
 
         self.assertIn("Use announce_text for short in-game messages", prompt)
+        self.assertIn("atmospheric line", prompt)
+        self.assertIn("tell players", prompt)
+        self.assertIn("terminal-only explanation", prompt)
         self.assertIn("Use objective_collect for safe collection tasks", prompt)
         self.assertIn("Use objective_clear to remove the current objective", prompt)
         self.assertIn("announce_text", prompt)

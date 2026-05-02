@@ -101,6 +101,7 @@
   },
   "constraints": [
     "Use announce_text for short in-game messages.",
+    "When a human asks for a line, atmospheric line, warning, announcement, message, or tells you to tell players, use announce_text unless they explicitly ask for terminal-only explanation.",
     "Use objective_collect for safe collection tasks.",
     "Use objective_clear to remove the current objective.",
     "Use only listed safe prefabs for collect and reward objectives: log, cutgrass, twigs, flint, silk, goldnugget.",

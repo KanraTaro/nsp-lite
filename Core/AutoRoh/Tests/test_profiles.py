@@ -50,6 +50,26 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertIn("at most one DST action/tool action per tick", rules)
         self.assertIn("unless a human explicitly asks for multiple", rules)
 
+    def test_dst_profile_routes_player_facing_lines_to_announce_text(self) -> None:
+        guidance = "\n".join(
+            (
+                *DST_DIRECTOR_PROFILE.behavior_lines,
+                *DST_DIRECTOR_PROFILE.rule_lines,
+            )
+        )
+
+        self.assertIn("atmospheric line", guidance)
+        self.assertIn("tell players", guidance)
+        self.assertIn("call announce_text", guidance)
+        self.assertIn("terminal-only replies for status, explanation, or analysis", guidance)
+
+    def test_basic_profile_has_no_dst_announce_guidance(self) -> None:
+        guidance = "\n".join((*BASIC_PROFILE.behavior_lines, *BASIC_PROFILE.rule_lines))
+
+        self.assertNotIn("atmospheric line", guidance)
+        self.assertNotIn("tell players", guidance)
+        self.assertNotIn("announce_text", guidance)
+
 
 if __name__ == "__main__":
     unittest.main()

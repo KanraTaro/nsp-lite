@@ -8,17 +8,24 @@ any real State/ or Config/ directories on disk.
 
 from __future__ import annotations
 
+import argparse
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from Core.LLMClient.types import ChatResult, ToolCall, ToolDef
 import Core.NSPL.NodeCTX as NodeCTX
 from Core.NSPL.SkillCLI.ctx import SkillContext
 from Core.RohTalk.conversations import append_message, create_conversation, list_conversations
+from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 from Core.RohTalk.tool_loop import run_tool_loop
 from Core.RohTalk.tool_runner import execute_tool_call
+import Skills.RohTalk.chat.skill as rohtalk_chat_skill
+import Skills.RohTalk.shell.skill as rohtalk_shell_skill
+import Skills.RohTalk.tool_test.skill as rohtalk_tool_test_skill
 
 
 class RohTalkCoreTests(unittest.TestCase):
@@ -418,6 +425,124 @@ class RohTalkCoreTests(unittest.TestCase):
                     tool_impl={"loop_tool": loop_tool},
                     max_steps=2,
                 )
+
+    def test_trace_helpers_format_events(self) -> None:
+        stream = io.StringIO()
+        tool_call = ToolCall(
+            id="call_1",
+            name="objective_collect",
+            arguments={"target_prefab": "log", "target_count": 1},
+            arguments_json='{"target_count":1,"target_prefab":"log"}',
+        )
+
+        print_step(0, stream=stream)
+        print_tool_call(tool_call, stream=stream)
+        print_tool_result({"ok": True, "count": 1}, stream=stream)
+
+        self.assertEqual(
+            stream.getvalue(),
+            "\n".join(
+                [
+                    "[step 1]",
+                    '[tool_call] objective_collect {"target_count":1,"target_prefab":"log"}',
+                    '[tool_result] {"count":1,"ok":true}',
+                    "",
+                ]
+            ),
+        )
+
+    def test_rohtalk_cli_parsers_accept_tool_trace(self) -> None:
+        chat_parser = argparse.ArgumentParser()
+        rohtalk_chat_skill.build_parser(chat_parser)
+        chat_args = chat_parser.parse_args(["--tools", "--tool-trace", "0", "--", "hello"])
+        self.assertTrue(chat_args.tools)
+        self.assertTrue(chat_args.tool_trace)
+
+        shell_parser = argparse.ArgumentParser()
+        rohtalk_shell_skill.build_parser(shell_parser)
+        shell_args = shell_parser.parse_args(["--tools", "--tool-trace"])
+        self.assertTrue(shell_args.tools)
+        self.assertTrue(shell_args.tool_trace)
+
+        tool_test_parser = argparse.ArgumentParser()
+        rohtalk_tool_test_skill.build_parser(tool_test_parser)
+        tool_test_args = tool_test_parser.parse_args(["--tool-trace", "--", "hello"])
+        self.assertTrue(tool_test_args.tool_trace)
+
+    def test_chat_passes_trace_callbacks_when_tools_and_tool_trace_enabled(self) -> None:
+        args = SimpleNamespace(
+            conversation_ref="0",
+            model=None,
+            host=None,
+            tools=True,
+            tool_backend="skillcli",
+            toolkit="basic",
+            tool_trace=True,
+            message=["hello"],
+        )
+
+        with patch.object(rohtalk_chat_skill, "resolve_conversation_ref", return_value="conv_1"):
+            with patch.object(rohtalk_chat_skill, "run_turn", return_value=("conv_1", "reply")) as mock_run_turn:
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    result = rohtalk_chat_skill.run(args, self.ctx)
+
+        self.assertEqual(result, 0)
+        kwargs = mock_run_turn.call_args.kwargs
+        self.assertIs(kwargs["on_step"], print_step)
+        self.assertIs(kwargs["on_tool_call"], print_tool_call)
+        self.assertIs(kwargs["on_tool_result"], print_tool_result)
+
+    def test_chat_does_not_pass_trace_callbacks_when_tool_trace_disabled(self) -> None:
+        args = SimpleNamespace(
+            conversation_ref="0",
+            model=None,
+            host=None,
+            tools=True,
+            tool_backend="skillcli",
+            toolkit="basic",
+            tool_trace=False,
+            message=["hello"],
+        )
+
+        with patch.object(rohtalk_chat_skill, "resolve_conversation_ref", return_value="conv_1"):
+            with patch.object(rohtalk_chat_skill, "run_turn", return_value=("conv_1", "reply")) as mock_run_turn:
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    result = rohtalk_chat_skill.run(args, self.ctx)
+
+        self.assertEqual(result, 0)
+        kwargs = mock_run_turn.call_args.kwargs
+        self.assertNotIn("on_step", kwargs)
+        self.assertNotIn("on_tool_call", kwargs)
+        self.assertNotIn("on_tool_result", kwargs)
+
+    def test_tool_test_quiet_suppresses_trace_callbacks(self) -> None:
+        args = SimpleNamespace(
+            model=None,
+            host=None,
+            tool_backend="local",
+            toolkit="basic",
+            show_history=False,
+            quiet=True,
+            tool_trace=True,
+            prompt=["hello"],
+        )
+
+        config = SimpleNamespace(default_model="qwen3:0.6b", default_host="http://localhost:11434")
+        with patch.object(rohtalk_tool_test_skill, "load_config", return_value=config):
+            with patch.object(
+                rohtalk_tool_test_skill,
+                "run_tool_loop",
+                return_value=("final response", [{"role": "assistant", "content": "final response"}]),
+            ) as mock_run_tool_loop:
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    result = rohtalk_tool_test_skill.run(args, self.ctx)
+
+        self.assertEqual(result, 0)
+        kwargs = mock_run_tool_loop.call_args.kwargs
+        self.assertNotIn("on_step", kwargs)
+        self.assertNotIn("on_tool_call", kwargs)
+        self.assertNotIn("on_tool_result", kwargs)
+        self.assertNotIn("on_text_delta", kwargs)
 
 
 if __name__ == "__main__":  # pragma: no cover

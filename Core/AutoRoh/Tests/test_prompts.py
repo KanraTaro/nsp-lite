@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from Core.AutoRoh.prompts import DEFAULT_LOOP_PROMPT, build_tick_prompt
-from Core.AutoRoh.profiles import DST_DIRECTOR_PROFILE
+from Core.AutoRoh.profiles import BASIC_PROFILE, DST_DIRECTOR_PROFILE
 
 
 class AutoRohPromptTests(unittest.TestCase):
@@ -44,6 +44,13 @@ class AutoRohPromptTests(unittest.TestCase):
 
         self.assertNotIn("command_write", prompt)
 
+    def test_basic_profile_excludes_dst_announce_guidance(self) -> None:
+        prompt = build_tick_prompt("Base prompt.", {}, None, profile=BASIC_PROFILE)
+
+        self.assertNotIn("atmospheric line", prompt)
+        self.assertNotIn("tell players", prompt)
+        self.assertNotIn("announce_text", prompt)
+
     def test_basic_profile_excludes_director_pack_section(self) -> None:
         prompt = build_tick_prompt("Base prompt.", {}, None)
 
@@ -62,6 +69,10 @@ class AutoRohPromptTests(unittest.TestCase):
             prompt,
         )
         self.assertIn(
+            "- If the user asks for a line, atmospheric line, warning, announcement, message, or tell players request, call announce_text",
+            prompt,
+        )
+        self.assertIn(
             "- If the user asks for an objective or recovery task, call objective_collect",
             prompt,
         )
@@ -71,6 +82,10 @@ class AutoRohPromptTests(unittest.TestCase):
         )
         self.assertIn(
             "- Do not describe a game action in text when a DST tool can perform it",
+            prompt,
+        )
+        self.assertIn(
+            "- Use terminal-only replies for status, explanation, or analysis, not player-facing in-game lines",
             prompt,
         )
         self.assertNotIn("with type set_objective_collect_item", prompt)

@@ -11,6 +11,7 @@ from typing import Any, List
 
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import resolve_conversation_ref, run_turn
+from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -35,6 +36,12 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Tool kit to expose when --tools is enabled",
     )
     parser.add_argument(
+        "--tool-trace",
+        dest="tool_trace",
+        action="store_true",
+        help="Print tool calls and tool results during tool-capable turns",
+    )
+    parser.add_argument(
         "message",
         nargs=argparse.REMAINDER,
         help="Message to send (all remaining tokens are joined)",
@@ -55,6 +62,14 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
 
     try:
         conversation_id = resolve_conversation_ref(ctx, args.conversation_ref)
+        use_tool_trace = bool(args.tools) and bool(getattr(args, "tool_trace", False))
+        callback_kwargs = {}
+        if use_tool_trace:
+            callback_kwargs = {
+                "on_step": print_step,
+                "on_tool_call": print_tool_call,
+                "on_tool_result": print_tool_result,
+            }
 
         _conv_id, reply = run_turn(
             ctx,
@@ -67,6 +82,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             use_tools=bool(args.tools),
             tool_backend=str(args.tool_backend),
             toolkit=str(args.toolkit),
+            **callback_kwargs,
         )
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)

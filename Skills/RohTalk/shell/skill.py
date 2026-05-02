@@ -25,6 +25,7 @@ from Core.RohTalk import (
     resolve_conversation_ref,
     run_turn,
 )
+from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 
 
 def _get_messages(ctx: Any, conversation_id: str) -> List[Dict[str, Any]]:
@@ -128,28 +129,8 @@ def _print_new_external_messages(ctx: Any, conversation_id: str, seen_count: int
     return len(messages)
 
 
-def _print_step(step_index: int) -> None:
-    print(f"[step {step_index + 1}]", file=sys.stderr)
-
-
 def _print_text_delta(text: str) -> None:
     print(text, end="", flush=True)
-
-
-def _print_tool_call(tool_call: Any) -> None:
-    arguments = getattr(tool_call, "arguments", {})
-    print(
-        f"\n[tool_call] {getattr(tool_call, 'name', '')} "
-        f"{json.dumps(arguments, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
-
-
-def _print_tool_result(tool_result: Dict[str, Any]) -> None:
-    print(
-        f"[tool_result] {json.dumps(tool_result, separators=(',', ':'), sort_keys=True)}",
-        file=sys.stderr,
-    )
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -345,6 +326,14 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             if conversation_id is not None:
                 seen_count = _print_new_external_messages(ctx, conversation_id, seen_count)
 
+            callback_kwargs: Dict[str, Any] = {}
+            if args.tools:
+                callback_kwargs["on_text_delta"] = _print_text_delta
+                if args.tool_trace:
+                    callback_kwargs["on_step"] = print_step
+                    callback_kwargs["on_tool_call"] = print_tool_call
+                    callback_kwargs["on_tool_result"] = print_tool_result
+
             conversation_id, reply = run_turn(
                 ctx,
                 user_text,
@@ -355,11 +344,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 title=args.title,
                 use_tools=bool(args.tools),
                 tool_backend=str(args.tool_backend),
-                on_text_delta=_print_text_delta if args.tools else None,
-                on_step=_print_step if args.tools and args.tool_trace else None,
-                on_tool_call=_print_tool_call if args.tools and args.tool_trace else None,
-                on_tool_result=_print_tool_result if args.tools and args.tool_trace else None,
                 toolkit=str(args.toolkit),
+                **callback_kwargs,
             )
 
             if args.tools:
