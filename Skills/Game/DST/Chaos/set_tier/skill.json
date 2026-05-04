@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Chaos.set_tier",
+  "version": "0.1.0",
+  "description": "Write a Don't Starve Together chaos tier command.",
+  "entry": "skill.py"
+}

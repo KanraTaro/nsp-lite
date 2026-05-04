@@ -74,6 +74,55 @@ class SnapshotReadSkillTests(unittest.TestCase):
             self.assertEqual(payload["path_source"], "argument:path")
             resolve.assert_not_called()
 
+    def test_summary_includes_new_rohbridge_snapshot_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            snapshot_path = Path(temp_dir) / "roh_dst_snapshot.json"
+            snapshot_path.write_text(
+                json.dumps(
+                    {
+                        "source": "RohBridge",
+                        "schema_version": "dst.v0.2.objectives",
+                        "world": {"phase": "day"},
+                        "chaos_tier": 2,
+                        "tracked_spawned_enemies": 3,
+                        "tracked_spawned_bosses": 1,
+                        "recent_chaos_events": [{"event_name": "frog_rain_light"}],
+                        "objectives": {"active": []},
+                        "players": [
+                            {
+                                "userid": "KU_xxx",
+                                "name": "Player",
+                                "prefab": "wilson",
+                                "is_ghost": False,
+                                "position": {"x": 1, "z": 2},
+                                "vitals": {"health": 90, "hunger": 30, "sanity": 40},
+                                "inventory": [{"prefab": "cutgrass", "count": 4}],
+                                "inventory_total_items": 4,
+                                "status_tags": ["hungry"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(path=str(snapshot_path), raw=False)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                exit_code = skill.run(args, SimpleNamespace(json=True))
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["chaos_tier"], 2)
+            self.assertEqual(payload["tracked_spawned_enemies"], 3)
+            self.assertEqual(payload["tracked_spawned_bosses"], 1)
+            self.assertEqual(payload["recent_chaos_events"][0]["event_name"], "frog_rain_light")
+            self.assertEqual(payload["objectives"], {"active": []})
+            self.assertEqual(payload["players"][0]["vitals"]["hunger"], 30)
+            self.assertEqual(payload["players"][0]["inventory"][0]["prefab"], "cutgrass")
+            self.assertEqual(payload["players"][0]["inventory_total_items"], 4)
+            self.assertEqual(payload["players"][0]["status_tags"], ["hungry"])
+
 
 if __name__ == "__main__":
     unittest.main()

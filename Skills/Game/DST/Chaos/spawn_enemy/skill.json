@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Chaos.spawn_enemy",
+  "version": "0.1.0",
+  "description": "Write a safe Don't Starve Together enemy spawn command.",
+  "entry": "skill.py"
+}

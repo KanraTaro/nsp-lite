@@ -33,10 +33,19 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertIsNone(BASIC_PROFILE.max_successful_action_tools_per_tick)
 
     def test_dst_profile_has_action_tool_limit(self) -> None:
-        self.assertEqual(
-            DST_DIRECTOR_PROFILE.action_tool_names,
-            ("announce_text", "objective_collect", "objective_clear"),
-        )
+        self.assertIn("announce_text", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("objective_collect", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("objective_clear", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("chaos_set_tier", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("supplies_spawn", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("enemy_spawn", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("event_trigger", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("spawned_enemies_clear", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("spawned_bosses_clear", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("player_objective_collect", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertIn("player_objective_clear", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertNotIn("snapshot_read", DST_DIRECTOR_PROFILE.action_tool_names)
+        self.assertNotIn("objective_status", DST_DIRECTOR_PROFILE.action_tool_names)
         self.assertEqual(DST_DIRECTOR_PROFILE.max_successful_action_tools_per_tick, 1)
 
     def test_dst_profile_has_director_pack(self) -> None:
@@ -46,13 +55,20 @@ class AutoRohProfileTests(unittest.TestCase):
     def test_dst_profile_contains_expected_cooldown_signatures(self) -> None:
         signatures = {cooldown.signature for cooldown in DST_DIRECTOR_PROFILE.cooldowns}
 
-        self.assertEqual(
-            signatures,
+        self.assertTrue(
             {
                 "tool:announce_text",
                 "tool:objective_collect",
                 "tool:objective_clear",
-            },
+                "tool:chaos_set_tier",
+                "tool:supplies_spawn",
+                "tool:enemy_spawn",
+                "tool:event_trigger",
+                "tool:spawned_enemies_clear",
+                "tool:spawned_bosses_clear",
+                "tool:player_objective_collect",
+                "tool:player_objective_clear",
+            }.issubset(signatures)
         )
 
     def test_dst_profile_includes_one_dst_action_per_tick_rule(self) -> None:
@@ -73,6 +89,18 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertIn("tell players", guidance)
         self.assertIn("call announce_text", guidance)
         self.assertIn("terminal-only replies for status, explanation, or analysis", guidance)
+
+    def test_dst_profile_includes_boss_gate_guidance(self) -> None:
+        guidance = "\n".join(
+            (
+                *DST_DIRECTOR_PROFILE.behavior_lines,
+                *DST_DIRECTOR_PROFILE.rule_lines,
+            )
+        )
+
+        self.assertIn("deerclops", guidance)
+        self.assertIn("chaos tier 3", guidance)
+        self.assertIn("force_boss=true", guidance)
 
     def test_dst_profile_has_note_routing_hint_for_announce_text(self) -> None:
         self.assertEqual(len(DST_DIRECTOR_PROFILE.note_routing_hints), 1)

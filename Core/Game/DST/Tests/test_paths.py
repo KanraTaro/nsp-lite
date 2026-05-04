@@ -59,21 +59,75 @@ class DSTPathDiscoveryTests(unittest.TestCase):
             self.assertEqual(result.command_path, save_dir / paths.COMMAND_FILENAME)
             self.assertEqual(result.source, "env:ROH_DST_SAVE_DIR")
 
-    def test_newest_valid_snapshot_wins_across_fake_clusters(self) -> None:
+    def test_master_snapshot_wins_across_fake_clusters(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            old_snapshot = root / "123" / "Cluster_1" / "Master" / "save" / paths.SNAPSHOT_FILENAME
-            new_snapshot = root / "123" / "Cluster_9" / "Caves" / "save" / paths.SNAPSHOT_FILENAME
-            write_snapshot(old_snapshot, {"source": "RohBridge", "world": {}}, 100.0)
-            write_snapshot(new_snapshot, {"schema_version": 1, "players": []}, 200.0)
+            master_snapshot = root / "123" / "Cluster_1" / "Master" / "save" / paths.SNAPSHOT_FILENAME
+            caves_snapshot = root / "123" / "Cluster_9" / "Caves" / "save" / paths.SNAPSHOT_FILENAME
+            write_snapshot(
+                master_snapshot,
+                {"source": "RohBridge", "side": "server", "players": [{"userid": "KU_1"}]},
+                100.0,
+            )
+            write_snapshot(caves_snapshot, {"schema_version": 1, "side": "server", "players": []}, 200.0)
 
             with patch.dict(os.environ, clear=True):
                 with patch.object(paths, "likely_dst_save_roots", return_value=[]):
                     result = paths.resolve_rohbridge_paths(paths.DSTPathOverrides(search_roots=(str(root),)))
 
-            self.assertEqual(result.snapshot_path, new_snapshot)
-            self.assertEqual(result.command_path, new_snapshot.parent / paths.COMMAND_FILENAME)
+            self.assertEqual(result.snapshot_path, master_snapshot)
+            self.assertEqual(result.command_path, master_snapshot.parent / paths.COMMAND_FILENAME)
             self.assertEqual(result.source, "discovery")
+
+    def test_newer_caves_snapshot_without_players_does_not_beat_master(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            master_snapshot = root / "Cluster_4" / "Master" / "save" / paths.SNAPSHOT_FILENAME
+            caves_snapshot = root / "Cluster_4" / "Caves" / "save" / paths.SNAPSHOT_FILENAME
+            write_snapshot(
+                master_snapshot,
+                {"schema_version": 1, "side": "server", "players": [{"userid": "KU_1"}]},
+                100.0,
+            )
+            write_snapshot(
+                caves_snapshot,
+                {"schema_version": 1, "side": "server", "players": []},
+                500.0,
+            )
+
+            with patch.dict(os.environ, clear=True):
+                with patch.object(paths, "likely_dst_save_roots", return_value=[]):
+                    result = paths.resolve_rohbridge_paths(paths.DSTPathOverrides(search_roots=(str(root),)))
+
+            self.assertEqual(result.snapshot_path, master_snapshot)
+            self.assertEqual(result.command_path, master_snapshot.parent / paths.COMMAND_FILENAME)
+
+    def test_explicit_command_path_still_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            explicit_path = Path(temp_dir) / "custom" / paths.COMMAND_FILENAME
+
+            with patch.object(paths, "discover_rohbridge_snapshots") as discover:
+                result = paths.resolve_command_path(str(explicit_path))
+
+            self.assertEqual(result, explicit_path)
+            discover.assert_not_called()
+
+    def test_only_caves_snapshot_is_returned_as_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            caves_snapshot = root / "Cluster_4" / "Caves" / "save" / paths.SNAPSHOT_FILENAME
+            write_snapshot(
+                caves_snapshot,
+                {"schema_version": 1, "side": "server", "players": []},
+                500.0,
+            )
+
+            with patch.dict(os.environ, clear=True):
+                with patch.object(paths, "likely_dst_save_roots", return_value=[]):
+                    result = paths.resolve_rohbridge_paths(paths.DSTPathOverrides(search_roots=(str(root),)))
+
+            self.assertEqual(result.snapshot_path, caves_snapshot)
+            self.assertEqual(result.command_path, caves_snapshot.parent / paths.COMMAND_FILENAME)
 
     def test_invalid_json_snapshot_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

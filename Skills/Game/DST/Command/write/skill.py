@@ -8,6 +8,15 @@ Supported command types:
 - set_objective
 - set_objective_collect_item
 - clear_objective
+- set_chaos_tier
+- spawn_supplies
+- spawn_enemy
+- trigger_event
+- clear_spawned_enemies
+- clear_spawned_bosses
+- set_player_objective_collect_item
+- clear_player_objective
+- objective_status
 """
 
 from __future__ import annotations
@@ -21,8 +30,17 @@ from typing import Any, Dict
 from Core.Game.DST.commands import (
     ACCEPTED_COMMAND_TYPES,
     build_announce_text_command,
+    build_clear_player_objective_command,
     build_clear_objective_command,
+    build_clear_spawned_bosses_command,
+    build_clear_spawned_enemies_command,
     build_collect_objective_command,
+    build_objective_status_command,
+    build_player_collect_objective_command,
+    build_set_chaos_tier_command,
+    build_spawn_enemy_command,
+    build_spawn_supplies_command,
+    build_trigger_event_command,
     clamp_positive_int,
     clean_text,
     validate_command_type,
@@ -48,6 +66,17 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-count", dest="target_count", type=int, default=1, help="Objective target count")
     parser.add_argument("--reward-prefab", dest="reward_prefab", default="cutgrass", help="Objective reward prefab")
     parser.add_argument("--reward-count", dest="reward_count", type=int, default=3, help="Objective reward count")
+    parser.add_argument("--chaos-tier", dest="chaos_tier", type=int, default=1, help="Chaos tier 0-3")
+    parser.add_argument("--target-mode", dest="target_mode", default="first", help="Player targeting mode")
+    parser.add_argument("--radius", dest="radius", type=int, default=8, help="Spawn/event radius")
+    parser.add_argument("--event-name", dest="event_name", default="", help="Chaos event name")
+    parser.add_argument("--intensity", dest="intensity", type=int, default=1, help="Event intensity")
+    parser.add_argument("--duration-seconds", dest="duration_seconds", type=int, default=20, help="Event duration")
+    parser.add_argument("--announce", dest="announce", default="", help="Announcement text for flat RohBridge commands")
+    parser.add_argument("--announce-objective", dest="announce_objective", action="store_true", default=True, help="Announce objective commands")
+    parser.add_argument("--no-announce-objective", dest="announce_objective", action="store_false", help="Do not announce objective commands")
+    parser.add_argument("--force-boss", dest="force_boss", action="store_true", help="Required for deerclops boss spawning")
+    parser.add_argument("--all", dest="all", action="store_true", default=True, help="Request all objective statuses")
     parser.add_argument(
         "--path",
         dest="path",
@@ -104,6 +133,67 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
 
     if command_type == "clear_objective":
         return build_clear_objective_command()
+
+    if command_type == "set_chaos_tier":
+        return build_set_chaos_tier_command(args.chaos_tier, args.announce)
+
+    if command_type == "spawn_supplies":
+        return build_spawn_supplies_command(
+            args.prefab,
+            args.count,
+            args.target_mode,
+            args.radius,
+            args.announce,
+        )
+
+    if command_type == "spawn_enemy":
+        return build_spawn_enemy_command(
+            args.prefab,
+            args.count,
+            args.target_mode,
+            args.radius,
+            args.announce,
+            args.force_boss,
+        )
+
+    if command_type == "trigger_event":
+        return build_trigger_event_command(
+            args.event_name,
+            args.target_mode,
+            args.intensity,
+            args.duration_seconds,
+            args.radius,
+            args.announce,
+        )
+
+    if command_type == "clear_spawned_enemies":
+        return build_clear_spawned_enemies_command(args.announce)
+
+    if command_type == "clear_spawned_bosses":
+        return build_clear_spawned_bosses_command(args.announce)
+
+    if command_type == "set_player_objective_collect_item":
+        return build_player_collect_objective_command(
+            args.title,
+            args.text,
+            args.target_prefab,
+            args.target_count,
+            args.reward_prefab,
+            args.reward_count,
+            args.target_userid,
+            args.target_mode,
+            args.announce_objective,
+        )
+
+    if command_type == "clear_player_objective":
+        return build_clear_player_objective_command(
+            args.target_userid,
+            args.target_mode,
+            args.announce_objective,
+        )
+
+    if command_type == "objective_status":
+        return build_objective_status_command(args.all)
 
     raise ValueError(f"Unsupported command type: {command_type}")
 

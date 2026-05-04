@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Chaos.trigger_event",
+  "version": "0.1.0",
+  "description": "Write a Don't Starve Together chaos event command.",
+  "entry": "skill.py"
+}

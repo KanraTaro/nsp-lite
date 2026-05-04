@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Objective.clear_player",
+  "version": "0.1.0",
+  "description": "Clear a per-player Don't Starve Together objective.",
+  "entry": "skill.py"
+}
