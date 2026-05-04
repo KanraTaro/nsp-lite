@@ -67,6 +67,8 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("terminal-only explanation", prompt)
         self.assertIn("Use objective_collect for safe collection tasks", prompt)
         self.assertIn("Use objective_clear to remove the current objective", prompt)
+        self.assertIn("Use player_objective_collect", prompt)
+        self.assertIn("Use objective_status only when checking objective state", prompt)
         self.assertIn("announce_text", prompt)
         self.assertNotIn("command_write type", prompt)
         self.assertNotIn("use type announce", prompt.lower())
@@ -80,6 +82,19 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("log, cutgrass, twigs, flint, silk, goldnugget", prompt)
         self.assertIn("conservative reward counts", prompt)
         self.assertIn("at most one DST action/tool action per tick", prompt)
+
+    def test_render_director_pack_prompt_includes_chaos_guidance(self) -> None:
+        pack = load_director_pack(DST_PACK_PATH)
+
+        prompt = render_director_pack_prompt(pack)
+
+        self.assertIn("Chaos tiers should escalate pacing gradually", prompt)
+        self.assertIn("Target modes are first, random, lowest_hunger", prompt)
+        self.assertIn("deerclops is the only boss", prompt)
+        self.assertIn("chaos tier 3", prompt)
+        self.assertIn("force_boss=true", prompt)
+        self.assertIn("frog_rain_light or frog_rain_medium", prompt)
+        self.assertIn("RohBridge-tracked spawns", prompt)
 
 
 if __name__ == "__main__":

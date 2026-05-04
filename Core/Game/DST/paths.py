@@ -132,6 +132,38 @@ def discover_rohbridge_snapshots(search_roots: Sequence[str] = ()) -> list[Path]
     return candidates
 
 
+def _has_path_part(path: Path, marker: str) -> bool:
+    normalized_marker = marker.lower()
+    return any(part.lower() == normalized_marker for part in path.parts)
+
+
+def _snapshot_players_non_empty(snapshot: dict[str, Any] | None) -> bool:
+    if snapshot is None:
+        return False
+
+    players = snapshot.get("players")
+    return isinstance(players, list) and len(players) > 0
+
+
+def _snapshot_selection_score(path: Path) -> tuple[int, int, int, int, float]:
+    snapshot = _read_json_object_tolerant(path)
+    side = str(snapshot.get("side", "") if snapshot else "").lower()
+    is_master = _has_path_part(path, "Master")
+    is_caves = _has_path_part(path, "Caves")
+
+    return (
+        1 if side == "server" else -1 if side == "client" else 0,
+        1 if is_master else -1 if is_caves else 0,
+        1 if _snapshot_players_non_empty(snapshot) else -1,
+        0 if is_caves else 1,
+        _snapshot_mtime(path),
+    )
+
+
+def select_rohbridge_snapshot(snapshots: Sequence[Path]) -> Path:
+    return max(snapshots, key=_snapshot_selection_score)
+
+
 def command_path_for_snapshot(snapshot_path: Path) -> Path:
     return snapshot_path.expanduser().parent / COMMAND_FILENAME
 
@@ -216,7 +248,7 @@ def resolve_rohbridge_paths(overrides: DSTPathOverrides | None = None) -> RohBri
         root_list = ", ".join(str(root) for root in roots) or "(none)"
         raise FileNotFoundError(f"No valid RohBridge DST snapshot found under: {root_list}")
 
-    snapshot_path = snapshots[0]
+    snapshot_path = select_rohbridge_snapshot(snapshots)
     return _paths_from_snapshot(str(snapshot_path), "discovery")
 
 

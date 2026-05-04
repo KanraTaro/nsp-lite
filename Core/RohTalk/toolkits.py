@@ -10,8 +10,12 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from Core.Game.DST.commands import (
+    SAFE_ENEMY_PREFABS,
+    SAFE_EVENT_NAMES,
+    SAFE_SUPPLY_PREFABS,
     SAFE_COLLECT_PREFABS,
     SAFE_REWARD_PREFABS,
+    TARGET_MODES,
 )
 from Core.LLMClient.types import ToolDef
 
@@ -38,7 +42,30 @@ DST_DIRECTOR_SKILL_NAMES: List[str] = [
     "Game.DST.Announce.text",
     "Game.DST.Objective.collect",
     "Game.DST.Objective.clear",
+    "Game.DST.Chaos.set_tier",
+    "Game.DST.Chaos.spawn_supplies",
+    "Game.DST.Chaos.spawn_enemy",
+    "Game.DST.Chaos.trigger_event",
+    "Game.DST.Chaos.clear_enemies",
+    "Game.DST.Chaos.clear_bosses",
+    "Game.DST.Objective.player_collect",
+    "Game.DST.Objective.clear_player",
+    "Game.DST.Objective.status",
 ]
+
+
+DST_DIRECTOR_TOOL_ALIASES: Dict[str, str] = {
+    "chaos_set_tier": "Game.DST.Chaos.set_tier",
+    "supplies_spawn": "Game.DST.Chaos.spawn_supplies",
+    "enemy_spawn": "Game.DST.Chaos.spawn_enemy",
+    "event_trigger": "Game.DST.Chaos.trigger_event",
+    "spawned_enemies_clear": "Game.DST.Chaos.clear_enemies",
+    "spawned_bosses_clear": "Game.DST.Chaos.clear_bosses",
+    "player_objective_collect": "Game.DST.Objective.player_collect",
+    "player_objective_clear": "Game.DST.Objective.clear_player",
+    "objective_status": "Game.DST.Objective.status",
+}
+
 
 def _time_tool() -> ToolDef:
     return ToolDef(
@@ -154,6 +181,177 @@ def _dst_objective_clear_tool() -> ToolDef:
     )
 
 
+def _target_mode_property() -> Dict[str, object]:
+    return {
+        "type": "string",
+        "enum": list(TARGET_MODES),
+        "description": "Player targeting mode. Prefer first unless there is a clear reason to target another group.",
+    }
+
+
+def _dst_chaos_set_tier_tool() -> ToolDef:
+    return ToolDef(
+        name="chaos_set_tier",
+        description=(
+            "Set the Don't Starve Together RohBridge chaos tier. "
+            "Use tier 3 before any deerclops boss workflow."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "chaos_tier": {"type": "integer", "enum": [0, 1, 2, 3]},
+                "announce": {"type": "string"},
+            },
+            "required": ["chaos_tier"],
+        },
+    )
+
+
+def _dst_supplies_spawn_tool() -> ToolDef:
+    return ToolDef(
+        name="supplies_spawn",
+        description=(
+            "Spawn an allowlisted Don't Starve Together supply prefab near a selected player. "
+            "Use sparingly for recovery or pacing."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "prefab": {"type": "string", "enum": list(SAFE_SUPPLY_PREFABS)},
+                "count": {"type": "integer", "minimum": 1, "maximum": 20},
+                "target_mode": _target_mode_property(),
+                "radius": {"type": "integer", "minimum": 1, "maximum": 20},
+                "announce": {"type": "string"},
+            },
+            "required": ["prefab"],
+        },
+    )
+
+
+def _dst_enemy_spawn_tool() -> ToolDef:
+    return ToolDef(
+        name="enemy_spawn",
+        description=(
+            "Spawn an allowlisted Don't Starve Together enemy near a selected player. "
+            "Only deerclops is allowed as a boss; use deerclops only after setting chaos tier 3 "
+            "and pass force_boss=true explicitly."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "prefab": {"type": "string", "enum": list(SAFE_ENEMY_PREFABS)},
+                "count": {"type": "integer", "minimum": 1, "maximum": 10},
+                "target_mode": _target_mode_property(),
+                "radius": {"type": "integer", "minimum": 1, "maximum": 30},
+                "announce": {"type": "string"},
+                "force_boss": {
+                    "type": "boolean",
+                    "description": "Required only for deerclops after chaos tier 3 has been set.",
+                },
+            },
+            "required": ["prefab"],
+        },
+    )
+
+
+def _dst_event_trigger_tool() -> ToolDef:
+    return ToolDef(
+        name="event_trigger",
+        description="Trigger an allowlisted RohBridge chaos event such as light or medium frog rain.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "event_name": {"type": "string", "enum": list(SAFE_EVENT_NAMES)},
+                "target_mode": _target_mode_property(),
+                "intensity": {"type": "integer", "minimum": 1, "maximum": 3},
+                "duration_seconds": {"type": "integer", "minimum": 5, "maximum": 120},
+                "radius": {"type": "integer", "minimum": 1, "maximum": 30},
+                "announce": {"type": "string"},
+            },
+            "required": ["event_name"],
+        },
+    )
+
+
+def _dst_spawned_enemies_clear_tool() -> ToolDef:
+    return ToolDef(
+        name="spawned_enemies_clear",
+        description="Clear only RohBridge-tracked spawned enemies, not naturally spawned mobs.",
+        parameters={
+            "type": "object",
+            "properties": {"announce": {"type": "string"}},
+            "required": [],
+        },
+    )
+
+
+def _dst_spawned_bosses_clear_tool() -> ToolDef:
+    return ToolDef(
+        name="spawned_bosses_clear",
+        description="Clear only RohBridge-tracked spawned bosses, not naturally spawned mobs.",
+        parameters={
+            "type": "object",
+            "properties": {"announce": {"type": "string"}},
+            "required": [],
+        },
+    )
+
+
+def _dst_player_objective_collect_tool() -> ToolDef:
+    return ToolDef(
+        name="player_objective_collect",
+        description=(
+            "Create a per-player Don't Starve Together collection objective. "
+            "Use target_userid when known; otherwise use target_mode."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "target_userid": {"type": "string"},
+                "target_mode": _target_mode_property(),
+                "title": {"type": "string"},
+                "text": {"type": "string"},
+                "target_prefab": {"type": "string", "enum": list(SAFE_COLLECT_PREFABS)},
+                "target_count": {"type": "integer", "minimum": 1},
+                "reward_prefab": {"type": "string", "enum": list(SAFE_REWARD_PREFABS)},
+                "reward_count": {"type": "integer", "minimum": 1},
+                "announce": {"type": "boolean"},
+            },
+            "required": ["target_prefab", "target_count"],
+        },
+    )
+
+
+def _dst_player_objective_clear_tool() -> ToolDef:
+    return ToolDef(
+        name="player_objective_clear",
+        description="Clear a per-player Don't Starve Together objective by userid or target mode.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "target_userid": {"type": "string"},
+                "target_mode": _target_mode_property(),
+                "announce": {"type": "boolean"},
+            },
+            "required": [],
+        },
+    )
+
+
+def _dst_objective_status_tool() -> ToolDef:
+    return ToolDef(
+        name="objective_status",
+        description="Request RohBridge objective status for active objectives.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "all": {"type": "boolean"},
+            },
+            "required": [],
+        },
+    )
+
+
 def _basic_tools() -> List[ToolDef]:
     return [
         _weather_tool(),
@@ -168,7 +366,22 @@ def _dst_director_tools() -> List[ToolDef]:
         _dst_announce_text_tool(),
         _dst_objective_collect_tool(),
         _dst_objective_clear_tool(),
+        _dst_chaos_set_tier_tool(),
+        _dst_supplies_spawn_tool(),
+        _dst_enemy_spawn_tool(),
+        _dst_event_trigger_tool(),
+        _dst_spawned_enemies_clear_tool(),
+        _dst_spawned_bosses_clear_tool(),
+        _dst_player_objective_collect_tool(),
+        _dst_player_objective_clear_tool(),
+        _dst_objective_status_tool(),
     ]
+
+
+def _dst_director_skill_name_map() -> Dict[str, str]:
+    mapping = build_tool_name_map(DST_DIRECTOR_SKILL_NAMES)
+    mapping.update(DST_DIRECTOR_TOOL_ALIASES)
+    return mapping
 
 
 def resolve_toolkit(name: str = "basic") -> ToolKit:
@@ -191,7 +404,7 @@ def resolve_toolkit(name: str = "basic") -> ToolKit:
         return ToolKit(
             name="dst_director",
             tools=_dst_director_tools(),
-            skill_name_map=build_tool_name_map(DST_DIRECTOR_SKILL_NAMES),
+            skill_name_map=_dst_director_skill_name_map(),
         )
 
     raise ValueError(f"Unknown RohTalk toolkit: {name}")

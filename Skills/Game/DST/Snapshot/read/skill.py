@@ -36,7 +36,7 @@ def _summarize_player(player: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(position, dict):
         position = {}
 
-    return {
+    summary = {
         "userid": str(player.get("userid", "unknown")),
         "name": str(player.get("name", "unknown")),
         "prefab": str(player.get("prefab", "unknown")),
@@ -46,6 +46,12 @@ def _summarize_player(player: Dict[str, Any]) -> Dict[str, Any]:
             "z": position.get("z"),
         },
     }
+
+    for key in ("vitals", "inventory", "inventory_total_items", "status_tags"):
+        if key in player:
+            summary[key] = player.get(key)
+
+    return summary
 
 
 def _build_signature_basis(
@@ -136,6 +142,11 @@ def _build_summary(
         "run_id": snapshot.get("run_id"),
         "side": snapshot.get("side"),
         "world": world_summary,
+        "chaos_tier": snapshot.get("chaos_tier"),
+        "tracked_spawned_enemies": snapshot.get("tracked_spawned_enemies"),
+        "tracked_spawned_bosses": snapshot.get("tracked_spawned_bosses"),
+        "recent_chaos_events": snapshot.get("recent_chaos_events"),
+        "objectives": snapshot.get("objectives"),
         "players": players,
         "player_count": len(players),
         "signals": signals,

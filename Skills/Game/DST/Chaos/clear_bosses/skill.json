@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Chaos.clear_bosses",
+  "version": "0.1.0",
+  "description": "Clear RohBridge-tracked spawned bosses.",
+  "entry": "skill.py"
+}

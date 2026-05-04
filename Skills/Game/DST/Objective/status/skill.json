@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Objective.status",
+  "version": "0.1.0",
+  "description": "Write a Don't Starve Together objective status command.",
+  "entry": "skill.py"
+}

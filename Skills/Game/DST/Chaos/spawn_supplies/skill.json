@@ -1,0 +1,6 @@
+{
+  "name": "Game.DST.Chaos.spawn_supplies",
+  "version": "0.1.0",
+  "description": "Write a safe Don't Starve Together supply spawn command.",
+  "entry": "skill.py"
+}
