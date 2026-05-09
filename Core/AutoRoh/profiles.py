@@ -33,6 +33,13 @@ class AutoRohProfile:
     note_routing_hints: tuple[NoteRoutingHint, ...] = ()
     action_tool_names: tuple[str, ...] = ()
     max_successful_action_tools_per_tick: int | None = None
+    max_successful_action_tools_per_human_note_tick: int | None = None
+
+    def action_tool_budget_for_tick(self, *, has_human_note: bool) -> int | None:
+        if has_human_note and self.max_successful_action_tools_per_human_note_tick is not None:
+            return self.max_successful_action_tools_per_human_note_tick
+
+        return self.max_successful_action_tools_per_tick
 
 
 DST_DIRECTOR_PACK_PATH = (
@@ -63,19 +70,26 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
         "player_objective_clear",
     ),
     max_successful_action_tools_per_tick=1,
+    max_successful_action_tools_per_human_note_tick=3,
     behavior_lines=(
         "- If the user asks you to announce something in game, call announce_text",
         "- If the user asks for an announcement, message to players, tell players request, atmospheric announcement, or warning to players, call announce_text",
         "- If the user asks for an objective or recovery task, call objective_collect",
         "- If the user asks for a per-player objective, call player_objective_collect",
+        "- If the user asks to check, show, or report objective status, call objective_status",
         "- If the user asks you to remove the current objective, call objective_clear",
+        "- Cleanup tools may be used immediately when a human explicitly asks for cleanup",
         "- Use supplies_spawn, enemy_spawn, event_trigger, and cleanup tools only for explicit direction or strong game-state pacing reasons",
     ),
     rule_lines=(
         "- Do not describe a game action in text when a DST tool can perform it",
         "- Use terminal-only replies for status, explanation, or analysis, not player-facing in-game lines",
-        "- Use at most one DST action/tool action per tick unless a human explicitly asks for multiple",
-        "- Spawn deerclops only after setting chaos tier 3, and use force_boss=true explicitly",
+        "- Passive or no-human-note ticks allow at most one successful DST action tool",
+        "- Explicit human notes may use up to three successful DST action tools when the request needs it",
+        "- If a human gives a short multi-step instruction, perform the requested steps in order using tools",
+        "- Use multiple DST tools in one tick only for explicit multi-step human notes or strong emergency/game-state reasons",
+        "- Do not spam repeated identical actions or repeated identical tool calls in the same tick",
+        "- For Deerclops, if explicitly requested, call chaos_set_tier with chaos_tier=3, then enemy_spawn with prefab=deerclops and force_boss=true",
     ),
     cooldowns=(
         ActionCooldown(
@@ -151,6 +165,38 @@ DST_DIRECTOR_PROFILE = AutoRohProfile(
             expected_tool="announce_text",
             player_facing_request=True,
             instruction="do not satisfy this note with terminal-only text",
+        ),
+        NoteRoutingHint(
+            match_terms=(
+                "objective status",
+                "show objective status",
+                "check objective",
+                "show objectives",
+                "status of objective",
+            ),
+            expected_tool="objective_status",
+            instruction="call objective_status instead of waiting or using terminal-only text",
+        ),
+        NoteRoutingHint(
+            match_terms=(
+                "clean up enemies",
+                "clear enemies",
+                "clear spawned enemies",
+                "remove spawned enemies",
+                "clean up roh-spawned enemies",
+            ),
+            expected_tool="spawned_enemies_clear",
+            instruction="cleanup tools may be used immediately for this explicit request",
+        ),
+        NoteRoutingHint(
+            match_terms=(
+                "clear bosses",
+                "clear spawned bosses",
+                "remove spawned bosses",
+                "clean up bosses",
+            ),
+            expected_tool="spawned_bosses_clear",
+            instruction="cleanup tools may be used immediately for this explicit request",
         ),
     ),
 )

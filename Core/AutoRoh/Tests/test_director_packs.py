@@ -68,7 +68,7 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("Use objective_collect for safe collection tasks", prompt)
         self.assertIn("Use objective_clear to remove the current objective", prompt)
         self.assertIn("Use player_objective_collect", prompt)
-        self.assertIn("Use objective_status only when checking objective state", prompt)
+        self.assertIn("Use objective_status when checking, showing, or reporting objective state", prompt)
         self.assertIn("announce_text", prompt)
         self.assertNotIn("command_write type", prompt)
         self.assertNotIn("use type announce", prompt.lower())
@@ -81,7 +81,9 @@ class DirectorPackTests(unittest.TestCase):
         self.assertIn("Use only listed safe prefabs", prompt)
         self.assertIn("log, cutgrass, twigs, flint, silk, goldnugget", prompt)
         self.assertIn("conservative reward counts", prompt)
-        self.assertIn("at most one DST action/tool action per tick", prompt)
+        self.assertIn("Passive or no-human-note ticks allow at most one successful DST action tool", prompt)
+        self.assertIn("Explicit short multi-step human notes may use up to three", prompt)
+        self.assertIn("Do not spam repeated identical actions", prompt)
 
     def test_render_director_pack_prompt_includes_chaos_guidance(self) -> None:
         pack = load_director_pack(DST_PACK_PATH)

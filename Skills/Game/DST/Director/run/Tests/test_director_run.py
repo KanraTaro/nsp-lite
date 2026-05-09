@@ -184,6 +184,34 @@ class DirectorRunSkillTests(unittest.TestCase):
             stdout,
         )
 
+    def test_printed_shell_command_includes_model_when_provided(self) -> None:
+        args = parse_args("--skip-checks", "--model", "gpt-oss:20b")
+
+        with patch.object(skill, "create_conversation", return_value=("new_conv", "")):
+            with patch.object(skill, "run_autoroh_loop", return_value=0):
+                code, stdout, _stderr = self.run_skill(args)
+
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "nspl-skill skill RohTalk.shell --conversation new_conv --tools "
+            "--toolkit dst_director --tool-trace --model gpt-oss:20b",
+            stdout,
+        )
+
+    def test_printed_shell_command_includes_host_when_provided(self) -> None:
+        args = parse_args("--skip-checks", "--host", "http://localhost:11434")
+
+        with patch.object(skill, "create_conversation", return_value=("new_conv", "")):
+            with patch.object(skill, "run_autoroh_loop", return_value=0):
+                code, stdout, _stderr = self.run_skill(args)
+
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "nspl-skill skill RohTalk.shell --conversation new_conv --tools "
+            "--toolkit dst_director --tool-trace --host http://localhost:11434",
+            stdout,
+        )
+
     def test_loop_runner_receives_dst_tool_defaults(self) -> None:
         args = parse_args("--skip-checks")
 

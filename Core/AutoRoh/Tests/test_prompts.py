@@ -77,7 +77,19 @@ class AutoRohPromptTests(unittest.TestCase):
             prompt,
         )
         self.assertIn(
+            "- If the user asks to check, show, or report objective status, call objective_status",
+            prompt,
+        )
+        self.assertIn(
             "- If the user asks you to remove the current objective, call objective_clear",
+            prompt,
+        )
+        self.assertIn(
+            "- Explicit human notes may use up to three successful DST action tools when the request needs it",
+            prompt,
+        )
+        self.assertIn(
+            "- If a human gives a short multi-step instruction, perform the requested steps in order using tools",
             prompt,
         )
         self.assertIn(
@@ -102,6 +114,75 @@ class AutoRohPromptTests(unittest.TestCase):
         self.assertIn("- expected tool: announce_text", prompt)
         self.assertIn("- player-facing request: yes", prompt)
         self.assertIn("- do not satisfy this note with terminal-only text", prompt)
+
+    def test_dst_prompt_routes_objective_status_notes(self) -> None:
+        for note in (
+            "[human note] Objective status.",
+            "[human note] Show objective status.",
+            "[human note] Check objective.",
+            "[human note] Show objectives.",
+            "[human note] Status of objective.",
+        ):
+            with self.subTest(note=note):
+                prompt = build_tick_prompt(
+                    "Base prompt.",
+                    {},
+                    note,
+                    profile=DST_DIRECTOR_PROFILE,
+                )
+
+                self.assertIn("Human note routing:", prompt)
+                self.assertIn("- expected tool: objective_status", prompt)
+                self.assertIn("- player-facing request: no", prompt)
+                self.assertIn(
+                    "- call objective_status instead of waiting or using terminal-only text",
+                    prompt,
+                )
+
+    def test_dst_prompt_routes_spawned_enemy_cleanup_notes(self) -> None:
+        for note in (
+            "[human note] Clean up enemies.",
+            "[human note] Clear enemies.",
+            "[human note] Clear spawned enemies.",
+            "[human note] Remove spawned enemies.",
+            "[human note] Clean up Roh-spawned enemies.",
+        ):
+            with self.subTest(note=note):
+                prompt = build_tick_prompt(
+                    "Base prompt.",
+                    {},
+                    note,
+                    profile=DST_DIRECTOR_PROFILE,
+                )
+
+                self.assertIn("Human note routing:", prompt)
+                self.assertIn("- expected tool: spawned_enemies_clear", prompt)
+                self.assertIn(
+                    "- cleanup tools may be used immediately for this explicit request",
+                    prompt,
+                )
+
+    def test_dst_prompt_routes_spawned_boss_cleanup_notes(self) -> None:
+        for note in (
+            "[human note] Clear bosses.",
+            "[human note] Clear spawned bosses.",
+            "[human note] Remove spawned bosses.",
+            "[human note] Clean up bosses.",
+        ):
+            with self.subTest(note=note):
+                prompt = build_tick_prompt(
+                    "Base prompt.",
+                    {},
+                    note,
+                    profile=DST_DIRECTOR_PROFILE,
+                )
+
+                self.assertIn("Human note routing:", prompt)
+                self.assertIn("- expected tool: spawned_bosses_clear", prompt)
+                self.assertIn(
+                    "- cleanup tools may be used immediately for this explicit request",
+                    prompt,
+                )
 
     def test_dst_prompt_does_not_route_say_note(self) -> None:
         prompt = build_tick_prompt(

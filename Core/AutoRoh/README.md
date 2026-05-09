@@ -19,6 +19,8 @@ AutoRoh is a generic observed, tool-capable loop. It is not DST-specific; game o
 
 `dst_director` is the first concrete profile/toolkit pairing. It carries DST-specific prompt guidance, command cooldowns, and a small Director Pack outside the generic AutoRoh loop.
 
+The DST director profile uses a live action budget: passive ticks allow one successful DST action tool, while ticks with an explicit human note may allow up to three successful DST action tools for short multi-step instructions. The generic loop reads this from the profile; `max_steps` still bounds runaway tool loops.
+
 Director Packs provide domain content such as style guidance, examples, safe prefab lists, objective templates, and constraints. They do not execute tools, own loop behavior, or contain Python logic. DST pack content lives under `Core/Game/DST/DirectorPacks`, mirroring the `Skills/Game/DST` domain path.
 
 Future workflows such as `web_worker` or `research_worker` should add profiles and toolkits instead of hardcoding workflow behavior into `AutoRoh.run`.

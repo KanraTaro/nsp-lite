@@ -31,6 +31,9 @@ class AutoRohProfileTests(unittest.TestCase):
     def test_basic_profile_has_no_action_tool_limit(self) -> None:
         self.assertEqual(BASIC_PROFILE.action_tool_names, ())
         self.assertIsNone(BASIC_PROFILE.max_successful_action_tools_per_tick)
+        self.assertIsNone(BASIC_PROFILE.max_successful_action_tools_per_human_note_tick)
+        self.assertIsNone(BASIC_PROFILE.action_tool_budget_for_tick(has_human_note=False))
+        self.assertIsNone(BASIC_PROFILE.action_tool_budget_for_tick(has_human_note=True))
 
     def test_dst_profile_has_action_tool_limit(self) -> None:
         self.assertIn("announce_text", DST_DIRECTOR_PROFILE.action_tool_names)
@@ -47,6 +50,9 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertNotIn("snapshot_read", DST_DIRECTOR_PROFILE.action_tool_names)
         self.assertNotIn("objective_status", DST_DIRECTOR_PROFILE.action_tool_names)
         self.assertEqual(DST_DIRECTOR_PROFILE.max_successful_action_tools_per_tick, 1)
+        self.assertEqual(DST_DIRECTOR_PROFILE.max_successful_action_tools_per_human_note_tick, 3)
+        self.assertEqual(DST_DIRECTOR_PROFILE.action_tool_budget_for_tick(has_human_note=False), 1)
+        self.assertEqual(DST_DIRECTOR_PROFILE.action_tool_budget_for_tick(has_human_note=True), 3)
 
     def test_dst_profile_has_director_pack(self) -> None:
         self.assertIsNotNone(DST_DIRECTOR_PROFILE.director_pack)
@@ -71,11 +77,13 @@ class AutoRohProfileTests(unittest.TestCase):
             }.issubset(signatures)
         )
 
-    def test_dst_profile_includes_one_dst_action_per_tick_rule(self) -> None:
+    def test_dst_profile_includes_action_budget_rules(self) -> None:
         rules = "\n".join(DST_DIRECTOR_PROFILE.rule_lines)
 
-        self.assertIn("at most one DST action/tool action per tick", rules)
-        self.assertIn("unless a human explicitly asks for multiple", rules)
+        self.assertIn("Passive or no-human-note ticks allow at most one successful DST action tool", rules)
+        self.assertIn("Explicit human notes may use up to three successful DST action tools", rules)
+        self.assertIn("short multi-step instruction", rules)
+        self.assertIn("Do not spam repeated identical actions", rules)
 
     def test_dst_profile_routes_player_facing_lines_to_announce_text(self) -> None:
         guidance = "\n".join(
@@ -99,12 +107,10 @@ class AutoRohProfileTests(unittest.TestCase):
         )
 
         self.assertIn("deerclops", guidance)
-        self.assertIn("chaos tier 3", guidance)
+        self.assertIn("chaos_tier=3", guidance)
         self.assertIn("force_boss=true", guidance)
 
     def test_dst_profile_has_note_routing_hint_for_announce_text(self) -> None:
-        self.assertEqual(len(DST_DIRECTOR_PROFILE.note_routing_hints), 1)
-
         hint = DST_DIRECTOR_PROFILE.note_routing_hints[0]
         self.assertEqual(hint.expected_tool, "announce_text")
         self.assertTrue(hint.player_facing_request)
@@ -118,6 +124,36 @@ class AutoRohProfileTests(unittest.TestCase):
         self.assertIn("message to players", hint.match_terms)
         self.assertIn("tell players", hint.match_terms)
         self.assertNotIn("say", hint.match_terms)
+
+    def test_dst_profile_has_note_routing_hint_for_objective_status(self) -> None:
+        hints_by_tool = {
+            hint.expected_tool: hint for hint in DST_DIRECTOR_PROFILE.note_routing_hints
+        }
+        hint = hints_by_tool["objective_status"]
+
+        self.assertFalse(hint.player_facing_request)
+        self.assertIn("objective status", hint.match_terms)
+        self.assertIn("show objective status", hint.match_terms)
+        self.assertIn("check objective", hint.match_terms)
+        self.assertIn("show objectives", hint.match_terms)
+        self.assertIn("status of objective", hint.match_terms)
+
+    def test_dst_profile_has_note_routing_hints_for_cleanup(self) -> None:
+        hints_by_tool = {
+            hint.expected_tool: hint for hint in DST_DIRECTOR_PROFILE.note_routing_hints
+        }
+        enemies_hint = hints_by_tool["spawned_enemies_clear"]
+        bosses_hint = hints_by_tool["spawned_bosses_clear"]
+
+        self.assertIn("clean up enemies", enemies_hint.match_terms)
+        self.assertIn("clear enemies", enemies_hint.match_terms)
+        self.assertIn("clear spawned enemies", enemies_hint.match_terms)
+        self.assertIn("remove spawned enemies", enemies_hint.match_terms)
+        self.assertIn("clean up roh-spawned enemies", enemies_hint.match_terms)
+        self.assertIn("clear bosses", bosses_hint.match_terms)
+        self.assertIn("clear spawned bosses", bosses_hint.match_terms)
+        self.assertIn("remove spawned bosses", bosses_hint.match_terms)
+        self.assertIn("clean up bosses", bosses_hint.match_terms)
 
     def test_basic_profile_has_no_note_routing_hints(self) -> None:
         self.assertEqual(BASIC_PROFILE.note_routing_hints, ())

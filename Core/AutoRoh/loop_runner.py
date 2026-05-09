@@ -5,12 +5,12 @@ from __future__ import annotations
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from Core.AutoRoh.notes import get_messages, latest_unhandled_note
 from Core.AutoRoh.observations import call_observation_tool
 from Core.AutoRoh.prompts import DEFAULT_LOOP_PROMPT, build_tick_prompt
-from Core.AutoRoh.profiles import resolve_autoroh_profile
+from Core.AutoRoh.profiles import AutoRohProfile, resolve_autoroh_profile
 from Core.AutoRoh.state import (
     load_loop_state,
     mark_idle_skip,
@@ -27,6 +27,34 @@ from Core.AutoRoh.tool_events import (
 from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import run_turn
 from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
+
+
+def _build_action_tool_stop_callback(
+    profile: AutoRohProfile,
+    *,
+    has_new_note: bool,
+) -> Optional[Callable[[Dict[str, Any]], bool]]:
+    max_action_tools = profile.action_tool_budget_for_tick(has_human_note=has_new_note)
+    if not profile.action_tool_names or max_action_tools is None:
+        return None
+
+    action_tool_names = set(profile.action_tool_names)
+    successful_action_tools = 0
+
+    def should_stop_after_tool_result(tool_result: Dict[str, Any]) -> bool:
+        nonlocal successful_action_tools
+
+        if not bool(tool_result.get("ok", False)):
+            return False
+
+        tool_name = str(tool_result.get("tool_name", "") or "")
+        if tool_name not in action_tool_names:
+            return False
+
+        successful_action_tools += 1
+        return successful_action_tools >= max_action_tools
+
+    return should_stop_after_tool_result
 
 
 @dataclass(frozen=True)
@@ -95,6 +123,7 @@ def run_autoroh_loop(ctx: Any, config: AutoRohLoopConfig) -> int:
             print(f"[AutoRoh turn {turn_index}/{total_label}]")
 
             latest_note_index: Optional[int] = None
+            has_new_note = False
             tick_prompt = prompt
             observation_signature: Optional[str] = None
             observation_summary: Optional[str] = None
@@ -168,27 +197,11 @@ def run_autoroh_loop(ctx: Any, config: AutoRohLoopConfig) -> int:
                     print_tool_result(tool_result)
 
             should_stop_after_tool_result = None
-            if (
-                config.tools
-                and profile.action_tool_names
-                and profile.max_successful_action_tools_per_tick is not None
-            ):
-                action_tool_names = set(profile.action_tool_names)
-                max_action_tools = profile.max_successful_action_tools_per_tick
-                successful_action_tools = 0
-
-                def should_stop_after_tool_result(tool_result: Dict[str, Any]) -> bool:
-                    nonlocal successful_action_tools
-
-                    if not bool(tool_result.get("ok", False)):
-                        return False
-
-                    tool_name = str(tool_result.get("tool_name", "") or "")
-                    if tool_name not in action_tool_names:
-                        return False
-
-                    successful_action_tools += 1
-                    return successful_action_tools >= max_action_tools
+            if config.tools:
+                should_stop_after_tool_result = _build_action_tool_stop_callback(
+                    profile,
+                    has_new_note=has_new_note,
+                )
 
             conversation_id, reply = run_turn(
                 ctx,

@@ -76,10 +76,24 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--host", dest="host", default=None, help="Optional backend URL override.")
 
 
-def _print_shell_command(conversation_id: str) -> None:
+def _print_shell_command(
+    conversation_id: str,
+    model: str | None = None,
+    host: str | None = None,
+) -> None:
+    command_parts = [
+        "shell: nspl-skill skill RohTalk.shell",
+        f"--conversation {conversation_id}",
+        "--tools",
+        "--toolkit dst_director",
+        "--tool-trace",
+    ]
+    if model:
+        command_parts.append(f"--model {model}")
+    if host:
+        command_parts.append(f"--host {host}")
     print(
-        "shell: nspl-skill skill RohTalk.shell "
-        f"--conversation {conversation_id} --tools --toolkit dst_director --tool-trace"
+        " ".join(command_parts)
     )
 
 
@@ -111,7 +125,11 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 1
 
     print(f"conversation_id: {conversation_id}")
-    _print_shell_command(conversation_id)
+    _print_shell_command(
+        conversation_id,
+        model=getattr(args, "model", None),
+        host=getattr(args, "host", None),
+    )
 
     if not bool(getattr(args, "skip_checks", False)):
         try:
