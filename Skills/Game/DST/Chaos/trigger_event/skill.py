@@ -10,7 +10,7 @@ from Core.Game.DST.commands import (
     TARGET_MODES,
     build_trigger_event_command,
 )
-from Skills.Game.DST._command_skill import add_hidden_path_arg, write_command_payload
+from Skills.Game.DST._command_skill import add_transport_args, write_command_payload
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -20,7 +20,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--duration-seconds", dest="duration_seconds", type=int, default=20, help="Event duration")
     parser.add_argument("--radius", dest="radius", type=int, default=10, help="Event radius")
     parser.add_argument("--announce", dest="announce", default="", help="Optional in-game announcement")
-    add_hidden_path_arg(parser)
+    add_transport_args(parser)
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:

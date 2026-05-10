@@ -11,6 +11,8 @@ from typing import Any, Sequence
 
 SNAPSHOT_FILENAME = "roh_dst_snapshot.json"
 COMMAND_FILENAME = "roh_dst_command.json"
+COMMAND_QUEUE_FILENAME = "roh_dst_command_queue.json"
+COMMAND_RESULT_FILENAME = "roh_dst_command_result.json"
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,8 @@ class DSTPathOverrides:
 class RohBridgePaths:
     snapshot_path: Path
     command_path: Path
+    command_queue_path: Path
+    command_result_path: Path
     save_dir: Path
     source: str
     snapshot_mtime: float
@@ -168,6 +172,22 @@ def command_path_for_snapshot(snapshot_path: Path) -> Path:
     return snapshot_path.expanduser().parent / COMMAND_FILENAME
 
 
+def command_queue_path_for_snapshot(snapshot_path: Path) -> Path:
+    return snapshot_path.expanduser().parent / COMMAND_QUEUE_FILENAME
+
+
+def command_result_path_for_snapshot(snapshot_path: Path) -> Path:
+    return snapshot_path.expanduser().parent / COMMAND_RESULT_FILENAME
+
+
+def command_queue_path_for_command(command_path: Path) -> Path:
+    return command_path.expanduser().parent / COMMAND_QUEUE_FILENAME
+
+
+def command_result_path_for_command(command_path: Path) -> Path:
+    return command_path.expanduser().parent / COMMAND_RESULT_FILENAME
+
+
 def _paths_from_save_dir(save_dir: str, source: str, command_path: str | None = None) -> RohBridgePaths:
     save_path = _expand_path(save_dir)
     snapshot_path = save_path / SNAPSHOT_FILENAME
@@ -175,6 +195,8 @@ def _paths_from_save_dir(save_dir: str, source: str, command_path: str | None = 
     return RohBridgePaths(
         snapshot_path=snapshot_path,
         command_path=resolved_command_path,
+        command_queue_path=command_queue_path_for_command(resolved_command_path),
+        command_result_path=command_result_path_for_command(resolved_command_path),
         save_dir=save_path,
         source=source,
         snapshot_mtime=_snapshot_mtime(snapshot_path),
@@ -191,6 +213,8 @@ def _paths_from_snapshot(
     return RohBridgePaths(
         snapshot_path=snapshot,
         command_path=resolved_command_path,
+        command_queue_path=command_queue_path_for_command(resolved_command_path),
+        command_result_path=command_result_path_for_command(resolved_command_path),
         save_dir=snapshot.parent,
         source=source,
         snapshot_mtime=_snapshot_mtime(snapshot),
@@ -203,6 +227,8 @@ def _paths_from_command(command_path: str, source: str) -> RohBridgePaths:
     return RohBridgePaths(
         snapshot_path=snapshot,
         command_path=command,
+        command_queue_path=command_queue_path_for_command(command),
+        command_result_path=command_result_path_for_command(command),
         save_dir=command.parent,
         source=source,
         snapshot_mtime=_snapshot_mtime(snapshot),
@@ -262,3 +288,15 @@ def resolve_command_path(path: str | None = None) -> Path:
     if path:
         return _expand_path(path)
     return resolve_rohbridge_paths().command_path
+
+
+def resolve_command_queue_path(path: str | None = None) -> Path:
+    if path:
+        return _expand_path(path)
+    return resolve_rohbridge_paths().command_queue_path
+
+
+def resolve_command_result_path(path: str | None = None) -> Path:
+    if path:
+        return _expand_path(path)
+    return resolve_rohbridge_paths().command_result_path

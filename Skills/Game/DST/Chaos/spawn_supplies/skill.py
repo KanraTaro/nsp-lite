@@ -10,7 +10,7 @@ from Core.Game.DST.commands import (
     TARGET_MODES,
     build_spawn_supplies_command,
 )
-from Skills.Game.DST._command_skill import add_hidden_path_arg, write_command_payload
+from Skills.Game.DST._command_skill import add_transport_args, write_command_payload
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -19,7 +19,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-mode", dest="target_mode", default="first", choices=TARGET_MODES, help="Player targeting mode")
     parser.add_argument("--radius", dest="radius", type=int, default=4, help="Spawn radius")
     parser.add_argument("--announce", dest="announce", default="", help="Optional in-game announcement")
-    add_hidden_path_arg(parser)
+    add_transport_args(parser)
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:

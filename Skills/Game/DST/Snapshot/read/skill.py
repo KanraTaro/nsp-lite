@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from Core.Game.DST.paths import resolve_rohbridge_paths
+from Core.Game.DST.paths import command_queue_path_for_command, command_result_path_for_command
 from Core.NSPL.File.read import read_text
 
 
@@ -88,6 +89,8 @@ def _build_summary(
     snapshot: Dict[str, Any],
     path: str,
     command_path: str,
+    command_queue_path: str,
+    command_result_path: str,
     save_dir: str,
     path_source: str,
 ) -> Dict[str, Any]:
@@ -136,6 +139,8 @@ def _build_summary(
         "source": "RohBridge",
         "path": str(Path(path).expanduser()),
         "command_path": str(Path(command_path).expanduser()),
+        "command_queue_path": str(Path(command_queue_path).expanduser()),
+        "command_result_path": str(Path(command_result_path).expanduser()),
         "save_dir": str(Path(save_dir).expanduser()),
         "path_source": path_source,
         "schema_version": snapshot.get("schema_version"),
@@ -146,6 +151,8 @@ def _build_summary(
         "tracked_spawned_enemies": snapshot.get("tracked_spawned_enemies"),
         "tracked_spawned_bosses": snapshot.get("tracked_spawned_bosses"),
         "recent_chaos_events": snapshot.get("recent_chaos_events"),
+        "command_queue_depth": snapshot.get("command_queue_depth"),
+        "last_command_result": snapshot.get("last_command_result"),
         "objectives": snapshot.get("objectives"),
         "players": players,
         "player_count": len(players),
@@ -183,12 +190,16 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         if explicit_path:
             path = str(Path(explicit_path).expanduser())
             command_path = str(Path(path).parent / "roh_dst_command.json")
+            command_queue_path = str(command_queue_path_for_command(Path(command_path)))
+            command_result_path = str(command_result_path_for_command(Path(command_path)))
             save_dir = str(Path(path).parent)
             path_source = "argument:path"
         else:
             paths = resolve_rohbridge_paths()
             path = str(paths.snapshot_path)
             command_path = str(paths.command_path)
+            command_queue_path = str(paths.command_queue_path)
+            command_result_path = str(paths.command_result_path)
             save_dir = str(paths.save_dir)
             path_source = paths.source
 
@@ -205,10 +216,20 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             payload = dict(snapshot)
             payload["path"] = str(Path(path).expanduser())
             payload["command_path"] = str(Path(command_path).expanduser())
+            payload["command_queue_path"] = str(Path(command_queue_path).expanduser())
+            payload["command_result_path"] = str(Path(command_result_path).expanduser())
             payload["save_dir"] = str(Path(save_dir).expanduser())
             payload["path_source"] = path_source
         else:
-            payload = _build_summary(snapshot, path, command_path, save_dir, path_source)
+            payload = _build_summary(
+                snapshot,
+                path,
+                command_path,
+                command_queue_path,
+                command_result_path,
+                save_dir,
+                path_source,
+            )
 
         print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
         return 0

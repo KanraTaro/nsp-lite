@@ -6,12 +6,12 @@ import argparse
 from typing import Any
 
 from Core.Game.DST.commands import build_clear_spawned_enemies_command
-from Skills.Game.DST._command_skill import add_hidden_path_arg, write_command_payload
+from Skills.Game.DST._command_skill import add_transport_args, write_command_payload
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--announce", dest="announce", default="", help="Optional in-game announcement")
-    add_hidden_path_arg(parser)
+    add_transport_args(parser)
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:

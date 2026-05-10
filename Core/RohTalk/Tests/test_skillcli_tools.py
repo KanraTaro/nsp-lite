@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+import json
 import unittest
 from pathlib import Path
 
@@ -176,6 +177,36 @@ class SkillCLIToolsTests(unittest.TestCase):
         self.assertEqual(result["timezone"], "America/New_York")
         self.assertEqual(result["timezone_abbreviation"], "EDT")
         self.assertEqual(result["utc_offset"], "-04:00")
+
+    def test_execute_skill_queues_dst_director_command_and_waits_for_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "roh_dst_command.json"
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            bridge_result = {
+                "schema_version": "dst.v0.3.command_result",
+                "command_id": "cmd-rohtalk",
+                "type": "set_chaos_tier",
+                "ok": False,
+                "status": "rejected",
+                "reason": "test_rejection",
+            }
+            result_path.write_text(json.dumps(bridge_result), encoding="utf-8")
+
+            result = execute_skill(
+                self.ctx,
+                "Game.DST.Chaos.set_tier",
+                {
+                    "chaos_tier": 2,
+                    "path": str(command_path),
+                    "command_id": "cmd-rohtalk",
+                    "result_timeout": 0.1,
+                    "result_interval": 0.01,
+                },
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["queued"])
+        self.assertEqual(result["bridge_result"], bridge_result)
 
     def test_execute_skill_raises_for_missing_skill(self) -> None:
         with self.assertRaises(Exception):

@@ -45,8 +45,7 @@ from Core.Game.DST.commands import (
     clean_text,
     validate_command_type,
 )
-from Core.Game.DST.paths import resolve_command_path
-from Core.NSPL.File.write import write_json
+from Skills.Game.DST._command_skill import add_transport_args, write_command_payload
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -77,12 +76,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-announce-objective", dest="announce_objective", action="store_false", help="Do not announce objective commands")
     parser.add_argument("--force-boss", dest="force_boss", action="store_true", help="Required for deerclops boss spawning")
     parser.add_argument("--all", dest="all", action="store_true", default=True, help="Request all objective statuses")
-    parser.add_argument(
-        "--path",
-        dest="path",
-        default=None,
-        help="Override path to roh_dst_command.json",
-    )
+    add_transport_args(parser, path_help="Override path to roh_dst_command.json")
 
 
 def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
@@ -199,33 +193,18 @@ def _build_payload(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
-    path = str(Path(getattr(args, "path", "") or "roh_dst_command.json").expanduser())
-
     try:
-        explicit_path = getattr(args, "path", None)
-        path = str(Path(explicit_path).expanduser()) if explicit_path else str(resolve_command_path())
         payload = _build_payload(args)
-        written_path = write_json(path, payload)
-
-        result = {
-            "ok": True,
-            "path": str(Path(written_path).expanduser()),
-            "command": payload,
-        }
-
-        print(json.dumps(result, separators=(",", ":"), sort_keys=True))
-        return 0
-
     except Exception as exc:
         result = {
             "ok": False,
             "error": str(exc),
-            "path": str(Path(path).expanduser()),
+            "path": str(Path(getattr(args, "path", "") or "roh_dst_command.json").expanduser()),
         }
-
         if getattr(ctx, "json", False):
             print(json.dumps(result, separators=(",", ":"), sort_keys=True))
         else:
             print(str(exc), file=sys.stderr)
-
         return 1
+
+    return write_command_payload(args, ctx, payload)

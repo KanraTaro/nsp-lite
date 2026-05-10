@@ -13,7 +13,7 @@ from Core.Game.DST.commands import (
     clamp_positive_int,
     normalize_prefab,
 )
-from Skills.Game.DST._command_skill import add_hidden_path_arg, write_command_payload
+from Skills.Game.DST._command_skill import add_transport_args, write_command_payload
 
 
 def build_parser(parser: argparse.ArgumentParser) -> None:
@@ -27,7 +27,7 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--reward-count", dest="reward_count", type=int, default=3, help="Reward count")
     parser.add_argument("--announce", dest="announce", action="store_true", default=True, help="Announce the objective")
     parser.add_argument("--no-announce", dest="announce", action="store_false", help="Do not announce the objective")
-    add_hidden_path_arg(parser)
+    add_transport_args(parser)
 
 
 def _objective_text(text: str, target_count: int, target_prefab: str) -> str:

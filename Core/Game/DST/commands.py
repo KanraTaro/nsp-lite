@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import json
+import time
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List
+
+from Core.NSPL.File.write import write_json
 
 
 CANONICAL_COMMAND_TYPES = (
@@ -112,10 +118,155 @@ ACCEPTED_COMMAND_TYPES = tuple(
     sorted(set(CANONICAL_COMMAND_TYPES).union(COMMAND_TYPE_ALIASES))
 )
 
+COMMAND_QUEUE_SCHEMA_VERSION = "dst.v0.4.command_queue"
+
+
+def _parse_json_object_text(raw: str, *, description: str) -> dict:
+    text = str(raw or "").strip()
+    if text == "":
+        raise ValueError(f"{description} is empty.")
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start_index = text.find("{")
+        if start_index < 0:
+            raise ValueError(f"{description} does not contain a JSON object.") from None
+        try:
+            parsed = json.loads(text[start_index:].strip())
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{description} contains invalid JSON object text: {exc}") from exc
+
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{description} JSON root must be an object.")
+
+    return parsed
+
 
 def normalize_command_type(value: str) -> str:
     normalized = str(value or "").strip().lower()
     return COMMAND_TYPE_ALIASES.get(normalized, normalized)
+
+
+def generate_command_id(command_type: str) -> str:
+    normalized_type = normalize_command_type(command_type) or "command"
+    safe_type = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in normalized_type)
+    timestamp_ms = int(time.time() * 1000)
+    return f"{safe_type}-{timestamp_ms}-{uuid.uuid4().hex[:8]}"
+
+
+def attach_command_id(command: dict, command_id: str | None = None) -> dict:
+    if not isinstance(command, dict):
+        raise ValueError("Command must be a JSON object/dict.")
+
+    result = dict(command)
+    existing_command_id = str(result.get("command_id", "") or "").strip()
+    final_command_id = str(command_id or existing_command_id or generate_command_id(str(result.get("type", "")))).strip()
+    if final_command_id == "":
+        raise ValueError("command_id cannot be empty.")
+
+    result["command_id"] = final_command_id
+    return result
+
+
+def build_command_queue(commands: List[dict]) -> dict:
+    if not isinstance(commands, list):
+        raise ValueError("commands must be a list.")
+
+    queue_commands: List[dict] = []
+    for command in commands:
+        if not isinstance(command, dict):
+            raise ValueError("Every queued command must be a JSON object/dict.")
+        queue_commands.append(dict(command))
+
+    return {
+        "schema_version": COMMAND_QUEUE_SCHEMA_VERSION,
+        "commands": queue_commands,
+    }
+
+
+def _read_command_queue(queue_path: Path) -> List[dict]:
+    path = Path(queue_path).expanduser()
+    if not path.exists():
+        return []
+
+    raw = path.read_text(encoding="utf-8")
+    if raw.strip() == "":
+        return []
+
+    parsed = _parse_json_object_text(raw, description="Command queue")
+
+    commands = parsed.get("commands", [])
+    if not isinstance(commands, list):
+        raise ValueError("Command queue commands must be a list.")
+
+    result: List[dict] = []
+    for command in commands:
+        if not isinstance(command, dict):
+            raise ValueError("Command queue entries must be JSON objects.")
+        result.append(dict(command))
+    return result
+
+
+def append_command_to_queue(command: dict, queue_path: Path) -> dict:
+    queued_commands = _read_command_queue(queue_path)
+    queued_commands.append(dict(command))
+    queue = build_command_queue(queued_commands)
+    written_path = write_json(str(Path(queue_path).expanduser()), queue)
+    return {
+        "ok": True,
+        "queued": True,
+        "path": str(Path(written_path).expanduser()),
+        "queue_depth": len(queued_commands),
+        "queue": queue,
+    }
+
+
+def write_command_legacy(command: dict, command_path: Path) -> dict:
+    written_path = write_json(str(Path(command_path).expanduser()), dict(command))
+    return {
+        "ok": True,
+        "queued": False,
+        "path": str(Path(written_path).expanduser()),
+        "command": dict(command),
+    }
+
+
+def read_command_result(command_result_path: Path) -> dict:
+    path = Path(command_result_path).expanduser()
+    if not path.exists():
+        return {}
+
+    raw = path.read_text(encoding="utf-8")
+    if raw.strip() == "":
+        return {}
+
+    return _parse_json_object_text(raw, description="Command result")
+
+
+def wait_for_command_result(
+    command_id: str,
+    command_result_path: Path,
+    timeout: float,
+    interval: float,
+) -> dict:
+    expected_command_id = str(command_id or "").strip()
+    if expected_command_id == "":
+        raise ValueError("command_id is required to wait for a command result.")
+
+    timeout_seconds = max(0.0, float(timeout))
+    interval_seconds = max(0.01, float(interval))
+    deadline = time.monotonic() + timeout_seconds
+
+    while True:
+        result = read_command_result(command_result_path)
+        if str(result.get("command_id", "") or "") == expected_command_id:
+            return result
+
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Timed out waiting for RohBridge result command_id={expected_command_id}")
+
+        time.sleep(min(interval_seconds, max(0.0, deadline - time.monotonic())))
 
 
 def validate_command_type(value: str) -> str:

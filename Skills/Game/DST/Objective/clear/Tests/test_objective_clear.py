@@ -13,6 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from Core.Game.DST.paths import RohBridgePaths
+
 
 skill = importlib.import_module("Skills.Game.DST.Objective.clear.skill")
 
@@ -42,8 +44,17 @@ class ObjectiveClearSkillTests(unittest.TestCase):
             path = Path(temp_dir) / "save" / "roh_dst_command.json"
             args = argparse.Namespace(path=None)
             stdout = StringIO()
+            resolved = RohBridgePaths(
+                snapshot_path=path.parent / "roh_dst_snapshot.json",
+                command_path=path,
+                command_queue_path=path.parent / "roh_dst_command_queue.json",
+                command_result_path=path.parent / "roh_dst_command_result.json",
+                save_dir=path.parent,
+                source="test",
+                snapshot_mtime=0.0,
+            )
 
-            with patch.object(skill, "resolve_command_path", return_value=path) as resolve:
+            with patch("Skills.Game.DST._command_skill.resolve_rohbridge_paths", return_value=resolved) as resolve:
                 with redirect_stdout(stdout):
                     exit_code = skill.run(args, SimpleNamespace(json=True))
 
@@ -57,7 +68,7 @@ class ObjectiveClearSkillTests(unittest.TestCase):
             args = argparse.Namespace(path=str(path))
             stdout = StringIO()
 
-            with patch.object(skill, "resolve_command_path") as resolve:
+            with patch("Skills.Game.DST._command_skill.resolve_rohbridge_paths") as resolve:
                 with redirect_stdout(stdout):
                     exit_code = skill.run(args, SimpleNamespace(json=True))
 

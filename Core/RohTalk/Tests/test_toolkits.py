@@ -42,6 +42,14 @@ class RohTalkToolkitTests(unittest.TestCase):
         self.assertNotIn("command_write", tool_names)
         self.assertNotIn("Game.DST.Command.write", toolkit.skill_name_map.values())
 
+    def test_dst_director_does_not_expose_transport_flags(self) -> None:
+        toolkit = resolve_toolkit("dst_director")
+        hidden_flags = {"queue", "wait_result", "result_timeout", "result_interval", "command_id"}
+
+        for tool in toolkit.tools:
+            with self.subTest(tool=tool.name):
+                self.assertTrue(hidden_flags.isdisjoint(tool.parameters.get("properties", {})))
+
     def test_dst_announce_text_requires_text(self) -> None:
         toolkit = resolve_toolkit("dst_director")
         announce_tool = next(tool for tool in toolkit.tools if tool.name == "announce_text")

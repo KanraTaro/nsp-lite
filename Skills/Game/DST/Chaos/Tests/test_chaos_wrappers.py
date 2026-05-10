@@ -37,6 +37,67 @@ class ChaosWrapperSkillTests(unittest.TestCase):
                 json.loads(path.read_text(encoding="utf-8")),
                 {"type": "set_chaos_tier", "chaos_tier": 1, "announce": "Roh is getting restless."},
             )
+            self.assertFalse(result["stdout"]["queued"])
+
+    def test_set_tier_with_queue_writes_queue_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "roh_dst_command.json"
+            queue_path = Path(temp_dir) / "roh_dst_command_queue.json"
+            result = _run_skill(
+                "Skills.Game.DST.Chaos.set_tier.skill",
+                argparse.Namespace(
+                    chaos_tier=2,
+                    announce="",
+                    path=str(command_path),
+                    queue=True,
+                    wait_result=False,
+                    result_timeout=0.1,
+                    result_interval=0.01,
+                    command_id="cmd-queued",
+                    queue_path=None,
+                    result_path=None,
+                ),
+            )
+
+            self.assertEqual(result["exit_code"], 0)
+            queue = json.loads(queue_path.read_text(encoding="utf-8"))
+            self.assertEqual(queue["commands"][0]["command_id"], "cmd-queued")
+            self.assertEqual(queue["commands"][0]["type"], "set_chaos_tier")
+            self.assertTrue(result["stdout"]["queued"])
+            self.assertEqual(result["stdout"]["path"], str(queue_path))
+
+    def test_set_tier_with_wait_result_returns_bridge_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "roh_dst_command.json"
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            bridge_result = {
+                "schema_version": "dst.v0.3.command_result",
+                "command_id": "cmd-wait",
+                "type": "set_chaos_tier",
+                "ok": True,
+                "status": "accepted",
+            }
+            result_path.write_text(json.dumps(bridge_result), encoding="utf-8")
+
+            result = _run_skill(
+                "Skills.Game.DST.Chaos.set_tier.skill",
+                argparse.Namespace(
+                    chaos_tier=2,
+                    announce="",
+                    path=str(command_path),
+                    queue=True,
+                    wait_result=True,
+                    result_timeout=0.1,
+                    result_interval=0.01,
+                    command_id="cmd-wait",
+                    queue_path=None,
+                    result_path=None,
+                ),
+            )
+
+            self.assertEqual(result["exit_code"], 0)
+            self.assertTrue(result["stdout"]["ok"])
+            self.assertEqual(result["stdout"]["bridge_result"], bridge_result)
 
     def test_spawn_supplies_writes_expected_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

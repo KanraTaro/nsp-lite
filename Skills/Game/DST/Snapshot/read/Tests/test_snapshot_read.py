@@ -25,6 +25,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
             save_dir = Path(temp_dir) / "save"
             snapshot_path = save_dir / "roh_dst_snapshot.json"
             command_path = save_dir / "roh_dst_command.json"
+            command_queue_path = save_dir / "roh_dst_command_queue.json"
+            command_result_path = save_dir / "roh_dst_command_result.json"
             save_dir.mkdir(parents=True)
             snapshot_path.write_text(
                 json.dumps({"source": "RohBridge", "schema_version": 1, "world": {"phase": "day"}}),
@@ -33,6 +35,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
             resolved = RohBridgePaths(
                 snapshot_path=snapshot_path,
                 command_path=command_path,
+                command_queue_path=command_queue_path,
+                command_result_path=command_result_path,
                 save_dir=save_dir,
                 source="test:discovery",
                 snapshot_mtime=123.0,
@@ -48,6 +52,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["path"], str(snapshot_path))
             self.assertEqual(payload["command_path"], str(command_path))
+            self.assertEqual(payload["command_queue_path"], str(command_queue_path))
+            self.assertEqual(payload["command_result_path"], str(command_result_path))
             self.assertEqual(payload["save_dir"], str(save_dir))
             self.assertEqual(payload["path_source"], "test:discovery")
             resolve.assert_called_once_with()
@@ -71,6 +77,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["path"], str(snapshot_path))
             self.assertEqual(payload["command_path"], str(snapshot_path.parent / "roh_dst_command.json"))
+            self.assertEqual(payload["command_queue_path"], str(snapshot_path.parent / "roh_dst_command_queue.json"))
+            self.assertEqual(payload["command_result_path"], str(snapshot_path.parent / "roh_dst_command_result.json"))
             self.assertEqual(payload["path_source"], "argument:path")
             resolve.assert_not_called()
 
@@ -87,6 +95,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
                         "tracked_spawned_enemies": 3,
                         "tracked_spawned_bosses": 1,
                         "recent_chaos_events": [{"event_name": "frog_rain_light"}],
+                        "command_queue_depth": 2,
+                        "last_command_result": None,
                         "objectives": {"active": []},
                         "players": [
                             {
@@ -117,6 +127,8 @@ class SnapshotReadSkillTests(unittest.TestCase):
             self.assertEqual(payload["tracked_spawned_enemies"], 3)
             self.assertEqual(payload["tracked_spawned_bosses"], 1)
             self.assertEqual(payload["recent_chaos_events"][0]["event_name"], "frog_rain_light")
+            self.assertEqual(payload["command_queue_depth"], 2)
+            self.assertIsNone(payload["last_command_result"])
             self.assertEqual(payload["objectives"], {"active": []})
             self.assertEqual(payload["players"][0]["vitals"]["hunger"], 30)
             self.assertEqual(payload["players"][0]["inventory"][0]["prefab"], "cutgrass")

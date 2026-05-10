@@ -26,6 +26,8 @@ class DSTPathDiscoveryTests(unittest.TestCase):
 
             self.assertEqual(result.snapshot_path, snapshot_path)
             self.assertEqual(result.command_path, snapshot_path.parent / paths.COMMAND_FILENAME)
+            self.assertEqual(result.command_queue_path, snapshot_path.parent / paths.COMMAND_QUEUE_FILENAME)
+            self.assertEqual(result.command_result_path, snapshot_path.parent / paths.COMMAND_RESULT_FILENAME)
             self.assertEqual(result.save_dir, snapshot_path.parent)
             self.assertEqual(result.source, "override:snapshot_path")
 
@@ -36,6 +38,8 @@ class DSTPathDiscoveryTests(unittest.TestCase):
 
             self.assertEqual(result.snapshot_path, save_dir / paths.SNAPSHOT_FILENAME)
             self.assertEqual(result.command_path, save_dir / paths.COMMAND_FILENAME)
+            self.assertEqual(result.command_queue_path, save_dir / paths.COMMAND_QUEUE_FILENAME)
+            self.assertEqual(result.command_result_path, save_dir / paths.COMMAND_RESULT_FILENAME)
             self.assertEqual(result.save_dir, save_dir)
             self.assertEqual(result.source, "override:save_dir")
 

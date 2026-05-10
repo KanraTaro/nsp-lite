@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import tempfile
+import threading
+import time
 import unittest
+from pathlib import Path
 
 from Core.Game.DST.commands import (
     CANONICAL_COMMAND_TYPES,
@@ -14,12 +19,15 @@ from Core.Game.DST.commands import (
     SAFE_REWARD_PREFABS,
     SAFE_SUPPLY_PREFABS,
     TARGET_MODES,
+    append_command_to_queue,
+    attach_command_id,
     build_announce_text_command,
     build_clear_player_objective_command,
     build_clear_objective_command,
     build_clear_spawned_bosses_command,
     build_clear_spawned_enemies_command,
     build_collect_objective_command,
+    build_command_queue,
     build_objective_status_command,
     build_player_collect_objective_command,
     build_set_chaos_tier_command,
@@ -30,7 +38,9 @@ from Core.Game.DST.commands import (
     clamp_int_range,
     clamp_positive_int,
     clamp_reward_count,
+    generate_command_id,
     normalize_command_type,
+    read_command_result,
     validate_collect_prefab,
     validate_command_type,
     validate_enemy_prefab,
@@ -38,10 +48,145 @@ from Core.Game.DST.commands import (
     validate_reward_prefab,
     validate_supply_prefab,
     validate_target_mode,
+    wait_for_command_result,
 )
 
 
 class DSTCommandContractTests(unittest.TestCase):
+    def test_generate_and_attach_command_id(self) -> None:
+        command_id = generate_command_id("spawn_enemy")
+
+        self.assertTrue(command_id.startswith("spawn_enemy-"))
+        self.assertEqual(
+            attach_command_id({"type": "spawn_enemy"}, "cmd-001"),
+            {"type": "spawn_enemy", "command_id": "cmd-001"},
+        )
+
+    def test_build_command_queue_preserves_commands(self) -> None:
+        queue = build_command_queue([{"type": "set_chaos_tier", "chaos_tier": 2}])
+
+        self.assertEqual(queue["schema_version"], "dst.v0.4.command_queue")
+        self.assertEqual(queue["commands"], [{"type": "set_chaos_tier", "chaos_tier": 2}])
+
+    def test_append_command_to_empty_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            queue_path = Path(temp_dir) / "roh_dst_command_queue.json"
+
+            result = append_command_to_queue({"type": "announce_text"}, queue_path)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["queue_depth"], 1)
+            self.assertEqual(
+                json.loads(queue_path.read_text(encoding="utf-8"))["commands"],
+                [{"type": "announce_text"}],
+            )
+
+    def test_append_command_to_existing_queue_preserves_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            queue_path = Path(temp_dir) / "roh_dst_command_queue.json"
+            queue_path.write_text(
+                '{"schema_version":"dst.v0.4.command_queue","commands":[{"command_id":"cmd-1","type":"a"}]}',
+                encoding="utf-8",
+            )
+
+            append_command_to_queue({"command_id": "cmd-2", "type": "b"}, queue_path)
+
+            self.assertEqual(
+                json.loads(queue_path.read_text(encoding="utf-8"))["commands"],
+                [{"command_id": "cmd-1", "type": "a"}, {"command_id": "cmd-2", "type": "b"}],
+            )
+
+    def test_append_command_to_klei_prefixed_queue_preserves_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            queue_path = Path(temp_dir) / "roh_dst_command_queue.json"
+            queue_path.write_text(
+                'KLEI     1 {"schema_version":"dst.v0.4.command_queue","commands":[{"command_id":"cmd-1","type":"a"}]}\n',
+                encoding="utf-8",
+            )
+
+            append_command_to_queue({"command_id": "cmd-2", "type": "b"}, queue_path)
+
+            self.assertEqual(
+                json.loads(queue_path.read_text(encoding="utf-8"))["commands"],
+                [{"command_id": "cmd-1", "type": "a"}, {"command_id": "cmd-2", "type": "b"}],
+            )
+
+    def test_append_command_to_queue_without_json_object_raises_useful_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            queue_path = Path(temp_dir) / "roh_dst_command_queue.json"
+            queue_path.write_text("KLEI     1 no-json-here", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Command queue does not contain a JSON object"):
+                append_command_to_queue({"type": "announce_text"}, queue_path)
+
+    def test_read_command_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            expected = {"schema_version": "dst.v0.3.command_result", "command_id": "cmd-001", "ok": True}
+            result_path.write_text(json.dumps(expected), encoding="utf-8")
+
+            self.assertEqual(read_command_result(result_path), expected)
+
+    def test_read_klei_prefixed_command_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            result_path.write_text(
+                'KLEI     1 {"schema_version":"dst.v0.3.command_result","command_id":"cmd","ok":true}\n',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                read_command_result(result_path),
+                {"schema_version": "dst.v0.3.command_result", "command_id": "cmd", "ok": True},
+            )
+
+    def test_read_command_result_without_json_object_raises_useful_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            result_path.write_text("KLEI     1 no-json-here", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Command result does not contain a JSON object"):
+                read_command_result(result_path)
+
+    def test_wait_for_command_result_returns_matching_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+
+            def write_result() -> None:
+                time.sleep(0.03)
+                result_path.write_text(json.dumps({"command_id": "cmd-002", "ok": True}), encoding="utf-8")
+
+            thread = threading.Thread(target=write_result)
+            thread.start()
+            try:
+                self.assertEqual(
+                    wait_for_command_result("cmd-002", result_path, timeout=1.0, interval=0.01),
+                    {"command_id": "cmd-002", "ok": True},
+                )
+            finally:
+                thread.join()
+
+    def test_wait_for_command_result_matches_klei_prefixed_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            result_path.write_text(
+                'KLEI     1 {"schema_version":"dst.v0.3.command_result","command_id":"cmd-klei","ok":true}',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                wait_for_command_result("cmd-klei", result_path, timeout=0.1, interval=0.01),
+                {"schema_version": "dst.v0.3.command_result", "command_id": "cmd-klei", "ok": True},
+            )
+
+    def test_wait_for_command_result_ignores_mismatch_until_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            result_path.write_text(json.dumps({"command_id": "other", "ok": True}), encoding="utf-8")
+
+            with self.assertRaises(TimeoutError):
+                wait_for_command_result("cmd-003", result_path, timeout=0.02, interval=0.01)
+
     def test_normalize_command_type_maps_announce_alias(self) -> None:
         self.assertEqual(normalize_command_type("announce"), "announce_text")
 

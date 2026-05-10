@@ -26,6 +26,22 @@ from Core.NSPL.SkillCLI.loader import resolve_skill
 from .tool_naming import build_skill_tool_name_map, skill_name_to_tool_name
 
 
+DST_DIRECTOR_QUEUED_RESULT_SKILLS = {
+    "Game.DST.Announce.text",
+    "Game.DST.Objective.collect",
+    "Game.DST.Objective.clear",
+    "Game.DST.Chaos.set_tier",
+    "Game.DST.Chaos.spawn_supplies",
+    "Game.DST.Chaos.spawn_enemy",
+    "Game.DST.Chaos.trigger_event",
+    "Game.DST.Chaos.clear_enemies",
+    "Game.DST.Chaos.clear_bosses",
+    "Game.DST.Objective.player_collect",
+    "Game.DST.Objective.clear_player",
+    "Game.DST.Objective.status",
+}
+
+
 def _skills_root_from_ctx(ctx: Any) -> Path:
     """Resolve the Skills root from the current runtime context."""
     return (Path(ctx.root) / "Skills").resolve()
@@ -120,8 +136,13 @@ def execute_skill(ctx: Any, skill_name: str, arguments: Dict[str, Any]) -> Any:
 
     module.build_parser(parser)
 
+    skill_arguments = dict(arguments)
+    if skill_name in DST_DIRECTOR_QUEUED_RESULT_SKILLS:
+        skill_arguments.setdefault("queue", True)
+        skill_arguments.setdefault("wait_result", True)
+
     argv = ["--json"]
-    argv.extend(_dict_to_argv(arguments))
+    argv.extend(_dict_to_argv(skill_arguments))
 
     parsed_args = parser.parse_args(argv)
 
