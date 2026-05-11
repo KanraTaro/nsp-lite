@@ -89,6 +89,45 @@ class AnnounceTextSkillTests(unittest.TestCase):
             self.assertTrue(path.exists())
             resolve.assert_not_called()
 
+    def test_explicit_result_timeout_overrides_wait_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "roh_dst_command.json"
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+            args = argparse.Namespace(
+                text="Hold position.",
+                path=str(command_path),
+                queue=True,
+                wait_result=True,
+                result_timeout=0.2,
+                result_interval=0.03,
+                command_id="cmd-explicit",
+                queue_path=None,
+                result_path=str(result_path),
+            )
+            stdout = StringIO()
+
+            with patch(
+                "Skills.Game.DST._command_skill.wait_for_command_result",
+                side_effect=TimeoutError("timeout for test"),
+            ) as wait_result:
+                with redirect_stdout(stdout):
+                    exit_code = skill.run(args, SimpleNamespace(json=True))
+
+        result = json.loads(stdout.getvalue())
+        wait_result.assert_called_once_with("cmd-explicit", result_path, 0.2, 0.03)
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["queued"])
+        self.assertEqual(result["command_id"], "cmd-explicit")
+        self.assertEqual(result["path"], str(command_path.with_name("roh_dst_command_queue.json")))
+        self.assertEqual(result["result_path"], str(result_path))
+        self.assertEqual(result["reason"], "result_timeout")
+        self.assertEqual(result["status"], "queued_unknown")
+        self.assertEqual(
+            result["message"],
+            "Command was queued but no matching RohBridge result was observed before timeout.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

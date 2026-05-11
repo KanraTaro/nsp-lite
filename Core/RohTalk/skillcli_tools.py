@@ -41,6 +41,9 @@ DST_DIRECTOR_QUEUED_RESULT_SKILLS = {
     "Game.DST.Objective.status",
 }
 
+DST_DIRECTOR_RESULT_TIMEOUT_SECONDS = 15.0
+DST_DIRECTOR_RESULT_INTERVAL_SECONDS = 0.25
+
 
 def _skills_root_from_ctx(ctx: Any) -> Path:
     """Resolve the Skills root from the current runtime context."""
@@ -140,6 +143,8 @@ def execute_skill(ctx: Any, skill_name: str, arguments: Dict[str, Any]) -> Any:
     if skill_name in DST_DIRECTOR_QUEUED_RESULT_SKILLS:
         skill_arguments.setdefault("queue", True)
         skill_arguments.setdefault("wait_result", True)
+        skill_arguments.setdefault("result_timeout", DST_DIRECTOR_RESULT_TIMEOUT_SECONDS)
+        skill_arguments.setdefault("result_interval", DST_DIRECTOR_RESULT_INTERVAL_SECONDS)
 
     argv = ["--json"]
     argv.extend(_dict_to_argv(skill_arguments))

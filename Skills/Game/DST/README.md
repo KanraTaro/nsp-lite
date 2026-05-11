@@ -12,9 +12,11 @@ from `roh_dst_command_result.json`.
 Pass `--wait-result` when a caller needs RohBridge acceptance or rejection
 details. The JSON response includes `queued`, `command`, `command_id`,
 `result_path`, and `bridge_result` when a matching result arrives. On timeout,
-the command write is still reported with `ok:false` and `reason:"result_timeout"`.
-Because RohBridge exposes only the latest result file, matching by `command_id`
-is important.
+the command write is still reported with `ok:false`, `queued:true`,
+`reason:"result_timeout"`, and `status:"queued_unknown"`. This means no
+matching result was observed before the local wait expired; it is not proof that
+the game command failed or that the server is down. Because RohBridge exposes
+only the latest result file, matching by `command_id` is important.
 
 The `dst_director` RohTalk toolkit exposes wrapper tools for snapshot reads,
 announcements, objectives, chaos tier changes, allowlisted supply/enemy spawns,
@@ -22,7 +24,8 @@ allowlisted frog-rain events, and RohBridge-tracked spawn cleanup. It does not
 expose raw `Game.DST.Command.write` by default. Model-facing command tools use
 queued writes and wait for result acknowledgments internally, without exposing
 transport flags in the tool schemas, so AutoRoh can see RohBridge rejection
-reasons in tool results.
+reasons in tool results. These model-facing tools use a longer result wait
+default than human CLI calls: 15 seconds, polling every 0.25 seconds.
 
 RohBridge queue writes are file based and not atomic against simultaneous
 writers. Longer multi-command director sequences may still need a higher-level

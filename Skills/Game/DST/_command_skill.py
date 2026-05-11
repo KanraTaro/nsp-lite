@@ -127,6 +127,8 @@ def write_command_payload(args: Any, ctx: Any, payload: Dict[str, Any]) -> int:
             except TimeoutError as exc:
                 result["ok"] = False
                 result["reason"] = "result_timeout"
+                result["status"] = "queued_unknown"
+                result["message"] = "Command was queued but no matching RohBridge result was observed before timeout."
                 result["error"] = str(exc)
                 result["result_path"] = str(result_path.expanduser())
 

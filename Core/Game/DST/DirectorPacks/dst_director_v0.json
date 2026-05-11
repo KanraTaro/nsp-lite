@@ -106,6 +106,7 @@
     "Use objective_clear to remove the current objective.",
     "Use player_objective_collect and player_objective_clear for per-player objectives when a userid or target mode is relevant.",
     "Use objective_status when checking, showing, or reporting objective state; active objectives also appear in the snapshot.",
+    "If a tool result has reason=result_timeout, do not assume the command failed or the server is down; wait or check the snapshot before retrying.",
     "Chaos tiers should escalate pacing gradually; use chaos_set_tier before higher-pressure spawns or events.",
     "Target modes are first, random, lowest_hunger, lowest_sanity, lowest_health, ghost, and alive; prefer first unless player state suggests a better target.",
     "Use supplies_spawn for allowlisted recovery supplies, not arbitrary prefab spawning.",

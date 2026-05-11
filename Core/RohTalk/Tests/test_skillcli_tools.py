@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import tempfile
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import Core.NSPL.NodeCTX as NodeCTX
 from Core.NSPL.SkillCLI.ctx import SkillContext
 from Core.RohTalk.skillcli_tools import (
+    DST_DIRECTOR_RESULT_INTERVAL_SECONDS,
+    DST_DIRECTOR_RESULT_TIMEOUT_SECONDS,
     _arg_name_to_flag,
     _dict_to_argv,
     build_tool_name_map,
@@ -207,6 +210,43 @@ class SkillCLIToolsTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(result["queued"])
         self.assertEqual(result["bridge_result"], bridge_result)
+
+    def test_execute_skill_uses_longer_dst_director_result_wait_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command_path = Path(temp_dir) / "roh_dst_command.json"
+            result_path = Path(temp_dir) / "roh_dst_command_result.json"
+
+            with patch(
+                "Skills.Game.DST._command_skill.wait_for_command_result",
+                side_effect=TimeoutError("timeout for test"),
+            ) as wait_result:
+                result = execute_skill(
+                    self.ctx,
+                    "Game.DST.Chaos.set_tier",
+                    {
+                        "chaos_tier": 2,
+                        "path": str(command_path),
+                        "command_id": "cmd-defaults",
+                    },
+                )
+
+        wait_result.assert_called_once_with(
+            "cmd-defaults",
+            result_path,
+            DST_DIRECTOR_RESULT_TIMEOUT_SECONDS,
+            DST_DIRECTOR_RESULT_INTERVAL_SECONDS,
+        )
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["queued"])
+        self.assertEqual(result["command_id"], "cmd-defaults")
+        self.assertEqual(result["path"], str(command_path.with_name("roh_dst_command_queue.json")))
+        self.assertEqual(result["result_path"], str(result_path))
+        self.assertEqual(result["reason"], "result_timeout")
+        self.assertEqual(result["status"], "queued_unknown")
+        self.assertEqual(
+            result["message"],
+            "Command was queued but no matching RohBridge result was observed before timeout.",
+        )
 
     def test_execute_skill_raises_for_missing_skill(self) -> None:
         with self.assertRaises(Exception):
