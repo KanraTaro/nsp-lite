@@ -27,3 +27,17 @@ reasons in tool results.
 RohBridge queue writes are file based and not atomic against simultaneous
 writers. Longer multi-command director sequences may still need a higher-level
 batch helper later.
+
+## Director Model Profiles
+
+`Game.DST.Director.run` accepts RohTalk model runtime profiles:
+
+```bash
+nspl-skill skill Game.DST.Director.run --model-profile dst_director_fast --interval 8
+nspl-skill skill Game.DST.Director.run --model-profile dst_director_quality --interval 15
+```
+
+The repo-local `Config/RohTalk/config.json` defines `dst_director_fast` as
+`qwen3:8b` with `think:false`, and `dst_director_quality` as `gpt-oss:20b` with
+`think:"low"`. These are local convenience defaults; users can change them to
+match installed Ollama models.

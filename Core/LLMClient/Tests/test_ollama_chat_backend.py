@@ -161,6 +161,19 @@ class LLMClientChatTests(unittest.TestCase):
         self.assertEqual(tools_payload[0]["type"], "function")
         self.assertEqual(tools_payload[0]["function"]["name"], "get_temp")
 
+    def test_chat_request_includes_top_level_model_options(self) -> None:
+        dummy = DummyPost({"model": "m", "message": {"role": "assistant", "content": "ok"}})
+        client = LLMClient(http_post=dummy)
+
+        client.chat(
+            [{"role": "user", "content": "fast?"}],
+            model="qwen3:8b",
+            model_options={"think": False},
+        )
+
+        _url, payload, _timeout = dummy.calls[0]
+        self.assertFalse(payload["think"])
+
     def test_chat_connection_error(self) -> None:
         """Network errors should map to ConnectionError."""
         dummy = DummyPost(exception=urlerror.URLError("boom"))

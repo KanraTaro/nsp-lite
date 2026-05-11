@@ -46,6 +46,10 @@ class DirectorRunSkillTests(unittest.TestCase):
             "m",
             "--host",
             "h",
+            "--model-profile",
+            "dst_director_fast",
+            "--model-option",
+            "think=false",
         )
 
         self.assertEqual(args.conversation_ref, "abc")
@@ -57,6 +61,8 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertTrue(args.skip_checks)
         self.assertEqual(args.model, "m")
         self.assertEqual(args.host, "h")
+        self.assertEqual(args.model_profile, "dst_director_fast")
+        self.assertEqual(args.model_options, ["think=false"])
 
     def test_once_alias_sets_one_max_turn(self) -> None:
         args = parse_args("--once")
@@ -123,7 +129,7 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertEqual(run_loop.call_args.args[1].conversation_id, "existing_conv")
 
     def test_omitted_conversation_creates_conversation_without_model_reply(self) -> None:
-        args = parse_args("--skip-checks")
+        args = parse_args("--skip-checks", "--model-profile", "dst_director_fast")
 
         with patch.object(skill, "create_conversation", return_value=("new_conv", "")) as create:
             with patch.object(skill, "run_autoroh_loop", return_value=0):
@@ -132,6 +138,7 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertEqual(code, 0)
         create.assert_called_once()
         self.assertTrue(create.call_args.kwargs["skip_model"])
+        self.assertEqual(create.call_args.kwargs["model_profile"], "dst_director_fast")
 
     def test_skip_checks_bypasses_snapshot_preflight(self) -> None:
         args = parse_args("--skip-checks")
@@ -212,6 +219,16 @@ class DirectorRunSkillTests(unittest.TestCase):
             stdout,
         )
 
+    def test_printed_shell_command_includes_model_profile_when_provided(self) -> None:
+        args = parse_args("--skip-checks", "--model-profile", "dst_director_fast")
+
+        with patch.object(skill, "create_conversation", return_value=("new_conv", "")):
+            with patch.object(skill, "run_autoroh_loop", return_value=0):
+                code, stdout, _stderr = self.run_skill(args)
+
+        self.assertEqual(code, 0)
+        self.assertIn("--model-profile dst_director_fast", stdout)
+
     def test_loop_runner_receives_dst_tool_defaults(self) -> None:
         args = parse_args("--skip-checks")
 
@@ -225,6 +242,24 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertTrue(config.tools)
         self.assertEqual(config.observation_tool, "snapshot_read")
         self.assertEqual(config.tool_backend, "skillcli")
+
+    def test_loop_runner_receives_model_profile_and_options(self) -> None:
+        args = parse_args(
+            "--skip-checks",
+            "--model-profile",
+            "dst_director_fast",
+            "--model-option",
+            "temperature=0.1",
+        )
+
+        with patch.object(skill, "create_conversation", return_value=("new_conv", "")):
+            with patch.object(skill, "run_autoroh_loop", return_value=0) as run_loop:
+                code, _stdout, _stderr = self.run_skill(args)
+
+        self.assertEqual(code, 0)
+        config = run_loop.call_args.args[1]
+        self.assertEqual(config.model_profile, "dst_director_fast")
+        self.assertEqual(config.model_options, {"temperature": 0.1})
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ inspected. No exceptions are suppressed here.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from .conversations import create_conversation, append_message
 
@@ -25,6 +25,8 @@ def run_conversation(
     kind: str = "conversation",
     model: Optional[str] = None,
     host: Optional[str] = None,
+    model_profile: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     title: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Execute a single turn of a RohTalk conversation.
@@ -53,6 +55,8 @@ def run_conversation(
             kind=kind,
             model=model,
             host=host,
+            model_profile=model_profile,
+            model_options=model_options,
             title=title,
         )
         return conv_id, reply
@@ -64,5 +68,7 @@ def run_conversation(
         user_message,
         model=model,
         host=host,
+        model_profile=model_profile,
+        model_options=model_options,
     )
     return conversation_id, reply

@@ -78,6 +78,15 @@ class LLMClientOllamaTests(unittest.TestCase):
         url, _, _ = dummy.calls[0]
         self.assertEqual(url, "http://localhost:11434/api/generate")
 
+    def test_generate_request_includes_top_level_model_options(self) -> None:
+        dummy = DummyPost({"response": "OK"})
+        client = LLMClient(http_post=dummy)
+
+        client.generate("Hi", model="gpt-oss:20b", model_options={"think": "low"})
+
+        _url, payload, _timeout = dummy.calls[0]
+        self.assertEqual(payload["think"], "low")
+
     def test_connection_error(self) -> None:
         """Network errors should map to ConnectionError."""
         dummy = DummyPost(exception=urlerror.URLError("boom"))
@@ -134,4 +143,3 @@ class LLMClientOllamaTests(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
-

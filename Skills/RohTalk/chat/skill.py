@@ -10,7 +10,7 @@ import sys
 from typing import Any, List
 
 from Core.LLMClient.types import LLMClientError
-from Core.RohTalk import resolve_conversation_ref, run_turn
+from Core.RohTalk import parse_model_option_args, resolve_conversation_ref, run_turn
 from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 
 
@@ -21,6 +21,14 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--model", dest="model", default=None, help="Optional model override")
     parser.add_argument("--host", dest="host", default=None, help="Optional backend URL override")
+    parser.add_argument("--model-profile", dest="model_profile", default=None, help="Optional model profile name")
+    parser.add_argument(
+        "--model-option",
+        dest="model_options",
+        action="append",
+        default=[],
+        help="Model runtime option as key=value; repeatable",
+    )
     parser.add_argument("--tools", dest="tools", action="store_true", help="Enable tool-capable turn")
     parser.add_argument(
         "--tool-backend",
@@ -61,6 +69,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         return 2
 
     try:
+        raw_model_options = getattr(args, "model_options", [])
         conversation_id = resolve_conversation_ref(ctx, args.conversation_ref)
         use_tool_trace = bool(args.tools) and bool(getattr(args, "tool_trace", False))
         callback_kwargs = {}
@@ -78,6 +87,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
             kind="conversation",
             model=args.model,
             host=args.host,
+            model_profile=getattr(args, "model_profile", None),
+            model_options=parse_model_option_args(raw_model_options) if raw_model_options else None,
             title=None,
             use_tools=bool(args.tools),
             tool_backend=str(args.tool_backend),

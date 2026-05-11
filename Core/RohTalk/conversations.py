@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from Core.LLMClient.client import LLMClient
 from Core.LLMClient.types import ChatResult
 
-from .config import load_config
+from .config import load_config, resolve_model_profile
 from .messages import append_user_message, assemble_initial_messages
 
 
@@ -99,6 +99,8 @@ def create_conversation(
     kind: str = "conversation",
     model: Optional[str] = None,
     host: Optional[str] = None,
+    model_profile: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     title: Optional[str] = None,
     skip_model: bool = False,
 ) -> Tuple[str, str]:
@@ -106,8 +108,16 @@ def create_conversation(
     node_ctx = ctx.node_ctx
     config = load_config(ctx)
 
-    model_to_use = model or config.default_model
-    host_to_use = host or config.default_host
+    resolved_model = resolve_model_profile(
+        ctx,
+        model_profile,
+        model_override=model,
+        host_override=host,
+        option_overrides=model_options,
+    )
+    model_to_use = resolved_model.model
+    host_to_use = resolved_model.host
+    options_to_use = dict(resolved_model.options)
     resolved_title = str(title).strip() if title is not None and str(title).strip() != "" else _derive_title(user_message)
 
     initial_messages = assemble_initial_messages(config.agent_identity, user_message)
@@ -115,7 +125,12 @@ def create_conversation(
     assistant_text = ""
     if not skip_model:
         client = LLMClient()
-        result: ChatResult = client.chat(initial_messages, model=model_to_use, host=host_to_use)
+        result: ChatResult = client.chat(
+            initial_messages,
+            model=model_to_use,
+            host=host_to_use,
+            model_options=options_to_use,
+        )
         assistant_text = result.text
 
     conversation_id = uuid.uuid4().hex
@@ -138,6 +153,8 @@ def create_conversation(
         "messages": conv_messages,
         "model": model_to_use,
         "host": host_to_use,
+        "model_profile": resolved_model.profile_name,
+        "model_options": options_to_use,
         "agent_name": config.agent_name,
     }
 
@@ -182,6 +199,8 @@ def append_message(
     *,
     model: Optional[str] = None,
     host: Optional[str] = None,
+    model_profile: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Append a user message to an existing conversation and return the reply."""
     node_ctx = ctx.node_ctx
@@ -191,11 +210,35 @@ def append_message(
     new_messages = append_user_message(messages, user_message)
 
     config = load_config(ctx)
-    model_to_use = model or metadata.get("model") or config.default_model
-    host_to_use = host or metadata.get("host") or config.default_host
+    has_runtime_override = any(
+        value is not None for value in (model, host, model_profile, model_options)
+    )
+    if has_runtime_override:
+        resolved_model = resolve_model_profile(
+            ctx,
+            model_profile,
+            model_override=model,
+            host_override=host,
+            option_overrides=model_options,
+        )
+        model_to_use = resolved_model.model
+        host_to_use = resolved_model.host
+        profile_to_use = resolved_model.profile_name
+        options_to_use = dict(resolved_model.options)
+    else:
+        model_to_use = metadata.get("model") or config.default_model
+        host_to_use = metadata.get("host") or config.default_host
+        profile_to_use = metadata.get("model_profile")
+        stored_options = metadata.get("model_options")
+        options_to_use = dict(stored_options) if isinstance(stored_options, dict) else dict(config.default_options or {})
 
     client = LLMClient()
-    result: ChatResult = client.chat(new_messages, model=model_to_use, host=host_to_use)
+    result: ChatResult = client.chat(
+        new_messages,
+        model=model_to_use,
+        host=host_to_use,
+        model_options=options_to_use,
+    )
     assistant_text = result.text
 
     messages.append({"role": "user", "content": user_message})
@@ -206,6 +249,8 @@ def append_message(
     metadata["updated_at"] = now_iso
     metadata["model"] = model_to_use
     metadata["host"] = host_to_use
+    metadata["model_profile"] = profile_to_use
+    metadata["model_options"] = options_to_use
 
     meta_path = _metadata_path(ctx, conversation_id)
     node_ctx.write_json_atomic(meta_path, metadata)
@@ -255,6 +300,8 @@ def update_conversation_messages(
     *,
     model: Optional[str] = None,
     host: Optional[str] = None,
+    model_profile: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Persist an updated full message list back into an existing conversation.
 
@@ -290,6 +337,10 @@ def update_conversation_messages(
         metadata["model"] = model
     if host is not None:
         metadata["host"] = host
+    if model_profile is not None:
+        metadata["model_profile"] = model_profile
+    if model_options is not None:
+        metadata["model_options"] = dict(model_options)
 
     meta_path = _metadata_path(ctx, conversation_id)
     node_ctx.write_json_atomic(meta_path, metadata)

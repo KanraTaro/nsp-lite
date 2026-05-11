@@ -163,6 +163,7 @@ Core/LLMClient/
 - streaming parse logic
 - tool call extraction
 - assistant message normalization
+- top-level model runtime options such as `think`
 
 ---
 
@@ -240,6 +241,7 @@ result = client.chat(
         {"role": "user", "content": "Hello"}
     ],
     model="qwen3:1.7b",
+    model_options={"think": False},
 )
 
 print(result.text)

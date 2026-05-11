@@ -45,6 +45,16 @@ def _build_url(host: str) -> str:
     return f"{host}/api/generate"
 
 
+def _apply_model_options(payload: Dict[str, Any], model_options: Optional[Dict[str, Any]]) -> None:
+    if not isinstance(model_options, dict):
+        return
+    for key, value in model_options.items():
+        cleaned_key = str(key or "").strip()
+        if cleaned_key == "":
+            continue
+        payload[cleaned_key] = value
+
+
 def _normalize_tool_call_id(
     *,
     call: Optional[Dict[str, Any]] = None,
@@ -118,6 +128,7 @@ def generate(
     model: Optional[str] = None,
     host: Optional[str] = None,
     timeout_s: Optional[float] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     http_post: Optional[PostJSONCallable] = None,
 ) -> str:
     """Generate a completion for ``prompt`` using the Ollama API."""
@@ -133,6 +144,7 @@ def generate(
         "prompt": str(prompt) if prompt is not None else "",
         "stream": False,
     }
+    _apply_model_options(payload, model_options)
 
     post: PostJSONCallable = http_post or _post_json
     try:
@@ -326,6 +338,7 @@ def chat(
     timeout_s: Optional[float] = None,
     tools: Optional[list[Any]] = None,
     tool_choice: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     http_post: Optional[PostJSONCallable] = None,
 ) -> "ChatResult":
     """Send a chat conversation to the Ollama API and return the final reply."""
@@ -343,6 +356,7 @@ def chat(
         "messages": _convert_messages(messages),
         "stream": False,
     }
+    _apply_model_options(payload, model_options)
 
     tool_payload = _convert_tools(tools)
     if tool_payload:
@@ -431,6 +445,7 @@ def chat_stream(
     timeout_s: Optional[float] = None,
     tools: Optional[list[Any]] = None,
     tool_choice: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     http_post: Optional[PostJSONCallable] = None,
     http_stream: Optional[Any] = None,
 ) -> Iterator["StreamEvent"]:
@@ -450,6 +465,7 @@ def chat_stream(
         "messages": _convert_messages(messages),
         "stream": True,
     }
+    _apply_model_options(payload, model_options)
 
     tool_payload = _convert_tools(tools)
     if tool_payload:

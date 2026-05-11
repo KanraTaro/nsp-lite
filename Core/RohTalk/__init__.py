@@ -6,7 +6,13 @@ plain model turns, tool-capable turns, tool kit resolution, and shared
 turn orchestration.
 """
 
-from .config import RohTalkConfig, load_config
+from .config import (
+    ResolvedModelProfile,
+    RohTalkConfig,
+    load_config,
+    parse_model_option_args,
+    resolve_model_profile,
+)
 from .messages import assemble_initial_messages
 from .conversations import (
     append_message,
@@ -25,7 +31,10 @@ from .refs import resolve_conversation_ref, short_conversation_id
 
 __all__ = [
     "load_config",
+    "resolve_model_profile",
+    "parse_model_option_args",
     "RohTalkConfig",
+    "ResolvedModelProfile",
     "assemble_initial_messages",
     "create_conversation",
     "get_conversation",

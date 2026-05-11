@@ -203,8 +203,37 @@ Supported keys:
 - agent_identity
 - default_model
 - default_host
+- default_options
+- profiles
 
 Missing values fall back to defaults.
+
+`default_options` is a JSON object merged into model requests. For Ollama,
+these keys are sent as top-level request fields, so live-agent settings such as
+`"think": false` or `"think": "low"` are API controls rather than prompt text.
+
+`profiles` is a map of named runtime presets. A profile can define `model`,
+`host`, and `options`; explicit CLI `--model`, `--host`, and `--model-option`
+values override profile values.
+
+Example:
+
+```json
+{
+  "default_model": "gpt-oss:20b",
+  "default_options": {
+    "think": "low"
+  },
+  "profiles": {
+    "dst_director_fast": {
+      "model": "qwen3:8b",
+      "options": {
+        "think": false
+      }
+    }
+  }
+}
+```
 
 ---
 

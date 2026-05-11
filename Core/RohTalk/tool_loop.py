@@ -124,6 +124,7 @@ def run_tool_loop(
     skill_name_map: Optional[SkillNameMap] = None,
     skill_executor: Optional[SkillExecutor] = None,
     host: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     timeout_s: Optional[float] = None,
     max_steps: int = 5,
     client: Optional[LLMClient] = None,
@@ -148,6 +149,7 @@ def run_tool_loop(
             host=host,
             timeout_s=timeout_s,
             tools=tools,
+            model_options=model_options,
             on_text_delta=on_text_delta,
         )
 

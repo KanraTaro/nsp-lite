@@ -109,6 +109,30 @@ class RohTalkCoreTests(unittest.TestCase):
         self.assertEqual(len(events), 3)
         self.assertEqual([event["role"] for event in events], ["system", "user", "assistant"])
 
+    def test_create_conversation_stores_model_profile_and_options(self) -> None:
+        config_path = Path(self.ctx.root) / "Config" / "RohTalk" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            '{"default_model":"gpt-oss:20b","default_options":{"think":"low"},'
+            '"profiles":{"fast":{"model":"qwen3:8b","options":{"think":false}}}}',
+            encoding="utf-8",
+        )
+
+        conv_id, _reply = create_conversation(
+            self.ctx,
+            "hello",
+            kind="conversation",
+            model_profile="fast",
+            skip_model=True,
+        )
+
+        meta_files = self.ctx.node_ctx.list_files(self._conversation_dir(), suffix=".json")
+        self.assertEqual(len(meta_files), 1)
+        metadata = self.ctx.node_ctx.read_json(meta_files[0])
+        self.assertEqual(metadata["model"], "qwen3:8b")
+        self.assertEqual(metadata["model_profile"], "fast")
+        self.assertEqual(metadata["model_options"], {"think": False})
+
     def test_append_message(self) -> None:
         node_ctx = self.ctx.node_ctx
 
@@ -367,6 +391,29 @@ class RohTalkCoreTests(unittest.TestCase):
         self.assertEqual(final_messages[3]["tool_call_id"], "call_9")
         self.assertEqual(final_messages[3]["tool_name"], "missing_tool")
         self.assertIn('"ok":false', final_messages[3]["content"])
+
+    def test_run_tool_loop_passes_model_options_to_client(self) -> None:
+        tools: list[ToolDef] = []
+        result = ChatResult(
+            text="fast reply",
+            tool_calls=[],
+            assistant_message={"role": "assistant", "content": "fast reply"},
+            raw={},
+        )
+
+        with patch("Core.RohTalk.tool_loop.LLMClient") as mock_client_cls:
+            instance = mock_client_cls.return_value
+            instance.chat_stream_collect.return_value = result
+
+            final_text, _final_messages = run_tool_loop(
+                [{"role": "user", "content": "hello"}],
+                model="qwen3:8b",
+                tools=tools,
+                model_options={"think": False},
+            )
+
+        self.assertEqual(final_text, "fast reply")
+        self.assertEqual(instance.chat_stream_collect.call_args.kwargs["model_options"], {"think": False})
 
     def test_run_tool_loop_stop_hook_appends_result_and_stops_before_next_model_call(self) -> None:
         tools = [
@@ -643,6 +690,9 @@ class RohTalkCoreTests(unittest.TestCase):
         chat_args = chat_parser.parse_args(["--tools", "--tool-trace", "0", "--", "hello"])
         self.assertTrue(chat_args.tools)
         self.assertTrue(chat_args.tool_trace)
+        profile_args = chat_parser.parse_args(["--model-profile", "fast", "--model-option", "think=false", "0", "--", "hello"])
+        self.assertEqual(profile_args.model_profile, "fast")
+        self.assertEqual(profile_args.model_options, ["think=false"])
 
         shell_parser = argparse.ArgumentParser()
         rohtalk_shell_skill.build_parser(shell_parser)

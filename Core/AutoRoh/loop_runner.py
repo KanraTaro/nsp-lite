@@ -67,6 +67,8 @@ class AutoRohLoopConfig:
     title: str = "AutoRoh Loop"
     model: Optional[str] = None
     host: Optional[str] = None
+    model_profile: Optional[str] = None
+    model_options: Optional[Dict[str, Any]] = None
     tools: bool = False
     tool_backend: str = "skillcli"
     toolkit: str = "basic"
@@ -210,6 +212,8 @@ def run_autoroh_loop(ctx: Any, config: AutoRohLoopConfig) -> int:
                 kind="conversation",
                 model=config.model,
                 host=config.host,
+                model_profile=config.model_profile,
+                model_options=config.model_options,
                 title=config.title,
                 use_tools=bool(config.tools),
                 tool_backend=str(config.tool_backend),

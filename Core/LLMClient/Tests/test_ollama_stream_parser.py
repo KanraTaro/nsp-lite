@@ -106,6 +106,21 @@ class LLMClientStreamTests(unittest.TestCase):
         self.assertTrue(payload["stream"])
         self.assertIsNone(timeout)
 
+    def test_chat_stream_request_includes_top_level_model_options(self) -> None:
+        dummy_stream = DummyStream([{"message": {"content": "ok"}}])
+        client = LLMClient(http_stream=dummy_stream)
+
+        list(
+            client.chat_stream(
+                [{"role": "user", "content": "Hello"}],
+                model="qwen3:8b",
+                model_options={"think": False},
+            )
+        )
+
+        _url, payload, _timeout = dummy_stream.calls[0]
+        self.assertFalse(payload["think"])
+
     def test_chat_stream_collect_text_only(self) -> None:
         """Collected streaming text should return a ChatResult with assistant_message."""
         chunks = [

@@ -1,3 +1,20 @@
 {
-  "default_model": "gpt-oss:20b"
+  "default_model": "gpt-oss:20b",
+  "default_options": {
+    "think": "low"
+  },
+  "profiles": {
+    "dst_director_fast": {
+      "model": "qwen3:8b",
+      "options": {
+        "think": false
+      }
+    },
+    "dst_director_quality": {
+      "model": "gpt-oss:20b",
+      "options": {
+        "think": "low"
+      }
+    }
+  }
 }

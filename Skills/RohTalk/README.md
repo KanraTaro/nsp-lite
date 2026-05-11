@@ -31,6 +31,8 @@ Supports:
 - automatic title generation
 - optional model override
 - optional host override
+- optional model profile with `--model-profile`
+- repeatable model runtime options with `--model-option key=value`
 - optional tool loop execution with `--tools`
 
 Usage:
@@ -59,6 +61,8 @@ Supports:
 - numeric index from `RohTalk.list_conversations`
 - optional model override
 - optional host override
+- optional model profile with `--model-profile`
+- repeatable model runtime options with `--model-option key=value`
 - optional tool loop execution with `--tools`
 
 Usage:
@@ -68,6 +72,10 @@ nspl-skill skill RohTalk.chat 0 -- "How are you?"
 Tool-enabled:
 
 nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather like in New York?"
+
+Model profile example:
+
+nspl-skill skill RohTalk.chat --model-profile dst_director_fast 0 -- "Keep this fast"
 
 ---
 
@@ -264,6 +272,23 @@ Conversations can be resumed, inspected, and replayed from disk.
 - `--tools` = multi-step tool-capable reasoning loop
 
 This keeps the basic CLI simple while allowing richer agent behavior when needed.
+
+---
+
+### Model Runtime Options
+
+RohTalk loads `default_model`, `default_options`, and named `profiles` from
+`Config/RohTalk/config.json` or the State override config. Profiles can set a
+model, host, and provider options. For Ollama, options are sent as top-level
+request fields, which supports fast local settings such as `think=false`.
+
+Examples:
+
+nspl-skill skill RohTalk.start --model-profile dst_director_fast -- "Hello"
+
+nspl-skill skill RohTalk.shell --model-profile dst_director_quality
+
+nspl-skill skill RohTalk.chat --model-option think=false 0 -- "Short answer"
 
 ---
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .config import load_config
+from .config import load_config, resolve_model_profile
 from .conversations import (
     create_conversation,
     get_conversation,
@@ -37,6 +37,8 @@ def _load_or_create_messages(
     kind: str,
     model: Optional[str],
     host: Optional[str],
+    model_profile: Optional[str],
+    model_options: Optional[Dict[str, Any]],
     title: Optional[str],
 ) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
     if conversation_id is None:
@@ -46,6 +48,8 @@ def _load_or_create_messages(
             kind=kind,
             model=model,
             host=host,
+            model_profile=model_profile,
+            model_options=model_options,
             title=title,
             skip_model=True,
         )
@@ -67,6 +71,8 @@ def run_turn(
     kind: str = "conversation",
     model: Optional[str] = None,
     host: Optional[str] = None,
+    model_profile: Optional[str] = None,
+    model_options: Optional[Dict[str, Any]] = None,
     title: Optional[str] = None,
     use_tools: bool = False,
     tool_backend: str = "skillcli",
@@ -97,6 +103,8 @@ def run_turn(
             kind=kind,
             model=model,
             host=host,
+            model_profile=model_profile,
+            model_options=model_options,
             title=title,
         )
 
@@ -109,11 +117,32 @@ def run_turn(
         kind=kind,
         model=model,
         host=host,
+        model_profile=model_profile,
+        model_options=model_options,
         title=title,
     )
 
-    model_to_use = model or metadata.get("model") or config.default_model
-    host_to_use = host or metadata.get("host") or config.default_host
+    has_runtime_override = any(
+        value is not None for value in (model, host, model_profile, model_options)
+    )
+    if has_runtime_override:
+        resolved_model = resolve_model_profile(
+            ctx,
+            model_profile,
+            model_override=model,
+            host_override=host,
+            option_overrides=model_options,
+        )
+        model_to_use = resolved_model.model
+        host_to_use = resolved_model.host
+        profile_to_use = resolved_model.profile_name
+        options_to_use = dict(resolved_model.options)
+    else:
+        model_to_use = model or metadata.get("model") or config.default_model
+        host_to_use = host or metadata.get("host") or config.default_host
+        profile_to_use = metadata.get("model_profile")
+        stored_options = metadata.get("model_options")
+        options_to_use = dict(stored_options) if isinstance(stored_options, dict) else dict(config.default_options or {})
 
     callback_kwargs: Dict[str, Any] = {}
     if on_step is not None:
@@ -132,6 +161,7 @@ def run_turn(
             messages,
             model=model_to_use,
             host=host_to_use,
+            model_options=options_to_use,
             tools=LOCAL_TOOLS,
             tool_impl=LOCAL_TOOL_IMPL,
             execution_mode="local",
@@ -145,6 +175,7 @@ def run_turn(
             messages,
             model=model_to_use,
             host=host_to_use,
+            model_options=options_to_use,
             tools=resolved_toolkit.tools,
             tool_impl=None,
             execution_mode="skillcli",
@@ -163,6 +194,8 @@ def run_turn(
         final_messages,
         model=model_to_use,
         host=host_to_use,
+        model_profile=profile_to_use,
+        model_options=options_to_use,
     )
 
     return conversation_id, final_text

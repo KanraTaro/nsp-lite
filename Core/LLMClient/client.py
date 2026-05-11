@@ -10,7 +10,7 @@ Face, etc.).  The backend name may be supplied at construction time.
 """
 
 from __future__ import annotations
-from typing import Optional, Any, Iterator
+from typing import Optional, Any, Iterator, Dict
 from .types import PostJSONCallable, StreamJSONCallable, LLMClientError, ChatResult, StreamEvent
 
 class LLMClient:
@@ -55,6 +55,7 @@ class LLMClient:
         model: Optional[str] = None,
         host: Optional[str] = None,
         timeout_s: Optional[float] = None,
+        model_options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate a completion for ``prompt`` via the configured backend.
 
@@ -77,6 +78,7 @@ class LLMClient:
             model=model,
             host=host,
             timeout_s=timeout_s,
+            model_options=model_options,
             http_post=self.http_post,
         )
 
@@ -89,6 +91,7 @@ class LLMClient:
         timeout_s: Optional[float] = None,
         tools: Optional[list[Any]] = None,
         tool_choice: Optional[str] = None,
+        model_options: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         """Send a chat conversation to the configured backend and return the final reply.
 
@@ -123,6 +126,7 @@ class LLMClient:
             timeout_s=timeout_s,
             tools=tools,
             tool_choice=tool_choice,
+            model_options=model_options,
             http_post=self.http_post,
         )
 
@@ -135,6 +139,7 @@ class LLMClient:
         timeout_s: Optional[float] = None,
         tools: Optional[list[Any]] = None,
         tool_choice: Optional[str] = None,
+        model_options: Optional[Dict[str, Any]] = None,
     ) -> Iterator[StreamEvent]:
         """Stream a chat conversation via the configured backend.
 
@@ -152,6 +157,7 @@ class LLMClient:
             timeout_s=timeout_s,
             tools=tools,
             tool_choice=tool_choice,
+            model_options=model_options,
             http_post=self.http_post,
             http_stream=self.http_stream,
         )
@@ -165,6 +171,7 @@ class LLMClient:
         timeout_s: Optional[float] = None,
         tools: Optional[list[Any]] = None,
         tool_choice: Optional[str] = None,
+        model_options: Optional[Dict[str, Any]] = None,
         on_text_delta: Optional[Any] = None,
     ):
         """Run a streaming chat call and collect it into a ChatResult.
@@ -192,6 +199,7 @@ class LLMClient:
             timeout_s=timeout_s,
             tools=tools,
             tool_choice=tool_choice,
+            model_options=model_options,
         )
 
         for event in events:

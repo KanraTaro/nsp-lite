@@ -16,6 +16,10 @@ The configuration controls:
   supplied on the command line. Use ``qwen3:0.6b`` for examples.
 * ``default_host`` - optional base URL of the model backend. When
   omitted, the underlying LLMClient will use its own default.
+* ``default_options`` - optional provider request options such as
+  Ollama's top-level ``think`` control.
+* ``profiles`` - optional named model profiles with ``model``, ``host``,
+  and ``options`` fields.
 
 The lookup order for configuration values is:
 
@@ -34,6 +38,7 @@ the resolved configuration.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
@@ -47,6 +52,18 @@ class RohTalkConfig:
     agent_identity: str
     default_model: str
     default_host: str | None = None
+    default_options: Dict[str, Any] | None = None
+    profiles: Dict[str, Dict[str, Any]] | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedModelProfile:
+    """Resolved model runtime settings for a RohTalk model call."""
+
+    profile_name: str | None
+    model: str
+    host: str | None
+    options: Dict[str, Any]
 
 
 _DEFAULTS: Dict[str, Any] = {
@@ -57,7 +74,36 @@ _DEFAULTS: Dict[str, Any] = {
     ),
     "default_model": "qwen3:0.6b",
     "default_host": None,
+    "default_options": {},
+    "profiles": {},
 }
+
+
+def _clean_options(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in value.items() if str(key).strip() != ""}
+
+
+def _clean_profiles(value: Any) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(value, dict):
+        return {}
+
+    profiles: Dict[str, Dict[str, Any]] = {}
+    for raw_name, raw_profile in value.items():
+        name = str(raw_name or "").strip()
+        if name == "" or not isinstance(raw_profile, dict):
+            continue
+
+        profile: Dict[str, Any] = {}
+        if raw_profile.get("model") is not None:
+            profile["model"] = str(raw_profile.get("model"))
+        if raw_profile.get("host") is not None:
+            profile["host"] = str(raw_profile.get("host"))
+        profile["options"] = _clean_options(raw_profile.get("options", {}))
+        profiles[name] = profile
+
+    return profiles
 
 
 def _load_config_file(ctx, path: Path) -> Dict[str, Any]:
@@ -104,4 +150,77 @@ def load_config(ctx) -> RohTalkConfig:
         agent_identity=merged["agent_identity"],
         default_model=merged["default_model"],
         default_host=merged.get("default_host"),
+        default_options=_clean_options(merged.get("default_options", {})),
+        profiles=_clean_profiles(merged.get("profiles", {})),
+    )
+
+
+def parse_model_option_args(values: Any) -> Dict[str, Any]:
+    """Parse repeated key=value CLI options into a model options dict."""
+    options: Dict[str, Any] = {}
+    for raw_value in list(values or []):
+        text = str(raw_value or "").strip()
+        if text == "":
+            continue
+        if "=" not in text:
+            raise ValueError(f"Model option must be key=value: {text}")
+        key, raw_option_value = text.split("=", 1)
+        key = key.strip()
+        if key == "":
+            raise ValueError(f"Model option key cannot be empty: {text}")
+
+        raw_option_value = raw_option_value.strip()
+        try:
+            parsed_value = json.loads(raw_option_value)
+        except json.JSONDecodeError:
+            lowered = raw_option_value.lower()
+            if lowered == "true":
+                parsed_value = True
+            elif lowered == "false":
+                parsed_value = False
+            elif lowered == "null":
+                parsed_value = None
+            else:
+                parsed_value = raw_option_value
+        options[key] = parsed_value
+    return options
+
+
+def resolve_model_profile(
+    ctx: Any,
+    profile_name: str | None = None,
+    *,
+    model_override: str | None = None,
+    host_override: str | None = None,
+    option_overrides: Dict[str, Any] | None = None,
+) -> ResolvedModelProfile:
+    """Resolve model, host, and options from config, profile, and overrides."""
+    config = load_config(ctx)
+    selected_profile_name = str(profile_name or "").strip() or None
+    profiles = config.profiles or {}
+
+    profile: Dict[str, Any] = {}
+    if selected_profile_name is not None:
+        profile = profiles.get(selected_profile_name, {})
+        if not profile:
+            raise ValueError(f"Unknown RohTalk model profile: {selected_profile_name}")
+
+    options: Dict[str, Any] = dict(config.default_options or {})
+    options.update(_clean_options(profile.get("options", {})))
+    options.update(_clean_options(option_overrides or {}))
+
+    model = str(
+        model_override
+        or profile.get("model")
+        or config.default_model
+    )
+    host = host_override
+    if host is None:
+        host = profile.get("host") or config.default_host
+
+    return ResolvedModelProfile(
+        profile_name=selected_profile_name,
+        model=model,
+        host=host,
+        options=options,
     )

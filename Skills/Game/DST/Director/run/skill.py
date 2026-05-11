@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Any, Optional
 
 from Core.AutoRoh.loop_runner import AutoRohLoopConfig, run_autoroh_loop
 from Core.AutoRoh.observations import call_observation_tool
-from Core.RohTalk import create_conversation, resolve_conversation_ref
+from Core.RohTalk import (
+    create_conversation,
+    parse_model_option_args,
+    resolve_conversation_ref,
+)
 
 
 DST_DIRECTOR_SEED_PROMPT = (
@@ -74,12 +79,22 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--model", dest="model", default=None, help="Optional model override.")
     parser.add_argument("--host", dest="host", default=None, help="Optional backend URL override.")
+    parser.add_argument("--model-profile", dest="model_profile", default=None, help="Optional model profile name.")
+    parser.add_argument(
+        "--model-option",
+        dest="model_options",
+        action="append",
+        default=[],
+        help="Model runtime option as key=value; repeatable.",
+    )
 
 
 def _print_shell_command(
     conversation_id: str,
     model: str | None = None,
     host: str | None = None,
+    model_profile: str | None = None,
+    model_options: dict[str, Any] | None = None,
 ) -> None:
     command_parts = [
         "shell: nspl-skill skill RohTalk.shell",
@@ -92,12 +107,21 @@ def _print_shell_command(
         command_parts.append(f"--model {model}")
     if host:
         command_parts.append(f"--host {host}")
+    if model_profile:
+        command_parts.append(f"--model-profile {model_profile}")
+    for key, value in sorted((model_options or {}).items()):
+        command_parts.append(f"--model-option {key}={json.dumps(value, separators=(',', ':'))}")
     print(
         " ".join(command_parts)
     )
 
 
-def _resolve_or_create_conversation(args: argparse.Namespace, ctx: Any) -> Optional[str]:
+def _resolve_or_create_conversation(
+    args: argparse.Namespace,
+    ctx: Any,
+    *,
+    model_options: dict[str, Any] | None,
+) -> Optional[str]:
     if args.conversation_ref:
         return resolve_conversation_ref(ctx, args.conversation_ref)
 
@@ -107,6 +131,8 @@ def _resolve_or_create_conversation(args: argparse.Namespace, ctx: Any) -> Optio
         kind="conversation",
         model=getattr(args, "model", None),
         host=getattr(args, "host", None),
+        model_profile=getattr(args, "model_profile", None),
+        model_options=model_options,
         title=str(getattr(args, "title", "DST Director") or "DST Director"),
         skip_model=True,
     )
@@ -115,7 +141,13 @@ def _resolve_or_create_conversation(args: argparse.Namespace, ctx: Any) -> Optio
 
 def run(args: argparse.Namespace, ctx: Any) -> int:
     try:
-        conversation_id = _resolve_or_create_conversation(args, ctx)
+        raw_model_options = getattr(args, "model_options", [])
+        parsed_model_options = parse_model_option_args(raw_model_options) if raw_model_options else None
+        conversation_id = _resolve_or_create_conversation(
+            args,
+            ctx,
+            model_options=parsed_model_options,
+        )
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -129,6 +161,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         conversation_id,
         model=getattr(args, "model", None),
         host=getattr(args, "host", None),
+        model_profile=getattr(args, "model_profile", None),
+        model_options=parsed_model_options,
     )
 
     if not bool(getattr(args, "skip_checks", False)):
@@ -155,6 +189,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         title=str(getattr(args, "title", "DST Director") or "DST Director"),
         model=getattr(args, "model", None),
         host=getattr(args, "host", None),
+        model_profile=getattr(args, "model_profile", None),
+        model_options=parsed_model_options,
         tools=True,
         tool_backend="skillcli",
         toolkit="dst_director",

@@ -22,6 +22,7 @@ from Core.LLMClient.types import LLMClientError
 from Core.RohTalk import (
     append_note,
     get_conversation,
+    parse_model_option_args,
     resolve_conversation_ref,
     run_turn,
 )
@@ -160,6 +161,19 @@ def build_parser(parser: argparse.ArgumentParser) -> None:
         help="Optional backend URL override",
     )
     parser.add_argument(
+        "--model-profile",
+        dest="model_profile",
+        default=None,
+        help="Optional model profile name",
+    )
+    parser.add_argument(
+        "--model-option",
+        dest="model_options",
+        action="append",
+        default=[],
+        help="Model runtime option as key=value; repeatable",
+    )
+    parser.add_argument(
         "--show-history",
         dest="show_history",
         action="store_true",
@@ -219,6 +233,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     conversation_id: Optional[str] = None
     seen_count = 0
     recent_count = max(1, int(getattr(args, "recent_count", 8) or 8))
+    raw_model_options = getattr(args, "model_options", [])
+    parsed_model_options = parse_model_option_args(raw_model_options) if raw_model_options else None
 
     try:
         if args.conversation_ref:
@@ -341,6 +357,8 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 kind="conversation",
                 model=args.model,
                 host=args.host,
+                model_profile=getattr(args, "model_profile", None),
+                model_options=parsed_model_options,
                 title=args.title,
                 use_tools=bool(args.tools),
                 tool_backend=str(args.tool_backend),

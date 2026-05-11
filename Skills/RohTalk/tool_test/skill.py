@@ -93,6 +93,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         config = load_config(ctx)
         model = args.model or config.default_model
         host = args.host or config.default_host
+        model_options = dict(getattr(config, "default_options", {}) or {})
 
         messages: List[Dict[str, Any]] = [
             {
@@ -121,6 +122,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 messages,
                 model=model,
                 host=host,
+                model_options=model_options,
                 tools=LOCAL_TOOLS,
                 tool_impl=LOCAL_TOOL_IMPL,
                 execution_mode="local",
@@ -134,6 +136,7 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
                 messages,
                 model=model,
                 host=host,
+                model_options=model_options,
                 tools=toolkit.tools,
                 tool_impl=None,
                 execution_mode="skillcli",
