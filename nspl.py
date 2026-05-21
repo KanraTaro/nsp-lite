@@ -36,7 +36,7 @@ def _bootstrap_root_on_syspath(repo_root: Path) -> None:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="nspl",
-        description="NSPL gateway entrypoint (skills, guis, and future subsystems).",
+        description="NSPL gateway entrypoint.",
         add_help=True,
     )
 
@@ -53,22 +53,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Caller working directory context (default: current shell cwd).",
     )
 
-    sub = p.add_subparsers(dest="sub", required=True)
-
-    skill = sub.add_parser("skill", help="Forward to SkillCLI")
-    skill.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to SkillCLI")
-
-    gui = sub.add_parser("gui", help="Forward to GUICLI")
-    gui.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to GUICLI")
+    p.add_argument(
+        "args",
+        nargs=argparse.REMAINDER,
+        help="Arguments passed to Core.NSPL.Entry.",
+    )
 
     return p
-
-
-def _forward_to_module_main(module_main, argv: List[str]) -> int:
-    result = module_main(argv)
-    if isinstance(result, int):
-        return int(result)
-    return 0
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -101,19 +92,12 @@ def main(argv: List[str] | None = None) -> int:
 
     # Critical: run CLIs from repo_root so ProjectRoot discovery works reliably.
     with _Pushd(repo_root):
-        if args.sub == "skill":
-            from Core.NSPL.SkillCLI.skillcli import main as skill_main
-            forwarded = [a for a in args.args if a != "--"]
-            return _forward_to_module_main(skill_main, forwarded)
+        from Core.NSPL.Entry.context import EntryContext
+        from Core.NSPL.Entry.entry import main as entry_main
 
-        if args.sub == "gui":
-            from Core.NSPL.GUICLI.guicli import main as gui_main
-            forwarded = [a for a in args.args if a != "--"]
-            return _forward_to_module_main(gui_main, forwarded)
-
-    return 0
+        context = EntryContext.from_paths(repo_root=repo_root, caller_cwd=caller_cwd)
+        return entry_main(list(args.args), context=context)
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

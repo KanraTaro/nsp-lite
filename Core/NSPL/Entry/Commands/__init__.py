@@ -1,0 +1,1 @@
+"""Entry command surface adapters."""

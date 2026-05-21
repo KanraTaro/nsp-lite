@@ -10,6 +10,19 @@ Nothing in this directory is a “skill.”
 
 ## Modules
 
+### Entry
+
+The unified command spine behind the root `nspl.py` gateway.
+
+Responsibilities:
+- Route NSPL command surfaces after repo bootstrap
+- Preserve one Entry with many surfaces
+- Delegate `skill` and `gui` to the existing implementations during the compatibility transition
+
+`nspl.py` remains the thin repo-root bootstrapper for `--root`, `--cwd`, sys.path setup, and caller cwd context.
+
+---
+
 ### SkillCLI
 
 The canonical dispatcher for executing skills.
@@ -154,4 +167,3 @@ Rules:
 - Avoid shared mutable files that will cause sync conflicts.
 
 ---
-

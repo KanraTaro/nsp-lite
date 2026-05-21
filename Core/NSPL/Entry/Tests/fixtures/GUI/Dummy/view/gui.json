@@ -1,0 +1,6 @@
+{
+  "name": "Dummy.View",
+  "version": "0.1.0",
+  "description": "Dummy GUI fixture",
+  "entry": "launch.py"
+}
