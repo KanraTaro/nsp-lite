@@ -21,16 +21,19 @@ and running dispatch from the repo root.
 
 After bootstrap, command routing belongs to Entry.
 
-## Current Delegation
+## Surface Implementations
 
-For compatibility, Entry currently delegates:
+Entry owns the shared surface implementations:
 
-- `skill` to `Core.NSPL.SkillCLI.skillcli.main`
-- `gui` to `Core.NSPL.GUICLI.guicli.main`
+- `Core.NSPL.Entry.Surfaces.skill_surface`
+- `Core.NSPL.Entry.Surfaces.gui_surface`
 
+The historical `Core.NSPL.SkillCLI.skillcli` and `Core.NSPL.GUICLI.guicli`
+modules are compatibility entrypoints over those Entry-owned implementations.
 That preserves the existing `skill.json` and `gui.json` contracts, existing
 environment overrides, no-import-on-list behavior, one-module-import-on-run
-behavior, and existing best-effort NodeCTX logging.
+behavior, and existing best-effort NodeCTX logging while moving behavior under
+Entry.
 
 ## Later Passes
 

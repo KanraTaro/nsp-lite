@@ -14,6 +14,6 @@ def _forward_to_module_main(module_main, argv: List[str]) -> int:
 
 def main(argv: List[str], context: EntryContext | None = None) -> int:
     del context
-    from Core.NSPL.GUICLI.guicli import main as gui_main
+    from Core.NSPL.Entry.Surfaces.gui_surface import main as gui_main
 
     return _forward_to_module_main(gui_main, argv)

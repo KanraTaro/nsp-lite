@@ -12,6 +12,11 @@ It provides a stable execution spine for action-oriented systems by solving two 
 
 SkillCLI is infrastructure — not an application layer.
 
+Implementation note: SkillCLI is now a compatibility entrypoint over the
+Entry-owned skill surface implementation in
+`Core.NSPL.Entry.Surfaces.skill_surface`. The public command shape and skill
+contract remain unchanged.
+
 ---
 
 ## Design stance (important)

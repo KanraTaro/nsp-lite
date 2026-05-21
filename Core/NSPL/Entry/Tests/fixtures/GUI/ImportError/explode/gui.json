@@ -1,0 +1,6 @@
+{
+  "name": "ImportError.ExplodeGUI",
+  "version": "0.1.0",
+  "description": "GUI fixture that fails on import",
+  "entry": "launch.py"
+}

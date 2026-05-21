@@ -17,7 +17,7 @@ The unified command spine behind the root `nspl.py` gateway.
 Responsibilities:
 - Route NSPL command surfaces after repo bootstrap
 - Preserve one Entry with many surfaces
-- Delegate `skill` and `gui` to the existing implementations during the compatibility transition
+- Own the shared `skill` and `gui` surface implementations while preserving compatibility entrypoints
 
 `nspl.py` remains the thin repo-root bootstrapper for `--root`, `--cwd`, sys.path setup, and caller cwd context.
 

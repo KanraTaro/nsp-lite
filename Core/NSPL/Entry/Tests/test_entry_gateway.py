@@ -40,6 +40,25 @@ class EntryGatewayTests(unittest.TestCase):
             check=False,
         )
 
+    def _run_module(
+        self,
+        module: str,
+        args: list[str],
+        *,
+        env_overrides: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        if env_overrides:
+            env.update(env_overrides)
+        return subprocess.run(
+            [sys.executable, "-m", module] + args,
+            cwd=str(REPO_ROOT),
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
     def test_nspl_skill_surface_still_forwards_skillcli_list(self) -> None:
         result = self._run_nspl(
             ["skill", "list"],
@@ -67,10 +86,53 @@ class EntryGatewayTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Dummy.View", result.stdout)
+        self.assertIn("ImportError.ExplodeGUI", result.stdout)
 
     def test_nspl_gui_surface_still_forwards_guicli_run(self) -> None:
         result = self._run_nspl(
             ["gui", "run", "Dummy.View", "--", "alpha", "beta"],
+            env_overrides={"GUI_ROOT": str(GUI_FIXTURE)},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "dummy-gui:alpha beta")
+
+    def test_skillcli_module_invocation_still_lists_with_skills_root(self) -> None:
+        result = self._run_module(
+            "Core.NSPL.SkillCLI",
+            ["list"],
+            env_overrides={"SKILLS_ROOT": str(SKILLS_FIXTURE)},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Dummy.echo", result.stdout)
+        self.assertIn("ImportError.explode", result.stdout)
+
+    def test_skillcli_module_invocation_still_runs_selected_skill(self) -> None:
+        result = self._run_module(
+            "Core.NSPL.SkillCLI",
+            ["skill", "Dummy.echo", "hello-module"],
+            env_overrides={"SKILLS_ROOT": str(SKILLS_FIXTURE)},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "hello-module")
+
+    def test_guicli_module_invocation_still_lists_with_gui_root(self) -> None:
+        result = self._run_module(
+            "Core.NSPL.GUICLI",
+            ["list"],
+            env_overrides={"GUI_ROOT": str(GUI_FIXTURE)},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Dummy.View", result.stdout)
+        self.assertIn("ImportError.ExplodeGUI", result.stdout)
+
+    def test_guicli_module_invocation_still_runs_selected_gui(self) -> None:
+        result = self._run_module(
+            "Core.NSPL.GUICLI",
+            ["run", "Dummy.View", "--", "alpha", "beta"],
             env_overrides={"GUI_ROOT": str(GUI_FIXTURE)},
         )
 

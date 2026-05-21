@@ -14,6 +14,6 @@ def _forward_to_module_main(module_main, argv: List[str]) -> int:
 
 def main(argv: List[str], context: EntryContext | None = None) -> int:
     del context
-    from Core.NSPL.SkillCLI.skillcli import main as skill_main
+    from Core.NSPL.Entry.Surfaces.skill_surface import main as skill_main
 
     return _forward_to_module_main(skill_main, argv)
