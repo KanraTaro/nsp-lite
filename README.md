@@ -141,6 +141,7 @@ A domain name is shared across:
     * `Skills/<Domain>/<SkillName>/...` runnable SkillCLI entrypoints (“buttons”)
     * `Config/<Domain>/...` optional configuration and presets
     * `GUI/<Domain>/<GuiName>/...` optional interactive shells (windowed tools) that call skills
+    * `Web/<Domain>/<AppName>/...` optional browser/mobile shells discovered by Entry
 
 Domains are intentionally simple. They exist to keep the repository navigable as it grows.
 
@@ -148,6 +149,7 @@ Domains are intentionally simple. They exist to keep the repository navigable as
 
 * **Skills stay thin.** If logic becomes reusable, it moves into `Core/`.
 * **GUIs are shells.** They should not duplicate Core logic. They call SkillCLI skills.
+* **Web apps are shells.** They should expose browser/mobile control surfaces over Core, NodeCTX, and Skills.
 * Domains do **not** imply hierarchy. `Video` doesn’t “own” `NSPL`. It’s just a grouping.
 * Keep domain names consistent across roots when they refer to the same capability.
 
@@ -172,6 +174,7 @@ Skills/
     Video/           video entrypoint skills (post-process, export, etc)
 GUI/
     Video/           windowed tools for video workflows (shells that call skills)
+Web/              browser/mobile tools discovered through web.json descriptors
 Config/            optional presets and config (domain subfolders as needed)
 State/             runtime output (generated, gitignored)
 demo.py            deterministic end-to-end demo
@@ -182,4 +185,3 @@ run_tests.py       test runner
 ## License
 
 MIT License.
-

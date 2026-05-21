@@ -22,6 +22,9 @@ def _build_parser() -> argparse.ArgumentParser:
     gui = subparsers.add_parser("gui", help="Run the GUI surface")
     gui.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to GUICLI")
 
+    web = subparsers.add_parser("web", help="Run the Web surface")
+    web.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to Web Entry")
+
     return parser
 
 
@@ -59,6 +62,11 @@ def main(argv: List[str] | None = None, context: EntryContext | None = None) -> 
         from Core.NSPL.Entry.Commands.gui import main as gui_main
 
         return gui_main(forwarded, context=context)
+
+    if args.surface == "web":
+        from Core.NSPL.Entry.Commands.web import main as web_main
+
+        return web_main(forwarded, context=context)
 
     parser.print_usage()
     return 2

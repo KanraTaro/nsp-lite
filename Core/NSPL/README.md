@@ -18,6 +18,7 @@ Responsibilities:
 - Route NSPL command surfaces after repo bootstrap
 - Preserve one Entry with many surfaces
 - Own the shared `skill` and `gui` surface implementations while preserving compatibility entrypoints
+- Discover browser/mobile Web shells through `web.json` descriptors
 
 `nspl.py` remains the thin repo-root bootstrapper for `--root`, `--cwd`, sys.path setup, and caller cwd context.
 

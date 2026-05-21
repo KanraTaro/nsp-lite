@@ -9,9 +9,10 @@ NSPL should expose one Entry with multiple surfaces:
 
 - `skill` for one-shot action execution
 - `gui` for desktop/native visual shells
-- `web` for browser/mobile visual shells in a later pass
+- `web` for browser/mobile visual shells
 
-This pass only wires `skill` and `gui`.
+The `web` surface currently supports descriptor discovery and listing only.
+Launch/hosting is a later pass.
 
 ## nspl.py
 
@@ -35,7 +36,23 @@ environment overrides, no-import-on-list behavior, one-module-import-on-run
 behavior, and existing best-effort NodeCTX logging while moving behavior under
 Entry.
 
+## Web Discovery
+
+Web apps are discovered from:
+
+`Web/<Domain>/<AppName>/web.json`
+
+Supported commands:
+
+- `python nspl.py web list`
+- `python nspl.py web list --detailed`
+
+`WEB_ROOT` may override the default repo-local `Web/` root for tests and
+advanced local setups. Listing reads descriptors only; it does not import
+`app.py`.
+
 ## Later Passes
 
-Web is intentionally not implemented here. A later pass should add the `web`
-surface through Entry rather than creating a separate long-term CLI.
+Web launch is intentionally not implemented here. A later pass should add
+explicit foreground local hosting through Entry rather than creating a separate
+long-term CLI.
