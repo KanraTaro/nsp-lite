@@ -92,6 +92,22 @@ Check queue status:
 
 python -m Core.NSPL.SkillCLI skill ChatOps.queue_status --instance main
 
+List Web apps:
+
+python nspl.py web list
+
+Launch the local NSPL status Web app:
+
+python nspl.py web launch NSPL.Status --host 127.0.0.1 --port 8765
+
+Web support uses optional Python dependencies:
+
+python -m pip install -e ".[web]"
+
+Web launch is explicit and foreground. Localhost is the default; LAN or
+Tailscale access requires an explicit non-localhost bind and external network
+configuration.
+
 ---
 
 ## On-disk layout

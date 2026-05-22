@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 
-from Core.NSPL.Entry.errors import DuplicateWebAppError
+from Core.NSPL.Entry.errors import DuplicateWebAppError, InvalidWebApp, WebAppNotFound
 from Core.NSPL.NodeCTX import read_json
 
 
@@ -69,3 +71,35 @@ def discover_web_apps(web_dir: Path) -> Dict[str, Dict[str, object]]:
             raise DuplicateWebAppError(dup_name, paths)
 
     return registry
+
+
+def load_web_module(entry_path: Path) -> object:
+    entry_path = Path(entry_path).resolve()
+    if not entry_path.is_file():
+        raise InvalidWebApp(str(entry_path), "entry file does not exist")
+
+    module_name = f"_entry_web_module_{abs(hash(entry_path))}"
+    spec = importlib.util.spec_from_file_location(module_name, str(entry_path))
+    if spec is None or spec.loader is None:
+        raise InvalidWebApp(str(entry_path), "could not create import spec")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+
+    try:
+        spec.loader.exec_module(module)  # type: ignore[call-arg]
+    except ImportError:
+        raise
+    except Exception as e:
+        raise InvalidWebApp(str(entry_path), f"failed to import module: {e}") from e
+
+    return module
+
+
+def resolve_web_app(name: str, web_dir: Path) -> Tuple[Dict[str, object], object]:
+    registry = discover_web_apps(web_dir)
+    if name not in registry:
+        raise WebAppNotFound(name)
+    descriptor = registry[name]
+    module = load_web_module(descriptor["entry_path"])  # type: ignore[arg-type]
+    return descriptor, module

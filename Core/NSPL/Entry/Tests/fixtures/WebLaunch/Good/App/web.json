@@ -1,0 +1,8 @@
+{
+  "name": "Good.App",
+  "version": "0.1.0",
+  "description": "Launchable Web app fixture",
+  "entry": "app.py",
+  "factory": "create_app",
+  "default_port": 9012
+}

@@ -108,11 +108,11 @@ class EntryWebDiscoveryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Duplicate Web app name 'Duplicate.App'", result.stderr)
 
-    def test_web_launch_is_not_implemented(self) -> None:
-        result = self._run_nspl(["web", "launch", "NSPL.Status"], env_overrides={"WEB_ROOT": str(WEB_FIXTURE)})
+    def test_unknown_web_command_is_still_rejected(self) -> None:
+        result = self._run_nspl(["web", "unknown"], env_overrides={"WEB_ROOT": str(WEB_FIXTURE)})
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Unknown web command: launch", result.stderr)
+        self.assertIn("Unknown web command: unknown", result.stderr)
 
 
 if __name__ == "__main__":

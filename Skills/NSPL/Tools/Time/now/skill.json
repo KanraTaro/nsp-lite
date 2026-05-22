@@ -1,6 +1,6 @@
 {
   "name": "NSPL.Tools.Time.now",
   "version": "0.1.0",
-  "description": "Print the current UTC timestamp.",
+  "description": "Print the current local and UTC time in text or JSON format.",
   "entry": "skill.py"
 }

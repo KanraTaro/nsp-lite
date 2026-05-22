@@ -1,0 +1,9 @@
+{
+  "name": "NSPL.Status",
+  "version": "0.1.0",
+  "description": "Local NSPL status Web app",
+  "entry": "app.py",
+  "factory": "create_app",
+  "default_host": "127.0.0.1",
+  "default_port": 8765
+}

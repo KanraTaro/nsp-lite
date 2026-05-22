@@ -33,3 +33,12 @@ class DuplicateWebAppError(WebEntryError):
         super().__init__(f"Duplicate Web app name '{name}' declared by: {', '.join(paths)}")
         self.name = name
         self.paths = paths
+
+
+class MissingWebDependencyError(WebEntryError):
+    def __init__(self, dependency: str) -> None:
+        super().__init__(
+            "Missing Web dependency "
+            f"'{dependency}'. Install Web support with: python -m pip install -e \".[web]\""
+        )
+        self.dependency = dependency

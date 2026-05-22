@@ -1,0 +1,7 @@
+{
+  "name": "Import.Failure",
+  "version": "0.1.0",
+  "description": "Import failure fixture",
+  "entry": "app.py",
+  "factory": "create_app"
+}

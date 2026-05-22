@@ -1,0 +1,7 @@
+{
+  "name": "Missing.Factory",
+  "version": "0.1.0",
+  "description": "Missing factory fixture",
+  "entry": "app.py",
+  "factory": "create_app"
+}

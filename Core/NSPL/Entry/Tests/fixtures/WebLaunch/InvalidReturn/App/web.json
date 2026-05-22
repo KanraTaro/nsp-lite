@@ -1,0 +1,7 @@
+{
+  "name": "Invalid.Return",
+  "version": "0.1.0",
+  "description": "Invalid return fixture",
+  "entry": "app.py",
+  "factory": "create_app"
+}

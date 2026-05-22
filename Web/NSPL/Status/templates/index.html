@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NSPL Status</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Local-first filesystem state</p>
+          <h1>NSPL Status</h1>
+        </div>
+        <div class="badge">{{ app_name }} {{ app_version }}</div>
+      </section>
+
+      <section class="panel time-panel">
+        <p class="label">Current Time</p>
+        <h2>{{ time_payload.get("time_12h", "Unavailable") }}</h2>
+        <p class="display">{{ time_payload.get("display", "The time skill did not return a parsed display value.") }}</p>
+        <div class="grid">
+          <div>
+            <span>Timezone</span>
+            <strong>{{ time_payload.get("timezone", "unknown") }}</strong>
+          </div>
+          <div>
+            <span>UTC Offset</span>
+            <strong>{{ time_payload.get("utc_offset", "unknown") }}</strong>
+          </div>
+          <div>
+            <span>UTC ISO</span>
+            <strong>{{ time_payload.get("utc_iso", "unknown") }}</strong>
+          </div>
+          <div>
+            <span>Skill Exit</span>
+            <strong>{{ skill_result.exit_code }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <p class="label">Repository</p>
+        <p class="mono">{{ repo_root }}</p>
+        <p class="note">This page is served locally by NSPL. Durable state remains filesystem-backed and inspectable.</p>
+      </section>
+
+      <section class="panel diagnostics">
+        <p class="label">Skill Output</p>
+        {% if parse_error %}
+          <p class="error">{{ parse_error }}</p>
+        {% endif %}
+        <pre>{{ skill_result.stdout or skill_result.stderr or "No output captured." }}</pre>
+      </section>
+    </main>
+  </body>
+</html>

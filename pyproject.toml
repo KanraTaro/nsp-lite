@@ -1,0 +1,27 @@
+[project]
+name = "nspl"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+web = [
+  "fastapi",
+  "starlette<1.0.0",
+  "uvicorn[standard]",
+  "jinja2",
+]
+dev = [
+  "pytest",
+]
+
+[tool.setuptools.packages.find]
+include = ["Core*"]
+exclude = [
+  "Skills*",
+  "GUI*",
+  "Web*",
+  "Docs*",
+  "State*",
+  "Config*",
+]

@@ -11,8 +11,8 @@ NSPL should expose one Entry with multiple surfaces:
 - `gui` for desktop/native visual shells
 - `web` for browser/mobile visual shells
 
-The `web` surface currently supports descriptor discovery and listing only.
-Launch/hosting is a later pass.
+The `web` surface supports descriptor discovery, listing, and explicit
+foreground local launch.
 
 ## nspl.py
 
@@ -46,13 +46,22 @@ Supported commands:
 
 - `python nspl.py web list`
 - `python nspl.py web list --detailed`
+- `python nspl.py web launch NSPL.Status --host 127.0.0.1 --port 8765`
 
 `WEB_ROOT` may override the default repo-local `Web/` root for tests and
 advanced local setups. Listing reads descriptors only; it does not import
 `app.py`.
 
+Install optional Web dependencies with:
+
+`python -m pip install -e ".[web]"`
+
+Web launch is explicit and foreground. The default bind host is localhost.
+Use `--host 0.0.0.0` or a LAN/Tailscale-reachable address only when you want
+external devices to connect and have configured firewall/network access outside
+NSPL.
+
 ## Later Passes
 
-Web launch is intentionally not implemented here. A later pass should add
-explicit foreground local hosting through Entry rather than creating a separate
-long-term CLI.
+Future passes can add richer apps, but Web apps should remain shells over Core,
+NodeCTX, and Skills.
