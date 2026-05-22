@@ -61,6 +61,12 @@ Use `--host 0.0.0.0` or a LAN/Tailscale-reachable address only when you want
 external devices to connect and have configured firewall/network access outside
 NSPL.
 
+`WebContext.run_skill(...)` uses the real `nspl.py` gateway in a subprocess by
+default. This avoids process-wide environment mutation during concurrent Web
+requests while preserving SkillCLI command shape and environment overrides such
+as `SKILLS_ROOT`. Web apps should call Skills, Core, or NodeCTX instead of
+duplicating business logic or owning hidden state.
+
 ## Later Passes
 
 Future passes can add richer apps, but Web apps should remain shells over Core,

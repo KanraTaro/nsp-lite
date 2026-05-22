@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from io import StringIO
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+import subprocess
+import sys
+from typing import Any, Dict, List, Sequence
 
 
 @dataclass(frozen=True)
@@ -32,7 +34,62 @@ class WebContext:
     entry_path: Path
     factory_name: str
 
-    def run_skill(self, argv: List[str]) -> SkillInvocationResult:
+    def _skill_subprocess_command(self, argv: Sequence[str]) -> List[str]:
+        return [
+            sys.executable,
+            str(self.repo_root / "nspl.py"),
+            "--root",
+            str(self.repo_root),
+            "--cwd",
+            str(self.caller_cwd),
+            "skill",
+            *list(argv),
+        ]
+
+    def run_skill(self, argv: List[str], timeout: float = 30.0) -> SkillInvocationResult:
+        """Invoke a SkillCLI command through the real NSPL gateway path."""
+        return self.run_skill_subprocess(argv, timeout=timeout)
+
+    def run_skill_subprocess(self, argv: List[str], timeout: float = 30.0) -> SkillInvocationResult:
+        """Invoke a SkillCLI command in a subprocess and capture output.
+
+        ``argv`` must use SkillCLI-surface shape, for example:
+        ``["skill", "NSPL.Tools.Time.now", "--json"]``.
+        """
+        command = self._skill_subprocess_command(argv)
+        env = os.environ.copy()
+
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(self.repo_root),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            stderr = e.stderr or ""
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode(errors="replace")
+            message = f"Skill invocation timed out after {timeout:g} seconds"
+            if stderr:
+                message = f"{message}\n{stderr}"
+            return SkillInvocationResult(
+                exit_code=124,
+                stdout=(e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else e.stdout or ""),
+                stderr=message,
+            )
+        except OSError as e:
+            return SkillInvocationResult(exit_code=1, stdout="", stderr=f"Skill invocation failed: {e}")
+
+        return SkillInvocationResult(
+            exit_code=int(completed.returncode),
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+
+    def run_skill_inprocess(self, argv: List[str]) -> SkillInvocationResult:
         """Invoke the SkillCLI surface in-process and capture output.
 
         ``argv`` must use SkillCLI-surface shape, for example:

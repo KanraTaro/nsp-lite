@@ -28,6 +28,12 @@ body {
   margin: 18px 0 20px;
 }
 
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .eyebrow,
 .label {
   margin: 0 0 8px;
@@ -53,7 +59,8 @@ h2 {
   line-height: 0.95;
 }
 
-.badge {
+.badge,
+.refresh {
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
@@ -61,6 +68,11 @@ h2 {
   color: #c8d6e7;
   background: rgba(255, 255, 255, 0.06);
   font-size: 0.9rem;
+}
+
+.refresh {
+  color: #f3f6fb;
+  text-decoration: none;
 }
 
 .panel {
@@ -137,8 +149,14 @@ pre {
     display: block;
   }
 
-  .badge {
+  .badge,
+  .refresh {
     display: inline-block;
+  }
+
+  .hero-actions {
+    align-items: flex-start;
+    flex-direction: column;
     margin-top: 12px;
   }
 

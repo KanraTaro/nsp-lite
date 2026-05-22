@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -18,6 +18,28 @@ def _parse_time_payload(result) -> tuple[Dict[str, Any] | None, str | None]:
         return None, f"could not parse time skill JSON: {exc}"
 
 
+def _load_status_payload(context) -> Dict[str, Any]:
+    result = context.run_skill_subprocess(
+        [
+            "skill",
+            "NSPL.Tools.Time.now",
+            "--timezone",
+            "America/New_York",
+            "--json",
+        ]
+    )
+    payload, parse_error = _parse_time_payload(result)
+
+    return {
+        "app": context.metadata.get("name", "NSPL.Status"),
+        "version": context.metadata.get("version", ""),
+        "repo_root": str(context.repo_root),
+        "time": payload or {},
+        "parse_error": parse_error,
+        "skill": result.as_dict(),
+    }
+
+
 def create_app(context):
     app_dir = Path(context.app_dir)
     templates = Jinja2Templates(directory=str(app_dir / "templates"))
@@ -25,29 +47,28 @@ def create_app(context):
     app = FastAPI(title="NSPL Status")
     app.mount("/static", StaticFiles(directory=str(app_dir / "static")), name="static")
 
+    @app.get("/health")
+    async def health():
+        return {"ok": True, "app": context.metadata.get("name", "NSPL.Status")}
+
+    @app.get("/api/status", response_class=JSONResponse)
+    async def api_status():
+        return _load_status_payload(context)
+
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        result = context.run_skill(
-            [
-                "skill",
-                "NSPL.Tools.Time.now",
-                "--timezone",
-                "America/New_York",
-                "--json",
-            ]
-        )
-        payload, parse_error = _parse_time_payload(result)
+        status = _load_status_payload(context)
 
         return templates.TemplateResponse(
             "index.html",
             {
                 "request": request,
-                "repo_root": str(context.repo_root),
-                "app_name": context.metadata.get("name", "NSPL.Status"),
-                "app_version": context.metadata.get("version", ""),
-                "time_payload": payload or {},
-                "parse_error": parse_error,
-                "skill_result": result.as_dict(),
+                "repo_root": status["repo_root"],
+                "app_name": status["app"],
+                "app_version": status["version"],
+                "time_payload": status["time"],
+                "parse_error": status["parse_error"],
+                "skill_result": status["skill"],
             },
         )
 

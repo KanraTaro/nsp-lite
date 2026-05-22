@@ -108,6 +108,11 @@ Web launch is explicit and foreground. Localhost is the default; LAN or
 Tailscale access requires an explicit non-localhost bind and external network
 configuration.
 
+Web apps should act as browser/mobile shells over Core, NodeCTX, and Skills.
+`WebContext` invokes Skills through the real `nspl.py` command path in a
+subprocess by default so concurrent Web requests do not mutate process-wide
+environment state.
+
 ---
 
 ## On-disk layout

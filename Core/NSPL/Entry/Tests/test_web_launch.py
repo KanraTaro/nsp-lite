@@ -3,6 +3,8 @@ from __future__ import annotations
 import builtins
 import json
 import os
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
@@ -216,6 +218,85 @@ class EntryWebLaunchTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["timezone"], "America/New_York")
         self.assertIn("utc_iso", payload)
+
+    def test_web_context_subprocess_skill_helper_builds_gateway_command(self) -> None:
+        context = WebContext(
+            repo_root=REPO_ROOT,
+            caller_cwd=REPO_ROOT / "Core",
+            web_root=REPO_ROOT / "Web",
+            app_dir=REPO_ROOT / "Web" / "NSPL" / "Status",
+            metadata={"name": "NSPL.Status", "version": "0.1.0"},
+            entry_path=REPO_ROOT / "Web" / "NSPL" / "Status" / "app.py",
+            factory_name="create_app",
+        )
+
+        command = context._skill_subprocess_command(
+            ["skill", "NSPL.Tools.Time.now", "--timezone", "America/New_York", "--json"]
+        )
+
+        self.assertEqual(
+            command,
+            [
+                sys.executable,
+                str(REPO_ROOT / "nspl.py"),
+                "--root",
+                str(REPO_ROOT),
+                "--cwd",
+                str(REPO_ROOT / "Core"),
+                "skill",
+                "skill",
+                "NSPL.Tools.Time.now",
+                "--timezone",
+                "America/New_York",
+                "--json",
+            ],
+        )
+
+    def test_web_context_subprocess_skill_helper_captures_result(self) -> None:
+        context = WebContext(
+            repo_root=REPO_ROOT,
+            caller_cwd=REPO_ROOT,
+            web_root=REPO_ROOT / "Web",
+            app_dir=REPO_ROOT / "Web" / "NSPL" / "Status",
+            metadata={"name": "NSPL.Status", "version": "0.1.0"},
+            entry_path=REPO_ROOT / "Web" / "NSPL" / "Status" / "app.py",
+            factory_name="create_app",
+        )
+        captured: dict[str, object] = {}
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            captured["kwargs"] = kwargs
+            return subprocess.CompletedProcess(command, 7, stdout="out", stderr="err")
+
+        with patch.dict(os.environ, {"SKILLS_ROOT": "/tmp/nspl-test-skills"}):
+            with patch("subprocess.run", side_effect=fake_run):
+                result = context.run_skill_subprocess(["list"], timeout=4)
+
+        self.assertEqual(result.exit_code, 7)
+        self.assertEqual(result.stdout, "out")
+        self.assertEqual(result.stderr, "err")
+        self.assertEqual(captured["kwargs"]["cwd"], str(REPO_ROOT))
+        self.assertEqual(captured["kwargs"]["timeout"], 4)
+        self.assertEqual(captured["kwargs"]["env"]["SKILLS_ROOT"], "/tmp/nspl-test-skills")
+
+    def test_web_context_subprocess_skill_helper_timeout_returns_failure(self) -> None:
+        context = WebContext(
+            repo_root=REPO_ROOT,
+            caller_cwd=REPO_ROOT,
+            web_root=REPO_ROOT / "Web",
+            app_dir=REPO_ROOT / "Web" / "NSPL" / "Status",
+            metadata={"name": "NSPL.Status", "version": "0.1.0"},
+            entry_path=REPO_ROOT / "Web" / "NSPL" / "Status" / "app.py",
+            factory_name="create_app",
+        )
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["cmd"], timeout=0.01, output="partial")):
+            result = context.run_skill_subprocess(["list"], timeout=0.01)
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("timed out", result.stderr)
+        self.assertEqual(result.stdout, "partial")
 
 
 if __name__ == "__main__":
