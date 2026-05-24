@@ -2,6 +2,17 @@
 
 ## Revision Note
 
+This is a historical implementation plan. The Entry consolidation, Web launch
+surface, `Web/NSPL/Status` reference app, optional Web dependencies, and
+WebContext subprocess-backed skill invocation have now landed. Current
+developer-facing architecture docs live in:
+
+- `README.md`
+- `Core/NSPL/README.md`
+- `Core/NSPL/Entry/README.md`
+- `Web/README.md`
+- `Docs/Developer/Entry-Surfaces.md`
+
 This revision changes the plan from "add WebHost beside existing CLIs" to "consolidate command surfaces under `Core/NSPL/Entry` while preserving compatibility." The target is one NSPL Entry with many surfaces: `skill` for one-shot actions, `gui` for desktop/native visual shells, `web` for browser/mobile visual shells, and possibly `app` later.
 
 ## Current Architecture Summary

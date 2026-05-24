@@ -12,7 +12,7 @@ It currently provides two focused workflows:
 
 This GUI exists to prove out a full vertical slice of the NSPL stack:
 
-* GUI discovery through `GUICLI`
+* GUI discovery through the Entry `gui` surface and the `GUICLI` compatibility path
 * dependency verification through `Core.NSPL.Deps`
 * video process execution through FFmpeg
 * progress parsing through `Core.NSPL.Proc.adapters.ffmpeg`
@@ -178,7 +178,7 @@ Proc should become a more authoritative execution layer for FFmpeg-driven workfl
 
 LookLab currently proves the desktop GUI lane, but the same underlying Video domain should later support a web-facing frontend as well.
 
-That future web lane should reuse the same Core and Skill surfaces rather than re-implementing behavior.
+Any Web version should reuse the same Core and Skill surfaces rather than re-implementing behavior.
 
 ---
 
@@ -205,7 +205,11 @@ Because of that, LookLab is more important than a normal one-off tool. It is one
 
 ## Launch
 
-Typical invocation is through GUICLI:
+Typical invocation is through Entry:
+
+`python nspl.py gui run Video.LookLab`
+
+The historical compatibility invocation remains available:
 
 `python -m Core.NSPL.GUICLI run Video.LookLab`
 

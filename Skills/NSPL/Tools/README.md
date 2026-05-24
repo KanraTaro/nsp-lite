@@ -1,6 +1,6 @@
 # Skills/NSPL/Tools
 
-Tools are intentionally boring “utility” skills used to validate the NSPL runtime spine.
+Tools are intentionally boring utility skills used to validate the NSPL runtime spine.
 
 They exist for two reasons:
 
@@ -11,13 +11,13 @@ They exist for two reasons:
 2) **Stable integration targets**
    ChatOps and other orchestrators can call these without pulling in app-specific logic.
 
-These skills are executed via **SkillCLI** like everything else.
+These skills are executed through the Entry skill surface like everything else.
 
 ---
 
 ## Tool skills
 
-### Tools.Echo.echo
+### NSPL.Tools.Echo.echo
 
 Echo a message back to stdout.
 
@@ -27,27 +27,29 @@ Echo a message back to stdout.
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill Tools.Echo.echo \
+python nspl.py skill skill NSPL.Tools.Echo.echo \
   --instance main \
   -- hello world
 
 ---
 
-### Tools.Time.now
+### NSPL.Tools.Time.now
 
-Print the current UTC timestamp (ISO 8601, `Z` suffix) to stdout.
+Print the current time to stdout. With `--json`, it emits a compact JSON
+payload with UTC time, local time, timezone, offset, date, and display fields.
 
-- No args.
+- Optional `--timezone` / `--tz` accepts an IANA timezone name.
 - Returns exit code `0`.
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill Tools.Time.now \
-  --instance main
+python nspl.py skill skill NSPL.Tools.Time.now \
+  --timezone America/New_York \
+  --json
 
 ---
 
-### Tools.TestFail.fail
+### NSPL.Tools.TestFail.fail
 
 A deliberate failure skill for testing failure paths.
 
@@ -56,7 +58,7 @@ A deliberate failure skill for testing failure paths.
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill Tools.TestFail.fail \
+python nspl.py skill skill NSPL.Tools.TestFail.fail \
   --instance main \
   --message "this should fail"
 
@@ -67,12 +69,11 @@ python -m Core.NSPL.SkillCLI skill Tools.TestFail.fail \
 Before trusting any “real” automation, validate:
 
 1) Success path:
-   - enqueue `Tools.Echo.echo` through ChatOps
+   - enqueue `NSPL.Tools.Echo.echo` through ChatOps
    - confirm Done/ result and stdout
 
 2) Failure path:
-   - enqueue `Tools.TestFail.fail` through ChatOps
+   - enqueue `NSPL.Tools.TestFail.fail` through ChatOps
    - confirm Failed/ result and stderr/exit_code
 
 Keep these tools permanently. They are your smoke alarm.
-

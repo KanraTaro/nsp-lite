@@ -1,170 +1,103 @@
 # NSPL Core
 
-**Core/NSPL** contains the core primitives that define *NSP Lite* itself.
+`Core/NSPL` contains the framework primitives that define NSP Lite: Entry,
+filesystem context, durable logging, compatibility command packages, and root
+discovery.
 
-These modules are framework infrastructure. They establish the execution model, filesystem layout, and durability guarantees that everything else builds on.
+Nothing in this directory is a skill. Core modules own reusable logic,
+contracts, validation, and policy.
 
-Nothing in this directory is a “skill.”
+## Canonical Entry
 
----
+`Core/NSPL/Entry` is the canonical command spine behind the root `nspl.py`
+gateway.
+
+`nspl.py` performs bootstrap work only:
+
+- resolve and validate the repo root
+- preserve caller cwd context
+- put the repo root on `sys.path`
+- export `NSPL_CALLER_CWD`
+- run Entry from the repo root
+
+After bootstrap, Entry routes command surfaces:
+
+- `skill`: one-shot action execution
+- `gui`: desktop/native shells
+- `web`: browser/mobile shells
+
+## Surfaces
+
+Skills are one-shot action surfaces. They parse arguments, call Core, use
+NodeCTX for durable filesystem work, print clear output, and exit.
+
+GUI and Web are shells/control surfaces. They can observe state and invoke
+skills, but reusable behavior still belongs in Core or Skills.
+
+Web discovery, listing, and launch now live under Entry. Web apps live under
+`Web/<Domain>/<AppName>/`, use `web.json`, expose `create_app(context)`, and do
+not start Uvicorn themselves.
+
+## Compatibility Packages
+
+`Core/NSPL/SkillCLI` and `Core/NSPL/GUICLI` remain importable and executable for
+compatibility with existing commands, tests, scripts, and local wrappers. They
+are no longer the architecture center. New command-surface behavior should live
+under Entry.
+
+Do not add new behavior to SkillCLI/GUICLI unless it is required to preserve or
+repair compatibility.
+
+## Filesystem Truth
+
+NSPL is filesystem-truth first.
+
+If something must be durable across crashes, inspectable by humans/tools,
+replayable for debugging, or syncable between machines, it must exist as a file
+artifact, typically under `State/`.
+
+There is no hidden database, broker, daemon, cloud queue, or private in-memory
+service that acts as the source of truth.
+
+Databases may be added only as derived projections or caches that can be rebuilt
+from file artifacts. They must never be the only copy of important state.
 
 ## Modules
 
 ### Entry
 
-The unified command spine behind the root `nspl.py` gateway.
-
-Responsibilities:
-- Route NSPL command surfaces after repo bootstrap
-- Preserve one Entry with many surfaces
-- Own the shared `skill` and `gui` surface implementations while preserving compatibility entrypoints
-- Discover and explicitly launch browser/mobile Web shells through `web.json` descriptors
-
-`nspl.py` remains the thin repo-root bootstrapper for `--root`, `--cwd`, sys.path setup, and caller cwd context.
-
----
-
-### SkillCLI
-
-The canonical dispatcher for executing skills.
-
-Responsibilities:
-- Discover skills via `skill.json`
-- Construct a stable runtime context
-- Invoke exactly one skill per execution
-- Emit structured execution logs
-
-SkillCLI is the only supported entrypoint for running skills.
-
----
+Canonical command routing for `skill`, `gui`, and `web` surfaces.
 
 ### NodeCTX
 
-Filesystem and logging utilities used by all durable operations.
+Filesystem and logging utilities:
 
-Responsibilities:
-- Canonical state and log paths
-- Atomic JSON writes
-- JSONL append with rotation and throttling
-- Best-effort logging guarantees
+- canonical state and log paths
+- atomic JSON writes
+- durable JSONL append
+- best-effort event logging
 
-All filesystem writes that represent state or logs must go through NodeCTX.
+### SkillCLI
 
----
+Compatibility entrypoint for the skill surface. The public command shape and
+skill contract remain supported.
 
-### ChatOps (core)
+### GUICLI
 
-Filesystem-backed task queue primitives.
-
-Responsibilities:
-- Task schema validation
-- Queue directory layout
-- Atomic claim and transition logic
-- Durable task finalization rules
-
-This module defines the *protocol*, not the user interface.
-
----
+Compatibility entrypoint for the GUI surface. Existing `gui.json` discovery and
+launch behavior remain supported.
 
 ### ProjectRoot
 
-Runtime root discovery utilities.
+Runtime root discovery utilities used by tests, tools, and compatibility paths.
 
-Responsibilities:
-- Locate the effective project root
-- Ensure consistent behavior regardless of invocation location
-- Support test isolation and tooling
+## Portability Contract
 
----
+Core/base remains stdlib-first. Optional Web dependencies are declared behind
+the `web` extra and are imported only on Web launch paths.
 
-## What this layer guarantees
+Core/NSPL should remain usable on Linux, macOS, Windows, and headless systems.
+No background service is required to understand system state.
 
-Core/NSPL provides:
-
-- Crash-safe behavior via filesystem primitives
-- Inspectable, replayable state
-- Deterministic execution boundaries
-- No hidden background services
-- No reliance on databases or brokers
-
----
-
-## What this layer does not do
-
-Core/NSPL does **not**:
-
-- Define user workflows
-- Run long-lived daemons
-- Enqueue tasks on its own
-- Execute skills directly
-
-Those behaviors live in **Skills/** and in consuming applications.
-
-___
-
-### Portability Contract
-
-Core/NSPL follows a strict portability contract:
-
-* Core/NSPL must remain **stdlib-first**
-
-  * No GUI frameworks
-  * No heavyweight native dependencies
-  * No platform-specific assumptions
-* All Core/NSPL functionality must work on:
-
-  * Linux
-  * macOS
-  * Windows
-  * Headless systems (e.g. servers, SBCs)
-* External tools (ffmpeg, Ollama, etc.) are **optional integrations**
-
-  * Availability must be checked explicitly
-  * Absence must degrade gracefully
-* GUIs are **shells**, not execution engines
-
-  * All durable logic must live in Core or Skills
-  * GUIs may observe state or invoke SkillCLI / Proc
-* No background services
-
-  * All execution must be explicit and inspectable
-* Filesystem state is the integration boundary
-
-  * CLI, GUI, and agents must interoperate through shared artifacts, not private APIs
-
-Violating this contract requires an explicit design decision and documentation.
-
----
-
-## Datastores & Indexing Policy (Filesystem Truth)
-
-NSPL is **filesystem-truth first**.
-
-### Source of truth
-If something must be:
-- durable across crashes
-- inspectable by humans/tools
-- replayable for debugging
-- syncable between machines
-
-…then it must exist as a **file artifact** under `State/` (JSON snapshots + JSONL event logs).
-
-### Optional databases
-Databases are allowed, but only as **derived projections** (indexes/caches) that can be rebuilt from file artifacts.
-
-Use a DB when we need:
-- fast search across many artifacts
-- aggregation / analytics queries
-- UI responsiveness on large datasets
-
-Rules:
-- DB contents are **never the only copy** of important state.
-- If the DB is deleted/corrupted, the system must be able to regenerate it from artifacts.
-- Multi-writer shared state should prefer **append-only logs + projections** over “shared mutable JSON”.
-
-### Concurrency guidance
-- Prefer **single-writer per artifact**.
-- For many writers, write **events** (append-only) and rebuild projections.
-- Avoid shared mutable files that will cause sync conflicts.
-
----
+External tools are optional integrations. Their absence should be detected
+explicitly and reported clearly.

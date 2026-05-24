@@ -4,7 +4,8 @@ The **Skills/** directory contains executable entrypoints for NSP Lite.
 
 Skills are the *buttons* of the system. They are how users, scripts, workers, and tools interact with Core primitives.
 
-Every skill is invoked through **SkillCLI**.
+Every skill is invoked through the Entry `skill` surface. The historical
+SkillCLI module path remains available for compatibility.
 
 ---
 
@@ -52,7 +53,7 @@ Domains group related skills but do not imply hierarchy or ownership. <SkillName
 
 Skills must follow these rules:
 
-- Executed only via SkillCLI
+- Executed only via the Entry skill surface or SkillCLI compatibility path
 - No direct filesystem writes outside NodeCTX
 - No background threads or loops
 - No global mutable state
@@ -69,4 +70,3 @@ Skills are intentionally boring.
 They exist to expose Core capabilities in a safe, testable, observable way.
 
 Complexity lives in composition, not in individual skills.
-

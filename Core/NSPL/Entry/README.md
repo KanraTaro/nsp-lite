@@ -1,73 +1,133 @@
 # NSPL Entry
 
-`Core/NSPL/Entry` is the unified command spine behind the root `nspl.py`
-gateway.
+`Core/NSPL/Entry` is the canonical command spine for NSPL.
 
-## One Entry, Many Surfaces
+The root `nspl.py` script is the bootstrap gateway. It resolves the repo root
+and caller cwd, validates the root, puts the repo on `sys.path`, exports
+`NSPL_CALLER_CWD`, changes into the repo root for stable discovery, and then
+delegates to Entry.
 
-NSPL should expose one Entry with multiple surfaces:
+## Entry Context
 
-- `skill` for one-shot action execution
-- `gui` for desktop/native visual shells
-- `web` for browser/mobile visual shells
+Entry receives an `EntryContext` containing:
 
-The `web` surface supports descriptor discovery, listing, and explicit
-foreground local launch.
+- `repo_root`
+- `caller_cwd`
 
-## nspl.py
+Surface commands use that context to resolve descriptor roots and preserve the
+user's original cwd while running from a stable repo root.
 
-The root `nspl.py` remains the bootstrapper. It owns repo-root resolution,
-`--root`, `--cwd`, sys.path setup, caller cwd validation, `NSPL_CALLER_CWD`,
-and running dispatch from the repo root.
+## Surfaces
 
-After bootstrap, command routing belongs to Entry.
+Entry currently routes:
 
-## Surface Implementations
+```bash
+python nspl.py skill ...
+python nspl.py gui ...
+python nspl.py web ...
+```
 
-Entry owns the shared surface implementations:
+### skill
 
-- `Core.NSPL.Entry.Surfaces.skill_surface`
-- `Core.NSPL.Entry.Surfaces.gui_surface`
+The skill surface executes one skill per invocation:
 
-The historical `Core.NSPL.SkillCLI.skillcli` and `Core.NSPL.GUICLI.guicli`
-modules are compatibility entrypoints over those Entry-owned implementations.
-That preserves the existing `skill.json` and `gui.json` contracts, existing
-environment overrides, no-import-on-list behavior, one-module-import-on-run
-behavior, and existing best-effort NodeCTX logging while moving behavior under
-Entry.
+```bash
+python nspl.py skill list
+python nspl.py skill skill NSPL.Tools.Time.now --json
+```
 
-## Web Discovery
+Discovery uses `Skills/<Domain>/<SkillName>/skill.json`. Listing does not
+import skill modules. Running a skill imports exactly one module and provides
+the standard skill context, including `ctx.node_ctx` and `ctx.json`.
 
-Web apps are discovered from:
+### gui
 
-`Web/<Domain>/<AppName>/web.json`
+The gui surface lists and launches desktop/native shells:
 
-Supported commands:
+```bash
+python nspl.py gui list
+python nspl.py gui run Video.LookLab
+```
 
-- `python nspl.py web list`
-- `python nspl.py web list --detailed`
-- `python nspl.py web launch NSPL.Status --host 127.0.0.1 --port 8765`
+Discovery uses `GUI/<Domain>/<GuiName>/gui.json`. GUIs are shells over Core and
+Skills, not separate execution engines.
 
-`WEB_ROOT` may override the default repo-local `Web/` root for tests and
-advanced local setups. Listing reads descriptors only; it does not import
-`app.py`.
+### web
+
+The web surface discovers, lists, and launches browser/mobile shells:
+
+```bash
+python nspl.py web list
+python nspl.py web list --detailed
+python nspl.py web launch NSPL.Status --host 127.0.0.1 --port 8765
+```
+
+Discovery uses `Web/<Domain>/<AppName>/web.json`. Listing reads descriptors
+only and does not import app modules.
 
 Install optional Web dependencies with:
 
-`python -m pip install -e ".[web]"`
+```bash
+python -m pip install -e ".[web]"
+```
 
-Web launch is explicit and foreground. The default bind host is localhost.
-Use `--host 0.0.0.0` or a LAN/Tailscale-reachable address only when you want
-external devices to connect and have configured firewall/network access outside
-NSPL.
+## Web Launch Lifecycle
 
-`WebContext.run_skill(...)` uses the real `nspl.py` gateway in a subprocess by
-default. This avoids process-wide environment mutation during concurrent Web
-requests while preserving SkillCLI command shape and environment overrides such
-as `SKILLS_ROOT`. Web apps should call Skills, Core, or NodeCTX instead of
-duplicating business logic or owning hidden state.
+`python nspl.py web launch <Name>`:
 
-## Later Passes
+1. discovers `web.json` descriptors under `Web/` or `WEB_ROOT`
+2. resolves the named app
+3. imports only that app's entry module
+4. builds a `WebContext`
+5. calls the configured factory, usually `create_app(context)`
+6. starts Uvicorn as a foreground local server
 
-Future passes can add richer apps, but Web apps should remain shells over Core,
-NodeCTX, and Skills.
+Web apps must not start Uvicorn themselves. Entry owns host/port binding,
+reload mode, log level, dependency errors, and foreground server lifecycle.
+
+The default host is `127.0.0.1`, unless overridden by the descriptor or command
+line. LAN or Tailscale access requires an explicit bind and external network
+configuration.
+
+## WebContext
+
+`WebContext` gives Web apps:
+
+- `repo_root`
+- `caller_cwd`
+- `web_root`
+- `app_dir`
+- descriptor `metadata`
+- app `entry_path`
+- `factory_name`
+
+`WebContext.run_skill(argv, timeout=30.0)` invokes the skill surface through the
+real repo `nspl.py` gateway in a subprocess. The `argv` shape is the skill
+surface shape after `nspl.py skill`, for example:
+
+```python
+context.run_skill([
+    "skill",
+    "NSPL.Tools.Time.now",
+    "--timezone",
+    "America/New_York",
+    "--json",
+])
+```
+
+This keeps concurrent Web requests from mutating process-wide skill environment
+state while preserving the same command path used by humans and automation.
+
+## Compatibility Shims
+
+`Core/NSPL/SkillCLI` and `Core/NSPL/GUICLI` remain supported compatibility
+entrypoints. Their public command shapes are preserved for existing callers:
+
+```bash
+python -m Core.NSPL.SkillCLI list
+python -m Core.NSPL.SkillCLI skill NSPL.Tools.Time.now --json
+python -m Core.NSPL.GUICLI list
+```
+
+Do not add new command-surface behavior there. New surfaces and new routing
+belong under Entry.
