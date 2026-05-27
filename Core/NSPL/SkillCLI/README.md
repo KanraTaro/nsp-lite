@@ -8,7 +8,7 @@ The canonical command spine is now `Core/NSPL/Entry`, reached through the root
 
 ```bash
 python nspl.py skill list
-python nspl.py skill skill NSPL.Tools.Time.now --json
+python nspl.py skill NSPL.Tools.Time.now --json
 ```
 
 The compatibility module path still works:

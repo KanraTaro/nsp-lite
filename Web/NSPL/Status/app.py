@@ -21,7 +21,6 @@ def _parse_time_payload(result) -> tuple[Dict[str, Any] | None, str | None]:
 def _load_status_payload(context) -> Dict[str, Any]:
     result = context.run_skill_subprocess(
         [
-            "skill",
             "NSPL.Tools.Time.now",
             "--timezone",
             "America/New_York",

@@ -33,7 +33,7 @@ The skill surface executes one skill per invocation:
 
 ```bash
 python nspl.py skill list
-python nspl.py skill skill NSPL.Tools.Time.now --json
+python nspl.py skill NSPL.Tools.Time.now --json
 ```
 
 Discovery uses `Skills/<Domain>/<SkillName>/skill.json`. Listing does not
@@ -107,7 +107,6 @@ surface shape after `nspl.py skill`, for example:
 
 ```python
 context.run_skill([
-    "skill",
     "NSPL.Tools.Time.now",
     "--timezone",
     "America/New_York",

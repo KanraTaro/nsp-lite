@@ -115,19 +115,19 @@ RohTalk is accessed through SkillCLI.
 Examples:
 
 # Start a conversation
-nspl-skill skill RohTalk.start -- "Hello"
+python nspl.py skill RohTalk.start -- "Hello"
 
 # Start with tools enabled
-nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.start --tools -- "What's the weather in Orlando?"
 
 # Continue a conversation
-nspl-skill skill RohTalk.chat 0 -- "How are you?"
+python nspl.py skill RohTalk.chat 0 -- "How are you?"
 
 # Continue with tools
-nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
+python nspl.py skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
 
 # Inspect conversation
-nspl-skill skill RohTalk.show_conversation 0
+python nspl.py skill RohTalk.show_conversation 0
 
 ---
 

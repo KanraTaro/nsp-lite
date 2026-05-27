@@ -59,7 +59,7 @@ class EntryGatewayTests(unittest.TestCase):
             check=False,
         )
 
-    def test_nspl_skill_surface_still_forwards_skillcli_list(self) -> None:
+    def test_nspl_skill_surface_lists_skills(self) -> None:
         result = self._run_nspl(
             ["skill", "list"],
             env_overrides={"SKILLS_ROOT": str(SKILLS_FIXTURE)},
@@ -69,14 +69,29 @@ class EntryGatewayTests(unittest.TestCase):
         self.assertIn("Dummy.echo", result.stdout)
         self.assertIn("ImportError.explode", result.stdout)
 
-    def test_nspl_skill_surface_still_forwards_skillcli_run(self) -> None:
+    def test_nspl_skill_surface_runs_flattened_skill_name(self) -> None:
         result = self._run_nspl(
-            ["skill", "skill", "Dummy.echo", "hello-entry"],
+            ["skill", "Dummy.echo", "hello-entry"],
             env_overrides={"SKILLS_ROOT": str(SKILLS_FIXTURE)},
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "hello-entry")
+
+    def test_nspl_skill_surface_runs_production_echo_canonical_command(self) -> None:
+        result = self._run_nspl(["skill", "NSPL.Tools.Echo.echo", "--", "hello"])
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "hello")
+
+    def test_nspl_skill_surface_reports_unknown_flattened_skill(self) -> None:
+        result = self._run_nspl(
+            ["skill", "Nope.missing"],
+            env_overrides={"SKILLS_ROOT": str(SKILLS_FIXTURE)},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Skill not found", result.stderr)
 
     def test_nspl_gui_surface_still_forwards_guicli_list(self) -> None:
         result = self._run_nspl(
@@ -143,7 +158,7 @@ class EntryGatewayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             caller_cwd = Path(tmp).resolve()
             result = self._run_nspl(
-                ["--cwd", str(caller_cwd), "skill", "skill", "Env.cwd"],
+                ["--cwd", str(caller_cwd), "skill", "Env.cwd"],
                 env_overrides={"SKILLS_ROOT": str(ENV_SKILLS_FIXTURE)},
             )
 
@@ -178,6 +193,23 @@ class EntryGatewayTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Dummy.echo", stdout.getvalue())
+
+    def test_docs_and_tests_do_not_promote_nested_skill_invocation(self) -> None:
+        forbidden = ("skill " + "skill",)
+        candidates = [REPO_ROOT / "README.md"]
+        candidates.extend((REPO_ROOT / "Core").rglob("*.md"))
+        candidates.extend((REPO_ROOT / "Docs").rglob("*.md"))
+        candidates.extend((REPO_ROOT / "Skills").rglob("*.md"))
+        candidates.extend((REPO_ROOT / "Web").rglob("*.md"))
+        candidates.extend(REPO_ROOT.rglob("Tests/test*.py"))
+
+        promoted: list[str] = []
+        for path in candidates:
+            text = path.read_text(encoding="utf-8")
+            if any(phrase in text for phrase in forbidden):
+                promoted.append(str(path.relative_to(REPO_ROOT)))
+
+        self.assertEqual(promoted, [])
 
 
 if __name__ == "__main__":

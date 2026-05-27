@@ -38,6 +38,7 @@ same pattern:
 - keep durable truth in filesystem artifacts
 - avoid hidden databases, brokers, or background services as source of truth
 
-External wrappers such as `nspl-skill` and `nspl-gui` are local conveniences.
-They are not internal architecture; their stable target is the repo `nspl.py`
-gateway.
+External wrappers are local conveniences, not internal architecture. A generic
+wrapper should follow the Entry surface shape, for example `nspl skill list`,
+`nspl skill <Skill.Name>`, and `nspl web list`, with the repo `nspl.py`
+gateway as its target.

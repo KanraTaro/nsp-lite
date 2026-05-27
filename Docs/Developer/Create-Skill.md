@@ -59,8 +59,8 @@ writes for state or logs when NodeCTX provides the needed operation.
 
 ```bash
 python nspl.py skill list
-python nspl.py skill skill Example.Echo -- hello
-python nspl.py skill skill Example.Echo --json -- hello
+python nspl.py skill Example.Echo -- hello
+python nspl.py skill Example.Echo --json -- hello
 ```
 
 The `--json` flag is a skill-surface flag exposed as `ctx.json`. Skills should

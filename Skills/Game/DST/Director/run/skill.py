@@ -97,7 +97,7 @@ def _print_shell_command(
     model_options: dict[str, Any] | None = None,
 ) -> None:
     command_parts = [
-        "shell: nspl-skill skill RohTalk.shell",
+        "shell: python nspl.py skill RohTalk.shell",
         f"--conversation {conversation_id}",
         "--tools",
         "--toolkit dst_director",

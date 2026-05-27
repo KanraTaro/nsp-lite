@@ -62,10 +62,10 @@ Current docs and conventions:
 
 External local wrappers:
 
-- `nspl-skill` and `nspl-gui` are local system wrapper scripts in `~/NSP/Exec/LocalBin`.
-- They are external launch conveniences, not internal architecture.
-- The known `nspl-skill` wrapper reads `~/NSP/Exec/nspl_exec.json`, resolves dev/prod root, then calls `python3 "$ROOT/nspl.py" --root "$ROOT" --cwd "$CALLER_CWD" skill "$@"`.
-- The wrapper model should remain compatible because wrappers call `nspl.py`, but design authority should live in `nspl.py` plus Core Entry.
+- Wrapper scripts are external launch conveniences, not internal architecture.
+- A generic wrapper command should preserve Entry surface syntax: `nspl skill list`, `nspl skill <SkillName> [args...]`, and `nspl web list`.
+- A wrapper can resolve dev/prod root and invoke `python3 "$ROOT/nspl.py" --root "$ROOT" --cwd "$CALLER_CWD" <surface> ...`.
+- Design authority lives in `nspl.py` plus Core Entry.
 
 ## Target Architecture
 
@@ -153,7 +153,7 @@ Migration approach:
 - Pass 1 can leave SkillCLI/GUICLI internals intact and have Entry delegate to them for behavior preservation.
 - Later, SkillCLI/GUICLI module entrypoints can become compatibility shims that delegate to Entry command modules while preserving their current argv shapes and `prog`/usage behavior as much as practical.
 - If exact help text changes would be risky, postpone shim conversion and keep direct SkillCLI/GUICLI implementations until Entry parity tests are strong.
-- Existing `nspl-skill` and `nspl-gui` wrappers should continue to work because their stable contract is `nspl.py --root "$ROOT" --cwd "$CALLER_CWD" skill|gui ...`.
+- External wrappers should invoke the generic Entry surface shape through `nspl.py --root "$ROOT" --cwd "$CALLER_CWD" <surface> ...`.
 
 ## Unified Command Surface
 
@@ -164,10 +164,10 @@ Initial Entry surfaces:
 - `python3 nspl.py web list`
 - `python3 nspl.py web launch <WebAppName>`
 
-Preserve current forwarded semantics:
+Canonical Entry semantics:
 
 - `python3 nspl.py skill list`
-- `python3 nspl.py skill skill <SkillName> [args...]`
+- `python3 nspl.py skill <SkillName> [args...]`
 - `python3 nspl.py gui list`
 - `python3 nspl.py gui run <GuiName> [argv...]`
 

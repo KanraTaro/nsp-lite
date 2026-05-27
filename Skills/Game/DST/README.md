@@ -36,8 +36,8 @@ batch helper later.
 `Game.DST.Director.run` accepts RohTalk model runtime profiles:
 
 ```bash
-nspl-skill skill Game.DST.Director.run --model-profile dst_director_fast --interval 8
-nspl-skill skill Game.DST.Director.run --model-profile dst_director_quality --interval 15
+python nspl.py skill Game.DST.Director.run --model-profile dst_director_fast --interval 8
+python nspl.py skill Game.DST.Director.run --model-profile dst_director_quality --interval 15
 ```
 
 The repo-local `Config/RohTalk/config.json` defines `dst_director_fast` as

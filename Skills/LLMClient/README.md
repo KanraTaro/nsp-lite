@@ -31,7 +31,7 @@ Prompt:
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_generate \
+python nspl.py skill LLMClient.ollama_generate \
   --instance main \
   --model qwen3:0.6b \
   -- "Say hi in one sentence."
@@ -58,7 +58,7 @@ Prompt:
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_chat \
+python nspl.py skill LLMClient.ollama_chat \
   --instance main \
   --model qwen3:0.6b \
   -- "You are a helpful assistant. Reply with exactly 10 words."
@@ -85,7 +85,7 @@ Flags:
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_stream \
+python nspl.py skill LLMClient.ollama_stream \
   --instance main \
   --model qwen3:0.6b \
   -- "Write a short poem, streaming is fine."
@@ -110,9 +110,9 @@ Assuming Ollama is running at the default host and the model is pulled:
 
 ollama pull qwen3:0.6b
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_generate --instance main --model qwen3:0.6b -- "Hello"
+python nspl.py skill LLMClient.ollama_generate --instance main --model qwen3:0.6b -- "Hello"
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_chat --instance main --model qwen3:0.6b -- "Hello"
+python nspl.py skill LLMClient.ollama_chat --instance main --model qwen3:0.6b -- "Hello"
 
-python -m Core.NSPL.SkillCLI skill LLMClient.ollama_stream --instance main --model qwen3:0.6b -- "Hello"
+python nspl.py skill LLMClient.ollama_stream --instance main --model qwen3:0.6b -- "Hello"
 

@@ -27,7 +27,7 @@ Echo a message back to stdout.
 
 Example:
 
-python nspl.py skill skill NSPL.Tools.Echo.echo \
+python nspl.py skill NSPL.Tools.Echo.echo \
   --instance main \
   -- hello world
 
@@ -43,7 +43,7 @@ payload with UTC time, local time, timezone, offset, date, and display fields.
 
 Example:
 
-python nspl.py skill skill NSPL.Tools.Time.now \
+python nspl.py skill NSPL.Tools.Time.now \
   --timezone America/New_York \
   --json
 
@@ -58,7 +58,7 @@ A deliberate failure skill for testing failure paths.
 
 Example:
 
-python nspl.py skill skill NSPL.Tools.TestFail.fail \
+python nspl.py skill NSPL.Tools.TestFail.fail \
   --instance main \
   --message "this should fail"
 

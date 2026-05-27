@@ -37,7 +37,7 @@ From the repository root:
 
 ```bash
 python nspl.py skill list
-python nspl.py skill skill NSPL.Tools.Time.now --json
+python nspl.py skill NSPL.Tools.Time.now --json
 python nspl.py web list
 python nspl.py web launch NSPL.Status --host 127.0.0.1 --port 8765
 ```

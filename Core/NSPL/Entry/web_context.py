@@ -47,14 +47,14 @@ class WebContext:
         ]
 
     def run_skill(self, argv: List[str], timeout: float = 30.0) -> SkillInvocationResult:
-        """Invoke a SkillCLI command through the real NSPL gateway path."""
+        """Invoke an Entry skill command through the real NSPL gateway path."""
         return self.run_skill_subprocess(argv, timeout=timeout)
 
     def run_skill_subprocess(self, argv: List[str], timeout: float = 30.0) -> SkillInvocationResult:
-        """Invoke a SkillCLI command in a subprocess and capture output.
+        """Invoke an Entry skill command in a subprocess and capture output.
 
-        ``argv`` must use SkillCLI-surface shape, for example:
-        ``["skill", "NSPL.Tools.Time.now", "--json"]``.
+        ``argv`` follows ``nspl.py skill``, for example:
+        ``["NSPL.Tools.Time.now", "--json"]``.
         """
         command = self._skill_subprocess_command(argv)
         env = os.environ.copy()
@@ -90,12 +90,13 @@ class WebContext:
         )
 
     def run_skill_inprocess(self, argv: List[str]) -> SkillInvocationResult:
-        """Invoke the SkillCLI surface in-process and capture output.
+        """Invoke the Entry skill command in-process and capture output.
 
-        ``argv`` must use SkillCLI-surface shape, for example:
-        ``["skill", "NSPL.Tools.Time.now", "--json"]``.
+        ``argv`` follows ``nspl.py skill``, for example:
+        ``["NSPL.Tools.Time.now", "--json"]``.
         """
-        from Core.NSPL.Entry.Surfaces.skill_surface import main as skill_surface_main
+        from Core.NSPL.Entry.Commands.skill import main as skill_command_main
+        from Core.NSPL.Entry.context import EntryContext
 
         stdout = StringIO()
         stderr = StringIO()
@@ -104,7 +105,10 @@ class WebContext:
         try:
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 try:
-                    result = skill_surface_main(list(argv))
+                    result = skill_command_main(
+                        list(argv),
+                        context=EntryContext.from_paths(repo_root=self.repo_root, caller_cwd=self.caller_cwd),
+                    )
                 except SystemExit as e:
                     exit_code = int(e.code) if isinstance(e.code, int) else 1
                 else:

@@ -32,7 +32,7 @@ Key flags:
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill ChatOps.send_task \
+python nspl.py skill ChatOps.send_task \
   --instance main \
   --skill Tools.Echo.echo \
   --target KanraDesktop \
@@ -69,7 +69,7 @@ Notes:
 
 Example (run one task then exit):
 
-python -m Core.NSPL.SkillCLI skill ChatOps.run_worker \
+python nspl.py skill ChatOps.run_worker \
   --instance main \
   --once \
   --poll-ms 0
@@ -91,7 +91,7 @@ Key flags:
 
 Example:
 
-python -m Core.NSPL.SkillCLI skill ChatOps.queue_status \
+python nspl.py skill ChatOps.queue_status \
   --instance main \
   --domain ChatOps
 
@@ -103,7 +103,7 @@ python -m Core.NSPL.SkillCLI skill ChatOps.queue_status \
 
 Run a worker on any node that should execute tasks:
 
-python -m Core.NSPL.SkillCLI skill ChatOps.run_worker \
+python nspl.py skill ChatOps.run_worker \
   --instance main \
   --domain ChatOps
 

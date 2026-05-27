@@ -84,7 +84,7 @@ class StatusAppTests(unittest.TestCase):
         self.assertEqual(self.context.calls, 1)
         self.assertEqual(
             self.context.last_argv,
-            ["skill", "NSPL.Tools.Time.now", "--timezone", "America/New_York", "--json"],
+            ["NSPL.Tools.Time.now", "--timezone", "America/New_York", "--json"],
         )
         self.assertEqual(result["skill"]["exit_code"], 0)
 

@@ -37,11 +37,11 @@ Supports:
 
 Usage:
 
-nspl-skill skill RohTalk.start -- "Hello"
+python nspl.py skill RohTalk.start -- "Hello"
 
 Tool-enabled:
 
-nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.start --tools -- "What's the weather in Orlando?"
 
 Output:
 
@@ -67,15 +67,15 @@ Supports:
 
 Usage:
 
-nspl-skill skill RohTalk.chat 0 -- "How are you?"
+python nspl.py skill RohTalk.chat 0 -- "How are you?"
 
 Tool-enabled:
 
-nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather like in New York?"
+python nspl.py skill RohTalk.chat --tools 0 -- "What's the weather like in New York?"
 
 Model profile example:
 
-nspl-skill skill RohTalk.chat --model-profile dst_director_fast 0 -- "Keep this fast"
+python nspl.py skill RohTalk.chat --model-profile dst_director_fast 0 -- "Keep this fast"
 
 ---
 
@@ -87,7 +87,7 @@ The interaction is still stored as a conversation with kind `oneshot`, but onesh
 
 Usage:
 
-nspl-skill skill RohTalk.oneshot -- "Quick question"
+python nspl.py skill RohTalk.oneshot -- "Quick question"
 
 ---
 
@@ -103,11 +103,11 @@ Each line prints:
 
 Usage:
 
-nspl-skill skill RohTalk.list_conversations
+python nspl.py skill RohTalk.list_conversations
 
 Include oneshots:
 
-nspl-skill skill RohTalk.list_conversations --include-oneshots
+python nspl.py skill RohTalk.list_conversations --include-oneshots
 
 ---
 
@@ -117,11 +117,11 @@ Display a stored conversation in readable form.
 
 Usage:
 
-nspl-skill skill RohTalk.show_conversation 0
+python nspl.py skill RohTalk.show_conversation 0
 
 or:
 
-nspl-skill skill RohTalk.show_conversation <conversation_id>
+python nspl.py skill RohTalk.show_conversation <conversation_id>
 
 ---
 
@@ -131,11 +131,11 @@ Delete a stored conversation by id or numeric index.
 
 Usage:
 
-nspl-skill skill RohTalk.delete_conversation 0
+python nspl.py skill RohTalk.delete_conversation 0
 
 Include oneshots for numeric index resolution:
 
-nspl-skill skill RohTalk.delete_conversation --include-oneshots 0
+python nspl.py skill RohTalk.delete_conversation --include-oneshots 0
 
 ---
 
@@ -145,11 +145,11 @@ Delete all stored oneshot conversations.
 
 Usage:
 
-nspl-skill skill RohTalk.clear_oneshots
+python nspl.py skill RohTalk.clear_oneshots
 
 Preview only:
 
-nspl-skill skill RohTalk.clear_oneshots --dry-run
+python nspl.py skill RohTalk.clear_oneshots --dry-run
 
 ---
 
@@ -166,15 +166,15 @@ This skill:
 
 Usage:
 
-nspl-skill skill RohTalk.tool_test -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.tool_test -- "What's the weather in Orlando?"
 
 Quiet mode:
 
-nspl-skill skill RohTalk.tool_test --quiet -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.tool_test --quiet -- "What's the weather in Orlando?"
 
 Show final normalized history:
 
-nspl-skill skill RohTalk.tool_test --show-history -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.tool_test --show-history -- "What's the weather in Orlando?"
 
 ---
 
@@ -201,27 +201,27 @@ This enables:
 
 Start a persistent conversation:
 
-nspl-skill skill RohTalk.start -- "Hello"
+python nspl.py skill RohTalk.start -- "Hello"
 
 Start a tool-enabled conversation:
 
-nspl-skill skill RohTalk.start --tools -- "What's the weather in Orlando?"
+python nspl.py skill RohTalk.start --tools -- "What's the weather in Orlando?"
 
 List conversations:
 
-nspl-skill skill RohTalk.list_conversations
+python nspl.py skill RohTalk.list_conversations
 
 Inspect one:
 
-nspl-skill skill RohTalk.show_conversation 0
+python nspl.py skill RohTalk.show_conversation 0
 
 Continue it:
 
-nspl-skill skill RohTalk.chat 0 -- "How are you?"
+python nspl.py skill RohTalk.chat 0 -- "How are you?"
 
 Continue with tools:
 
-nspl-skill skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
+python nspl.py skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
 
 ---
 
@@ -284,11 +284,11 @@ request fields, which supports fast local settings such as `think=false`.
 
 Examples:
 
-nspl-skill skill RohTalk.start --model-profile dst_director_fast -- "Hello"
+python nspl.py skill RohTalk.start --model-profile dst_director_fast -- "Hello"
 
-nspl-skill skill RohTalk.shell --model-profile dst_director_quality
+python nspl.py skill RohTalk.shell --model-profile dst_director_quality
 
-nspl-skill skill RohTalk.chat --model-option think=false 0 -- "Short answer"
+python nspl.py skill RohTalk.chat --model-option think=false 0 -- "Short answer"
 
 ---
 

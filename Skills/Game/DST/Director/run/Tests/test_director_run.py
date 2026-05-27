@@ -187,7 +187,7 @@ class DirectorRunSkillTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("conversation_id: new_conv", stdout)
         self.assertIn(
-            "nspl-skill skill RohTalk.shell --conversation new_conv --tools --toolkit dst_director --tool-trace",
+            "python nspl.py skill RohTalk.shell --conversation new_conv --tools --toolkit dst_director --tool-trace",
             stdout,
         )
 
@@ -200,7 +200,7 @@ class DirectorRunSkillTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn(
-            "nspl-skill skill RohTalk.shell --conversation new_conv --tools "
+            "python nspl.py skill RohTalk.shell --conversation new_conv --tools "
             "--toolkit dst_director --tool-trace --model gpt-oss:20b",
             stdout,
         )
@@ -214,7 +214,7 @@ class DirectorRunSkillTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn(
-            "nspl-skill skill RohTalk.shell --conversation new_conv --tools "
+            "python nspl.py skill RohTalk.shell --conversation new_conv --tools "
             "--toolkit dst_director --tool-trace --host http://localhost:11434",
             stdout,
         )

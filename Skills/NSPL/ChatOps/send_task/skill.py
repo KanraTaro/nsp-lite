@@ -9,7 +9,7 @@ Example usage:
 
 .. code-block:: shell
 
-    python -m Core.NSPL.SkillCLI skill ChatOps.send_task \
+    python nspl.py skill ChatOps.send_task \
         --instance main \
         --skill Dummy.echo \
         --target workerA \

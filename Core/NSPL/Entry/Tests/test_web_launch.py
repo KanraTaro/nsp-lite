@@ -206,7 +206,6 @@ class EntryWebLaunchTests(unittest.TestCase):
 
         result = context.run_skill(
             [
-                "skill",
                 "NSPL.Tools.Time.now",
                 "--timezone",
                 "America/New_York",
@@ -231,7 +230,7 @@ class EntryWebLaunchTests(unittest.TestCase):
         )
 
         command = context._skill_subprocess_command(
-            ["skill", "NSPL.Tools.Time.now", "--timezone", "America/New_York", "--json"]
+            ["NSPL.Tools.Time.now", "--timezone", "America/New_York", "--json"]
         )
 
         self.assertEqual(
@@ -243,7 +242,6 @@ class EntryWebLaunchTests(unittest.TestCase):
                 str(REPO_ROOT),
                 "--cwd",
                 str(REPO_ROOT / "Core"),
-                "skill",
                 "skill",
                 "NSPL.Tools.Time.now",
                 "--timezone",

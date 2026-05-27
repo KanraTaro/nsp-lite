@@ -47,7 +47,7 @@ def create_app(context):
 Use `context.run_skill([...])` when the app needs behavior exposed by a skill:
 
 ```python
-result = context.run_skill(["skill", "NSPL.Tools.Time.now", "--json"])
+result = context.run_skill(["NSPL.Tools.Time.now", "--json"])
 ```
 
 ## List And Launch
