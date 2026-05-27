@@ -53,19 +53,22 @@ localhost. LAN or Tailscale access requires an explicit bind such as
 `--host 0.0.0.0` or a reachable interface address, plus firewall/Tailscale
 configuration outside NSPL.
 
-## Demo And Tests
+## Current Validation
 
-The deterministic demo still exercises the filesystem-backed automation path:
-
-```bash
-python demo.py
-```
-
-Run the test harness:
+These commands exercise current discovery surfaces and the repository test
+harness without clearing runtime state:
 
 ```bash
+python nspl.py skill list
+python nspl.py web list
 python run_tests.py
 ```
+
+`NSPL.Status`, launched in the Quickstart above, is the current reference Web
+app for the Web-to-Entry-to-Skill path.
+
+Known platform hardening work is tracked in
+[`Docs/KNOWN_ISSUES.md`](Docs/KNOWN_ISSUES.md).
 
 ## Repository Layout
 
