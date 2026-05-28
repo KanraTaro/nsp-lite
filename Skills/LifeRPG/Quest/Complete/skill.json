@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Quest.Complete",
+  "version": "0.1.0",
+  "description": "Complete a LifeRPG quest and grant rewards",
+  "entry": "skill.py"
+}

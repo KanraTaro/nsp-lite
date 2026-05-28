@@ -1,0 +1,1 @@
+"""LifeRPG habit skill tests."""

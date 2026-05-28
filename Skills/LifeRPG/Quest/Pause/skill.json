@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Quest.Pause",
+  "version": "0.1.0",
+  "description": "Pause a LifeRPG quest session",
+  "entry": "skill.py"
+}

@@ -1,0 +1,8 @@
+<section id="reward-panel" class="panel rewards">
+  <div class="panel-head"><p class="eyebrow">Rewards</p><span>Tokens</span></div>
+  <div class="reward-grid">
+    <div><strong>{{ ledger.get("xp_total", 0) }}</strong><span>XP</span></div>
+    <div><strong>{{ ledger.get("leisure_tokens", 0) }}</strong><span>Leisure</span></div>
+    <div><strong>{{ ledger.get("entries", [])|length }}</strong><span>Claims</span></div>
+  </div>
+</section>

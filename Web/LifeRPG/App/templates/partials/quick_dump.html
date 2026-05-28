@@ -1,0 +1,7 @@
+<section id="quick-dump-panel" class="panel quick-dump">
+  <div class="panel-head"><p class="eyebrow">Quick Dump</p><button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Roh Sort</button></div>
+  <form hx-post="/quick-dump" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+    <textarea name="text" rows="3" placeholder="fix dad page, laundry, water, Natalia paperwork"></textarea>
+    <button type="submit">Capture</button>
+  </form>
+</section>

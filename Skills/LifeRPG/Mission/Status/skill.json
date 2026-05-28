@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Mission.Status",
+  "version": "0.1.0",
+  "description": "Show LifeRPG mission board status",
+  "entry": "skill.py"
+}

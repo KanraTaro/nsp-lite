@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Habit.Check",
+  "version": "0.1.0",
+  "description": "Check a LifeRPG habit and grant a small reward",
+  "entry": "skill.py"
+}

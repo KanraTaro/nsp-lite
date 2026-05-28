@@ -1,0 +1,11 @@
+<section id="habit-panel" class="panel">
+  <div class="panel-head"><p class="eyebrow">Habits</p><span>{{ habits|length }}</span></div>
+  {% for habit in habits %}
+    <form class="habit-row" hx-post="/habit/check" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
+      <input type="hidden" name="habit_id" value="{{ habit.id }}" />
+      <span>{{ habit.title }}</span>
+      <small>streak {{ habit.streak }} · tally {{ habit.tally }}</small>
+      <button>{{ "Done" if habit.status == "checked" else "Check" }}</button>
+    </form>
+  {% endfor %}
+</section>

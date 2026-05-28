@@ -1,0 +1,35 @@
+<section id="inbox-panel" class="panel">
+  <div class="panel-head"><p class="eyebrow">Inbox</p><button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Sort</button></div>
+  {% if inbox %}
+    {% for item in inbox if item.status != "quested" %}
+      <article class="quest-row">
+        <div>
+          <strong>{{ item.title or item.original_text }}</strong>
+          <p>{{ item.original_text }} · {{ item.minimum_win or "Awaiting Roh sort" }}</p>
+        </div>
+        <span class="badge">{{ item.category }}</span>
+        <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+          <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+          <button>Start</button>
+        </form>
+      </article>
+    {% endfor %}
+  {% endif %}
+  {% if quests %}
+    {% for quest in quests if quest.status != "completed" %}
+      <article class="quest-row">
+        <div>
+          <strong>{{ quest.title }}</strong>
+          <p>{{ quest.original_text }} · {{ quest.minimum_win }}</p>
+        </div>
+        <span class="badge">{{ quest.category }}</span>
+        <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+          <button>Start</button>
+        </form>
+      </article>
+    {% endfor %}
+  {% else %}
+    <p class="empty">No quests yet. Capture a dump and let Roh sort it.</p>
+  {% endif %}
+</section>

@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Quest.Start",
+  "version": "0.1.0",
+  "description": "Start a LifeRPG quest session and expedition",
+  "entry": "skill.py"
+}

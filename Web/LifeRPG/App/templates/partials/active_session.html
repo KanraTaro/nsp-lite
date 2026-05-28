@@ -1,0 +1,22 @@
+<section id="active-session-panel" class="panel active-card">
+  <div class="panel-head"><p class="eyebrow">Active Quest Session</p><span>{{ active.session.status if active else "idle" }}</span></div>
+  {% if active and active.quest %}
+    <h2>{{ active.quest.title }}</h2>
+    <p>{{ active.quest.minimum_win }}</p>
+    <div class="session-actions">
+      <form hx-post="/quest/pause" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+        <input type="hidden" name="quest_id" value="{{ active.quest.id }}" />
+        <input name="note" placeholder="pause note" />
+        <button>Pause</button>
+      </form>
+      <form hx-post="/quest/complete" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+        <input type="hidden" name="quest_id" value="{{ active.quest.id }}" />
+        <input name="note" placeholder="completion note" />
+        <button>Complete</button>
+      </form>
+    </div>
+  {% else %}
+    <h2>No active quest</h2>
+    <p>Capture a quick dump, run Roh Sort, then start a quest to clock in and launch an expedition.</p>
+  {% endif %}
+</section>

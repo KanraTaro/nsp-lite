@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Inbox.Sort",
+  "version": "0.1.0",
+  "description": "Deterministically sort LifeRPG inbox items",
+  "entry": "skill.py"
+}

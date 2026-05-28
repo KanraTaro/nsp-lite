@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LifeRPG Command Center</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">Life<span>RPG</span></a>
+      <nav>
+        <a href="/">Board</a>
+        <a href="/inbox">Inbox</a>
+        <a href="/quests">Quests</a>
+        <a href="/today">Today</a>
+        <a href="/roh">Roh</a>
+      </nav>
+      <div class="token-chip">XP {{ ledger.get("xp_total", 0) }} / Tokens {{ ledger.get("leisure_tokens", 0) }}</div>
+    </header>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

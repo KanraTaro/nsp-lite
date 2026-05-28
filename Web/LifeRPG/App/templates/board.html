@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="board-grid">
+  <div class="rail">
+    {% include "partials/operator_card.html" %}
+    {% include "partials/habit_list.html" %}
+    {% include "partials/quick_dump.html" %}
+  </div>
+  <div class="main-stack">
+    {% include "partials/mission_card.html" %}
+    {% include "partials/active_session.html" %}
+    {% include "partials/inbox_items.html" %}
+    {% include "partials/expedition.html" %}
+  </div>
+  <div class="rail">
+    {% include "partials/event_list.html" %}
+    {% include "partials/reward_panel.html" %}
+    {% include "partials/roh_proposals.html" %}
+  </div>
+</section>
+{% endblock %}

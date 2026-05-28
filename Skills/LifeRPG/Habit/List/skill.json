@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Habit.List",
+  "version": "0.1.0",
+  "description": "List LifeRPG habits",
+  "entry": "skill.py"
+}

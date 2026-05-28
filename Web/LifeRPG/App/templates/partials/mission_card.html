@@ -1,0 +1,6 @@
+<section id="mission-panel" class="panel mission-card">
+  <div class="panel-head"><p class="eyebrow">Mission</p><span>{{ mission.get("date", "") }}</span></div>
+  <h1>{{ mission.get("title", "Today's Mission") }}</h1>
+  <p>{{ mission.get("focus", "Dump chaos. Pick the mission. Do the quest. Claim rewards.") }}</p>
+  <div class="progress"><span style="width: {{ 30 + (ledger.get('xp_total', 0) % 60) }}%"></span></div>
+</section>

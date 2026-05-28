@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Expedition.Get",
+  "version": "0.1.0",
+  "description": "Get active LifeRPG expeditions",
+  "entry": "skill.py"
+}

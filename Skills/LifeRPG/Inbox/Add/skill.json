@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Inbox.Add",
+  "version": "0.1.0",
+  "description": "Capture messy LifeRPG inbox text",
+  "entry": "skill.py"
+}

@@ -1,0 +1,6 @@
+<section id="event-panel" class="panel">
+  <div class="panel-head"><p class="eyebrow">Events</p><span>Reminder data ready</span></div>
+  {% for event in events %}
+    <article class="event-row"><strong>{{ event.title }}</strong><span>{{ event.display_time or event.starts_at or "Unscheduled" }}</span></article>
+  {% endfor %}
+</section>

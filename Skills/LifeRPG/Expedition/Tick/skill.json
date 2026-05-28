@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Expedition.Tick",
+  "version": "0.1.0",
+  "description": "Advance a LifeRPG expedition tick",
+  "entry": "skill.py"
+}

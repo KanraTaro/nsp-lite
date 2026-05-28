@@ -1,0 +1,9 @@
+{
+  "name": "LifeRPG.App",
+  "version": "0.1.0",
+  "description": "LifeRPG Command Center",
+  "entry": "app.py",
+  "factory": "create_app",
+  "default_host": "127.0.0.1",
+  "default_port": 8770
+}

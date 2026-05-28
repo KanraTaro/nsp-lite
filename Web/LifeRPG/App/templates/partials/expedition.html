@@ -1,0 +1,31 @@
+<section id="expedition-panel" class="panel expedition">
+  <div class="panel-head">
+    <p class="eyebrow">Expedition</p>
+    <button hx-post="/expedition/tick" hx-target="#expedition-panel" hx-swap="outerHTML">Tick</button>
+  </div>
+  {% set exp = active.expedition if active else None %}
+  {% if exp %}
+    <div class="progress big"><span style="width: {{ exp.progress }}%"></span></div>
+    <div class="battle-grid">
+      <div>
+        <h3>Allies</h3>
+        {% for ally in exp.allies %}
+          <div class="unit"><strong>{{ ally.name }}</strong><span>HP {{ ally.hp }} / {{ ally.max_hp }}</span><div class="hp"><span style="width: {{ (ally.hp / ally.max_hp * 100)|round|int }}%"></span></div></div>
+        {% endfor %}
+      </div>
+      <div>
+        <h3>Enemies</h3>
+        {% for enemy in exp.enemies %}
+          <div class="unit enemy"><strong>{{ enemy.name }}</strong><span>HP {{ enemy.hp }} / {{ enemy.max_hp }}</span><div class="hp"><span style="width: {{ (enemy.hp / enemy.max_hp * 100)|round|int }}%"></span></div></div>
+        {% endfor %}
+      </div>
+    </div>
+    <ol class="log">
+      {% for line in exp.log[-5:] %}
+        <li>{{ line }}</li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="empty">No expedition running. Start a quest session to deploy Roh and begin idle progress.</p>
+  {% endif %}
+</section>

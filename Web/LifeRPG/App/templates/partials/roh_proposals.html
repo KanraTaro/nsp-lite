@@ -1,0 +1,8 @@
+<section id="roh-actions-panel" class="panel">
+  <div class="panel-head"><p class="eyebrow">Roh Actions</p><span>Template mode</span></div>
+  {% for event in roh_log %}
+    <p class="log-line">{{ event.kind }} · {{ event.get("count", event.get("batch_id", "")) }}</p>
+  {% else %}
+    <p class="empty">Roh is ready to sort your next dump.</p>
+  {% endfor %}
+</section>

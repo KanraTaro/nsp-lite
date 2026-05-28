@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Quest.List",
+  "version": "0.1.0",
+  "description": "List LifeRPG quests",
+  "entry": "skill.py"
+}

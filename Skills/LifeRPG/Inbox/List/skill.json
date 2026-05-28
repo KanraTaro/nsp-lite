@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Inbox.List",
+  "version": "0.1.0",
+  "description": "List LifeRPG inbox items",
+  "entry": "skill.py"
+}
