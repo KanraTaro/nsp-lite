@@ -1,35 +1,85 @@
-<section id="inbox-panel" class="panel">
-  <div class="panel-head"><p class="eyebrow">Inbox</p><button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Sort</button></div>
-  {% if inbox %}
-    {% for item in inbox if item.status != "quested" %}
-      <article class="quest-row">
-        <div>
-          <strong>{{ item.title or item.original_text }}</strong>
-          <p>{{ item.original_text }} · {{ item.minimum_win or "Awaiting Roh sort" }}</p>
-        </div>
-        <span class="badge">{{ item.category }}</span>
-        <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
-          <input type="hidden" name="inbox_id" value="{{ item.id }}" />
-          <button>Start</button>
-        </form>
-      </article>
-    {% endfor %}
-  {% endif %}
-  {% if quests %}
-    {% for quest in quests if quest.status != "completed" %}
-      <article class="quest-row">
-        <div>
-          <strong>{{ quest.title }}</strong>
-          <p>{{ quest.original_text }} · {{ quest.minimum_win }}</p>
-        </div>
-        <span class="badge">{{ quest.category }}</span>
-        <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
-          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
-          <button>Start</button>
-        </form>
-      </article>
-    {% endfor %}
+<section id="inbox-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  <div class="panel-head">
+    <p class="eyebrow">Inbox</p>
+    <div class="panel-actions">
+      <button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Roh Sort</button>
+      {% if ui.page != "inbox" %}<a class="button-link" href="/inbox">Manage Inbox</a>{% endif %}
+    </div>
+  </div>
+  {% include "partials/action_notice.html" %}
+  {% set visible_inbox = ui.inbox_items if ui.page == "inbox" else ui.inbox_preview %}
+  {% if visible_inbox %}
+    <div class="card-list">
+      {% for item in visible_inbox %}
+        <article class="manage-card compact-card">
+          <div class="item-main">
+            {% if item.original_text %}
+              <p class="original-text">{{ item.original_text }}</p>
+            {% endif %}
+            <strong>{{ item.title or item.text or item.original_text }}</strong>
+            <div class="meta-line">
+              <span>{{ item.category or "Unsorted" }}</span>
+              <span>win: {{ item.minimum_win or "Awaiting sort" }}</span>
+              <span>priority {{ item.priority or 3 }}</span>
+              <span>energy {{ item.energy_cost or 1 }}</span>
+              <span>{{ item.status }}</span>
+            </div>
+          </div>
+          <div class="inline-actions">
+            <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+              <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+              <button>Start</button>
+            </form>
+            {% if ui.page == "inbox" %}
+              <details class="edit-shell">
+                <summary>Edit</summary>
+                <form class="management-form" hx-post="/inbox/edit" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                  <label>Title<input name="title" value="{{ item.title or item.original_text }}" /></label>
+                  <label>Category<select name="category">
+                    {% for category in choices.categories %}
+                      <option value="{{ category }}" {% if item.category == category %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Minimum win<input name="minimum_win" value="{{ item.minimum_win or '' }}" /></label>
+                  <label>Priority<select name="priority">
+                    {% for rating in choices.ratings %}
+                      <option value="{{ rating }}" {% if (item.priority or 3)|string == rating %}selected{% endif %}>{{ rating }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Energy<select name="energy_cost">
+                    {% for rating in choices.ratings %}
+                      <option value="{{ rating }}" {% if (item.energy_cost or 1)|string == rating %}selected{% endif %}>{{ rating }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <button>Save</button>
+                </form>
+              </details>
+              {% if item.previous_state %}
+                <form hx-post="/inbox/revert" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                  <button class="ghost">Revert</button>
+                </form>
+              {% endif %}
+              <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                <input type="hidden" name="mode" value="archive" />
+                <button class="ghost">Archive</button>
+              </form>
+              <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                <input type="hidden" name="mode" value="delete" />
+                <button class="danger">Delete</button>
+              </form>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+    {% if ui.page != "inbox" and ui.has_more_inbox %}
+      <p class="panel-foot"><a href="/inbox">View all inbox items</a></p>
+    {% endif %}
   {% else %}
-    <p class="empty">No quests yet. Capture a dump and let Roh sort it.</p>
+    <p class="empty">No inbox items. Capture a quick dump to feed the command board.</p>
   {% endif %}
 </section>

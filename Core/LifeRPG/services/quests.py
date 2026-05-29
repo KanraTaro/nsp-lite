@@ -8,12 +8,14 @@ from Core.LifeRPG.services import expedition, inbox
 from Core.LifeRPG.time import add_minutes, utc_now_iso
 
 
-def list_quests(store, *, status: str | None = None) -> list[dict]:
+def list_quests(store, *, status: str | None = None, include_archived: bool = False) -> list[dict]:
     ensure_defaults(store)
     quests = store.list_records("Data", ["Quests"])
+    if not include_archived and status is None:
+        quests = [quest for quest in quests if quest.get("status") not in {"archived", "deleted"}]
     if status:
         quests = [quest for quest in quests if quest.get("status") == status]
-    return sorted(quests, key=lambda quest: str(quest.get("created_at", "")), reverse=True)
+    return sorted(quests, key=lambda quest: (-int(quest.get("priority", 3) or 3), str(quest.get("created_at", ""))), reverse=True)
 
 
 def _quest_from_inbox(store, inbox_id: str) -> dict:
@@ -43,20 +45,116 @@ def _quest_from_inbox(store, inbox_id: str) -> dict:
     return record
 
 
-def create_simple(store, title: str, *, category: str = "Build") -> dict:
+def create_simple(
+    store,
+    title: str,
+    *,
+    category: str = "Build",
+    minimum_win: str = "",
+    priority: int | str = 3,
+    energy_cost: int | str = 1,
+) -> dict:
+    ensure_defaults(store)
+    clean_title = title.strip() or "Untitled Quest"
     quest = Quest(
         id=make_id("quest", utc_now_iso(), title),
-        title=title.strip() or "Untitled Quest",
-        original_text=title.strip(),
-        category=canonical_category(category, text=title),
+        title=clean_title,
+        original_text=clean_title,
+        category=canonical_category(category, text=clean_title),
         status="open",
         created_at=utc_now_iso(),
-        minimum_win=f"Move {title.strip() or 'the quest'} forward for 10 minutes.",
+        minimum_win=minimum_win.strip() or f"Move {clean_title} forward for 10 minutes.",
+        priority=max(1, min(5, int(priority or 3))),
+        energy_cost=max(1, min(5, int(energy_cost or 1))),
     )
     record = to_record(quest)
     store.write_json("Data", ["Quests"], f"{quest.id}.json", record)
     store.append_event("quest_created", {"quest_id": quest.id})
     return record
+
+
+def edit_quest(
+    store,
+    quest_id: str,
+    *,
+    title: str | None = None,
+    category: str | None = None,
+    minimum_win: str | None = None,
+    priority: int | str | None = None,
+    energy_cost: int | str | None = None,
+    status: str | None = None,
+) -> dict:
+    quest = get_quest(store, quest_id)
+    if title is not None:
+        quest["title"] = str(title).strip() or quest.get("title") or "Untitled Quest"
+    if category is not None:
+        quest["category"] = canonical_category(category, text=quest.get("title") or "")
+    if minimum_win is not None:
+        quest["minimum_win"] = str(minimum_win).strip()
+    if priority is not None and str(priority).strip():
+        quest["priority"] = max(1, min(5, int(priority)))
+    if energy_cost is not None and str(energy_cost).strip():
+        quest["energy_cost"] = max(1, min(5, int(energy_cost)))
+    if status is not None and str(status).strip():
+        quest["status"] = str(status).strip()
+    quest["updated_at"] = utc_now_iso()
+    store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
+    store.append_event("quest_edited", {"quest_id": quest_id})
+    return quest
+
+
+def archive_quest(store, quest_id: str, *, delete: bool = False) -> dict:
+    quest = get_quest(store, quest_id)
+    quest["status"] = "deleted" if delete else "archived"
+    quest["archived_at"] = utc_now_iso()
+    quest["active_session_id"] = None
+    store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
+    store.append_event("quest_deleted" if delete else "quest_archived", {"quest_id": quest_id})
+    return quest
+
+
+def add_step(store, quest_id: str, title: str) -> dict:
+    quest = get_quest(store, quest_id)
+    steps = list(quest.get("steps") or [])
+    step = {"id": make_id("step", quest_id, utc_now_iso(), title), "title": title.strip() or "Untitled step", "status": "open"}
+    steps.append(step)
+    quest["steps"] = steps
+    quest["updated_at"] = utc_now_iso()
+    store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
+    store.append_event("quest_step_added", {"quest_id": quest_id, "step_id": step["id"]})
+    return {"quest": quest, "step": step}
+
+
+def check_step(store, quest_id: str, step_id: str, *, status: str = "completed") -> dict:
+    quest = get_quest(store, quest_id)
+    steps = list(quest.get("steps") or [])
+    found = None
+    for step in steps:
+        if step.get("id") == step_id:
+            step["status"] = status
+            step["completed_at"] = utc_now_iso() if status == "completed" else None
+            found = step
+            break
+    if found is None:
+        raise ValueError(f"quest step not found: {step_id}")
+    quest["steps"] = steps
+    quest["updated_at"] = utc_now_iso()
+    store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
+    store.append_event("quest_step_checked", {"quest_id": quest_id, "step_id": step_id, "status": status})
+    return {"quest": quest, "step": found}
+
+
+def add_note(store, quest_id: str, note: str) -> dict:
+    quest = get_quest(store, quest_id)
+    notes = list(quest.get("notes") or [])
+    record = {"id": make_id("note", quest_id, utc_now_iso(), note), "created_at": utc_now_iso(), "text": note.strip()}
+    if record["text"]:
+        notes.append(record)
+    quest["notes"] = notes
+    quest["updated_at"] = utc_now_iso()
+    store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
+    store.append_event("quest_note_added", {"quest_id": quest_id, "note_id": record["id"]})
+    return {"quest": quest, "note": record}
 
 
 def get_quest(store, quest_id: str) -> dict:

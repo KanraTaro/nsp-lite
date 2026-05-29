@@ -1,0 +1,49 @@
+<section id="settings-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  <div class="panel-head"><p class="eyebrow">Settings</p><span>{{ ui.operator_name }}</span></div>
+  {% include "partials/action_notice.html" %}
+  <form class="settings-form" hx-post="/settings/save" hx-target="#settings-panel" hx-swap="outerHTML" method="post">
+    <label>
+      Display name
+      <input name="display_name" value="{{ settings.display_name or '' }}" />
+    </label>
+    <label>
+      Timezone
+      <input name="timezone" value="{{ settings.timezone or 'UTC' }}" />
+    </label>
+    <label class="check-row">
+      <input type="hidden" name="auto_sort_enabled" value="false" />
+      <input type="checkbox" name="auto_sort_enabled" value="true" {% if settings.auto_sort_enabled %}checked{% endif %} />
+      Auto sort enabled
+    </label>
+    <label>
+      Check-in minutes
+      <input type="number" min="5" step="5" name="checkin_minutes" value="{{ settings.checkin_minutes or 90 }}" />
+      <small>Saved for quest sessions and expedition check-in timing.</small>
+    </label>
+    <label>
+      Reward intensity
+      <select name="reward_intensity">
+        {% for value in choices.reward_intensity %}
+          <option value="{{ value }}" {% if settings.reward_intensity == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Strictness mode
+      <select name="strictness_mode">
+        {% for value in choices.strictness_mode %}
+          <option value="{{ value }}" {% if settings.strictness_mode == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Visual mode
+      <select name="visual_mode">
+        {% for value in choices.visual_mode %}
+          <option value="{{ value }}" {% if settings.visual_mode == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button>Save Settings</button>
+  </form>
+</section>

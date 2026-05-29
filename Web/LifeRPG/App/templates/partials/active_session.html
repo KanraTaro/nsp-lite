@@ -1,8 +1,15 @@
-<section id="active-session-panel" class="panel active-card">
+<section id="active-session-panel" class="panel active-card"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
   <div class="panel-head"><p class="eyebrow">Active Quest Session</p><span>{{ active.session.status if active else "idle" }}</span></div>
+  {% include "partials/action_notice.html" %}
   {% if active and active.quest %}
     <h2>{{ active.quest.title }}</h2>
     <p>{{ active.quest.minimum_win }}</p>
+    <div class="meta-line">
+      <span>started {{ active.session.started_at or active.session.started or "unknown" }}</span>
+      {% if active.session.latest_note %}<span>latest note: {{ active.session.latest_note }}</span>{% endif %}
+      {% if active.expedition %}<span>expedition {{ active.expedition.progress }}%</span>{% endif %}
+      <span>check-in {{ ui.settings.checkin_minutes }} min</span>
+    </div>
     <div class="session-actions">
       <form hx-post="/quest/pause" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
         <input type="hidden" name="quest_id" value="{{ active.quest.id }}" />

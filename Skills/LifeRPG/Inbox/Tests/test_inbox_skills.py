@@ -56,3 +56,24 @@ class InboxSkillTests(unittest.TestCase):
         self.assertEqual(code, 0)
         payload = json.loads(result)
         self.assertEqual(payload["items"][0]["category"], "Build")
+
+    def test_edit_archive_and_revert_skills(self) -> None:
+        self._run("Skills/LifeRPG/Inbox/Add", ["--text", "fix NSPL page"])
+        _code, sorted_result = self._run("Skills/LifeRPG/Inbox/Sort", [], json_flag=True)
+        item = json.loads(sorted_result)["items"][0]
+
+        code, edited = self._run(
+            "Skills/LifeRPG/Inbox/Edit",
+            ["--inbox-id", item["id"], "--title", "Fix NSPL", "--priority", "1"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(edited)["item"]["title"], "Fix NSPL")
+
+        code, reverted = self._run("Skills/LifeRPG/Inbox/Revert", ["--inbox-id", item["id"]], json_flag=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(reverted)["item"]["status"], "raw")
+
+        code, archived = self._run("Skills/LifeRPG/Inbox/Archive", ["--inbox-id", item["id"]], json_flag=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(archived)["item"]["status"], "archived")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from Core.LifeRPG.defaults import ensure_defaults
-from Core.LifeRPG.services import events, habits, inbox, quests, rewards, sessions
+from Core.LifeRPG.services import events, habits, inbox, quests, rewards, sessions, settings
 
 
 def current(store) -> dict:
@@ -20,6 +20,7 @@ def board(store) -> dict:
         "inbox": inbox.list_items(store),
         "habits": habits.list_habits(store),
         "events": events.list_events(store),
+        "settings": settings.get_settings(store),
         "ledger": rewards.get_ledger(store),
         "event_log": store.read_event_log()[-8:],
         "roh_log": store.read_event_log(roh=True)[-8:],

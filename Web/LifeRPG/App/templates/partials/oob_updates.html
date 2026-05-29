@@ -1,0 +1,4 @@
+{% for template_name in oob_templates or [] %}
+  {% set oob = true %}
+  {% include template_name %}
+{% endfor %}

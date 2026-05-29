@@ -22,3 +22,27 @@ class QuestTests(LifeRPGTempCase):
         result = quests.complete(self.store, started["quest"]["id"], note="done")
         self.assertEqual(result["quest"]["status"], "completed")
         self.assertGreater(result["reward"]["xp"], 0)
+
+    def test_create_edit_archive_notes_and_steps(self) -> None:
+        quest = quests.create_simple(
+            self.store,
+            "Draft pass",
+            category="Build",
+            minimum_win="outline",
+            priority=2,
+            energy_cost=3,
+        )
+        self.assertEqual(quest["title"], "Draft pass")
+        edited = quests.edit_quest(self.store, quest["id"], title="Draft implementation pass", status="open")
+        self.assertEqual(edited["title"], "Draft implementation pass")
+
+        stepped = quests.add_step(self.store, quest["id"], "Write test")
+        self.assertEqual(stepped["quest"]["steps"][0]["title"], "Write test")
+        checked = quests.check_step(self.store, quest["id"], stepped["step"]["id"])
+        self.assertEqual(checked["quest"]["steps"][0]["status"], "completed")
+        noted = quests.add_note(self.store, quest["id"], "Ready for review")
+        self.assertEqual(noted["quest"]["notes"][-1]["text"], "Ready for review")
+
+        archived = quests.archive_quest(self.store, quest["id"])
+        self.assertEqual(archived["status"], "archived")
+        self.assertEqual(quests.list_quests(self.store), [])

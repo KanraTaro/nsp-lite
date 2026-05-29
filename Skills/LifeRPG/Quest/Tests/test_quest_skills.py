@@ -61,3 +61,48 @@ class QuestSkillTests(unittest.TestCase):
         code, result = self._run("Skills/LifeRPG/Mission/Status", [], json_flag=True)
         self.assertEqual(code, 0)
         self.assertIn("mission", json.loads(result))
+
+    def test_quest_management_skills(self) -> None:
+        code, created = self._run(
+            "Skills/LifeRPG/Quest/Create",
+            ["--title", "Write pass", "--category", "Build", "--minimum-win", "one test"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        quest = json.loads(created)["quest"]
+
+        code, edited = self._run(
+            "Skills/LifeRPG/Quest/Edit",
+            ["--quest-id", quest["id"], "--title", "Write Pass 2A", "--priority", "1"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(edited)["quest"]["title"], "Write Pass 2A")
+
+        code, stepped = self._run(
+            "Skills/LifeRPG/Quest/AddStep",
+            ["--quest-id", quest["id"], "--title", "Add web route"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(stepped)["quest"]["steps"][0]["title"], "Add web route")
+
+        code, checked = self._run(
+            "Skills/LifeRPG/Quest/CheckStep",
+            ["--quest-id", quest["id"], "--step-id", json.loads(stepped)["step"]["id"]],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(checked)["quest"]["steps"][0]["status"], "completed")
+
+        code, noted = self._run(
+            "Skills/LifeRPG/Quest/AddNote",
+            ["--quest-id", quest["id"], "--note", "Need review"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(noted)["quest"]["notes"][-1]["text"], "Need review")
+
+        code, archived = self._run("Skills/LifeRPG/Quest/Archive", ["--quest-id", quest["id"]], json_flag=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(archived)["quest"]["status"], "archived")

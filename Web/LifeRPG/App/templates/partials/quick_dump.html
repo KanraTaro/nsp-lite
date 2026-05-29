@@ -1,5 +1,11 @@
 <section id="quick-dump-panel" class="panel quick-dump">
-  <div class="panel-head"><p class="eyebrow">Quick Dump</p><button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Roh Sort</button></div>
+  <div class="panel-head">
+    <p class="eyebrow">Quick Dump</p>
+    <div class="panel-actions">
+      <span>{{ "Auto-sort on" if ui.settings.auto_sort_enabled else "Manual sort" }}</span>
+      <button hx-post="/sort" hx-target="#inbox-panel" hx-swap="outerHTML">Roh Sort</button>
+    </div>
+  </div>
   <form hx-post="/quick-dump" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
     <textarea name="text" rows="3" placeholder="fix dad page, laundry, water, Natalia paperwork"></textarea>
     <button type="submit">Capture</button>

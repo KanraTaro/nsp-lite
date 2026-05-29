@@ -1,0 +1,138 @@
+{
+  "manifest_version": 1,
+  "app": "LifeRPG.App",
+  "items": [
+    {
+      "id": "roh_operator_portrait",
+      "filename": "roh-operator-portrait.png",
+      "usage": "Primary Roh Operator portrait for board/operator panels.",
+      "target_path": "Web/LifeRPG/App/static/img/roh-operator-portrait.png",
+      "suggested_size": "1024x1024",
+      "style_prompt": "Dark sci-fi anime command center operator portrait, calm confident tactician, cyan and magenta rim light, high polish, readable at small UI sizes.",
+      "transparent_background": true,
+      "priority": 1,
+      "notes": "Use optional UI wiring only after the asset exists; current CSS portrait remains the fallback."
+    },
+    {
+      "id": "agent_echo_scout",
+      "filename": "agent-echo-scout.png",
+      "usage": "Early expedition ally/Agent avatar.",
+      "target_path": "Web/LifeRPG/App/static/img/agent-echo-scout.png",
+      "suggested_size": "768x768",
+      "style_prompt": "Agile echo scout ally, luminous visor, compact fantasy sci-fi gear, anime game unit art, cyan signal effects.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Keep silhouette distinct from tank/guardian units."
+    },
+    {
+      "id": "agent_ward_guard",
+      "filename": "agent-ward-guard.png",
+      "usage": "Early expedition defensive ally/Agent avatar.",
+      "target_path": "Web/LifeRPG/App/static/img/agent-ward-guard.png",
+      "suggested_size": "768x768",
+      "style_prompt": "Defensive ward guard ally, shield projector, dark neon armor, anime idle RPG unit art, protective blue aura.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Useful when party composition becomes visible."
+    },
+    {
+      "id": "enemy_chaos_echo",
+      "filename": "enemy-chaos-echo.png",
+      "usage": "Default expedition enemy/threat avatar.",
+      "target_path": "Web/LifeRPG/App/static/img/enemy-chaos-echo.png",
+      "suggested_size": "768x768",
+      "style_prompt": "Abstract chaos echo enemy, glitchy shadow shape, magenta warning energy, anime sci-fi RPG threat, readable silhouette.",
+      "transparent_background": true,
+      "priority": 1,
+      "notes": "Should work as the default enemy before richer enemy families exist."
+    },
+    {
+      "id": "bg_command_center_wide",
+      "filename": "bg-command-center-wide.png",
+      "usage": "Desktop board background or hero backdrop.",
+      "target_path": "Web/LifeRPG/App/static/img/bg-command-center-wide.png",
+      "suggested_size": "1920x1080",
+      "style_prompt": "Wide dark sci-fi anime command center, holographic mission boards, cyan-magenta lighting, layered panels, no text.",
+      "transparent_background": false,
+      "priority": 1,
+      "notes": "Must stay low contrast enough for readable UI panels."
+    },
+    {
+      "id": "bg_mobile_field_device",
+      "filename": "bg-mobile-field-device.png",
+      "usage": "Mobile narrow background or onboarding backdrop.",
+      "target_path": "Web/LifeRPG/App/static/img/bg-mobile-field-device.png",
+      "suggested_size": "1080x1920",
+      "style_prompt": "Vertical mobile field device interface, dark anime sci-fi mission screen, subtle holograms, cyan glow, no text.",
+      "transparent_background": false,
+      "priority": 3,
+      "notes": "Designed for narrow layouts without requiring a frontend framework."
+    },
+    {
+      "id": "icon_mission",
+      "filename": "icon-mission.png",
+      "usage": "Mission/current operation icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-mission.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon mission compass icon, dark sci-fi anime UI, cyan outline, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Keep icon language consistent across all category icons."
+    },
+    {
+      "id": "icon_quest",
+      "filename": "icon-quest.png",
+      "usage": "Quest/task icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-quest.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon quest blade/checklist icon, dark sci-fi anime UI, cyan and violet outline, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Readable at 24px."
+    },
+    {
+      "id": "icon_habit",
+      "filename": "icon-habit.png",
+      "usage": "Habit/upkeep icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-habit.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon habit loop icon, dark sci-fi anime UI, green-cyan outline, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Should imply recurrence without using text."
+    },
+    {
+      "id": "icon_event",
+      "filename": "icon-event.png",
+      "usage": "Event/calendar item icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-event.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon event calendar beacon icon, dark sci-fi anime UI, amber-cyan outline, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Avoid literal unreadable calendar numbers."
+    },
+    {
+      "id": "icon_rewards",
+      "filename": "icon-rewards.png",
+      "usage": "Rewards/token ledger icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-rewards.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon reward crystal token icon, dark sci-fi anime UI, gold-cyan glow, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Useful for reward flashes later."
+    },
+    {
+      "id": "icon_expedition",
+      "filename": "icon-expedition.png",
+      "usage": "Expedition/combat panel icon.",
+      "target_path": "Web/LifeRPG/App/static/img/icon-expedition.png",
+      "suggested_size": "512x512",
+      "style_prompt": "Clean neon expedition portal icon, dark sci-fi anime UI, cyan-magenta glow, simple shape.",
+      "transparent_background": true,
+      "priority": 2,
+      "notes": "Should bridge mission and combat concepts."
+    }
+  ]
+}

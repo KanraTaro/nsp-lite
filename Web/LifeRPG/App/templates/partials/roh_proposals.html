@@ -1,4 +1,4 @@
-<section id="roh-actions-panel" class="panel">
+<section id="roh-actions-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
   <div class="panel-head"><p class="eyebrow">Roh Actions</p><span>Template mode</span></div>
   {% for event in roh_log %}
     <p class="log-line">{{ event.kind }} · {{ event.get("count", event.get("batch_id", "")) }}</p>

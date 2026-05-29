@@ -34,6 +34,7 @@ class InboxItem:
     quest_id: str | None = None
     sort_batch_id: str | None = None
     previous_state: dict[str, Any] | None = None
+    updated_at: str | None = None
 
 
 @dataclass
@@ -78,6 +79,8 @@ class Quest:
     inbox_id: str | None = None
     active_session_id: str | None = None
     completed_at: str | None = None
+    archived_at: str | None = None
+    notes: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -122,8 +125,10 @@ class Event:
     id: str
     title: str
     starts_at: str | None = None
+    ends_at: str | None = None
     status: str = "scheduled"
     reminder_minutes: list[int] = field(default_factory=lambda: [15])
+    notes: str = ""
 
 
 @dataclass

@@ -49,3 +49,24 @@ class HabitSkillTests(unittest.TestCase):
         self.assertEqual(code, 0)
         payload = json.loads(checked)
         self.assertEqual(payload["habit"]["status"], "checked")
+
+    def test_habit_management_skills(self) -> None:
+        code, created = self._run(
+            "Skills/LifeRPG/Habit/Create",
+            ["--title", "Stretch", "--category", "Body", "--cadence", "daily"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        habit = json.loads(created)["habit"]
+
+        code, edited = self._run(
+            "Skills/LifeRPG/Habit/Edit",
+            ["--habit-id", habit["id"], "--title", "Stretch legs", "--cadence", "weekday"],
+            json_flag=True,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(edited)["habit"]["cadence"], "weekday")
+
+        code, archived = self._run("Skills/LifeRPG/Habit/Archive", ["--habit-id", habit["id"]], json_flag=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(archived)["habit"]["status"], "archived")

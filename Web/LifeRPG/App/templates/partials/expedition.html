@@ -1,4 +1,4 @@
-<section id="expedition-panel" class="panel expedition">
+<section id="expedition-panel" class="panel expedition"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
   <div class="panel-head">
     <p class="eyebrow">Expedition</p>
     <button hx-post="/expedition/tick" hx-target="#expedition-panel" hx-swap="outerHTML">Tick</button>

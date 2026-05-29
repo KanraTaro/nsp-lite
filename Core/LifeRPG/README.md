@@ -19,6 +19,11 @@ Implemented in Pass 1:
 - default habits and minimal events
 - current mission status payload for Web and SkillCLI
 
+Pass 2A adds management services for inbox items, quests, habits, events, and
+settings. Settings are persisted under `Config/settings.json` and
+`Config/profile.json`; object state remains under the existing LifeRPG NodeCTX
+layout.
+
 Deferred: live RohTalk, ClickUp, node targeting, conflict resolution,
 notifications, advanced party management, Signal Gate/gacha, and Dice/Alea
 combat. Early multi-user testing should use separate NSPL instances and ports.

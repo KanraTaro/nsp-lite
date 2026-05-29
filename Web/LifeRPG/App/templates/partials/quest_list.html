@@ -1,0 +1,133 @@
+<section id="quest-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  <div class="panel-head">
+    <p class="eyebrow">Quests</p>
+    <div class="panel-actions">
+      <span>{{ ui.quest_items|length }} tracked</span>
+      {% if ui.page != "quests" %}<a class="button-link" href="/quests">Manage Quests</a>{% endif %}
+    </div>
+  </div>
+  {% include "partials/action_notice.html" %}
+  {% if ui.page == "quests" %}
+    <details class="create-shell">
+      <summary>Add Quest</summary>
+      <form class="management-form create-form" hx-post="/quest/create" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+        <label>Title<input name="title" placeholder="New quest title" /></label>
+        <label>Category<select name="category">
+          {% for category in choices.categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
+        </select></label>
+        <label>Minimum win<input name="minimum_win" placeholder="Visible first win" /></label>
+        <label>Priority<select name="priority">
+          {% for rating in choices.ratings %}<option value="{{ rating }}" {% if rating == "3" %}selected{% endif %}>{{ rating }}</option>{% endfor %}
+        </select></label>
+        <label>Energy<select name="energy_cost">
+          {% for rating in choices.ratings %}<option value="{{ rating }}" {% if rating == "1" %}selected{% endif %}>{{ rating }}</option>{% endfor %}
+        </select></label>
+        <button>Add</button>
+      </form>
+    </details>
+  {% endif %}
+  {% set visible_quests = ui.quest_items if ui.page == "quests" else ui.quest_preview %}
+  {% if visible_quests %}
+    <div class="card-list">
+      {% for quest in visible_quests %}
+        <article class="manage-card compact-card">
+          <div class="item-main">
+            <strong>{{ quest.title }}</strong>
+            <div class="meta-line">
+              <span>{{ quest.category or "Survival" }}</span>
+              <span>{{ quest.status }}</span>
+              <span>win: {{ quest.minimum_win or "Define next step" }}</span>
+              <span>priority {{ quest.priority or 3 }}</span>
+              <span>energy {{ quest.energy_cost or 1 }}</span>
+            </div>
+          </div>
+          {% if ui.page == "quests" and quest.steps %}
+            <details class="detail-shell">
+              <summary>Steps</summary>
+              <ol class="step-list">
+                {% for step in quest.steps %}
+                  <li>
+                    <form hx-post="/quest/check-step" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                      <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                      <input type="hidden" name="step_id" value="{{ step.id }}" />
+                      <button class="compact">{{ "Done" if step.status == "completed" else "Check" }}</button>
+                      <span>{{ step.title }}</span>
+                    </form>
+                  </li>
+                {% endfor %}
+              </ol>
+            </details>
+          {% endif %}
+          <div class="inline-actions">
+            <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+              <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+              <button>Start</button>
+            </form>
+            {% if ui.page == "quests" %}
+              <details class="edit-shell">
+                <summary>Edit</summary>
+                <form class="management-form" hx-post="/quest/edit" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                  <label>Title<input name="title" value="{{ quest.title }}" /></label>
+                  <label>Category<select name="category">
+                    {% for category in choices.categories %}
+                      <option value="{{ category }}" {% if quest.category == category %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Minimum win<input name="minimum_win" value="{{ quest.minimum_win }}" /></label>
+                  <label>Priority<select name="priority">
+                    {% for rating in choices.ratings %}
+                      <option value="{{ rating }}" {% if (quest.priority or 3)|string == rating %}selected{% endif %}>{{ rating }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Energy<select name="energy_cost">
+                    {% for rating in choices.ratings %}
+                      <option value="{{ rating }}" {% if (quest.energy_cost or 1)|string == rating %}selected{% endif %}>{{ rating }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Status<select name="status">
+                    {% for status in choices.quest_status %}
+                      <option value="{{ status }}" {% if quest.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <button>Save</button>
+                </form>
+              </details>
+              <details class="mini-form-shell">
+                <summary>Add Step</summary>
+                <form hx-post="/quest/add-step" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                  <input name="title" placeholder="Step title" />
+                  <button>Add</button>
+                </form>
+              </details>
+              <details class="mini-form-shell">
+                <summary>Add Note</summary>
+                <form hx-post="/quest/add-note" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                  <input name="note" placeholder="Note" />
+                  <button>Add</button>
+                </form>
+              </details>
+              <form hx-post="/quest/archive" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                <input type="hidden" name="mode" value="archive" />
+                <button class="ghost">Archive</button>
+              </form>
+              <form hx-post="/quest/archive" hx-target="#quest-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                <input type="hidden" name="mode" value="delete" />
+                <button class="danger">Delete</button>
+              </form>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+    {% if ui.page != "quests" and ui.has_more_quests %}
+      <p class="panel-foot"><a href="/quests">View all quests</a></p>
+    {% endif %}
+  {% else %}
+    <p class="empty">No open quests. Add one manually or sort inbox items into quests.</p>
+  {% endif %}
+</section>

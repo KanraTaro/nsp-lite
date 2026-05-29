@@ -1,6 +1,74 @@
-<section id="event-panel" class="panel">
-  <div class="panel-head"><p class="eyebrow">Events</p><span>Reminder data ready</span></div>
-  {% for event in events %}
-    <article class="event-row"><strong>{{ event.title }}</strong><span>{{ event.display_time or event.starts_at or "Unscheduled" }}</span></article>
-  {% endfor %}
+<section id="event-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  <div class="panel-head">
+    <p class="eyebrow">Events</p>
+    <div class="panel-actions">
+      <span>{{ ui.event_items|length }}</span>
+      {% if ui.page != "today" %}<a class="button-link" href="/today">Manage Events</a>{% endif %}
+    </div>
+  </div>
+  {% include "partials/action_notice.html" %}
+  {% if ui.page == "today" %}
+    <details class="create-shell">
+      <summary>Add Event</summary>
+      <form class="management-form create-form" hx-post="/event/create" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+        <label>Title<input name="title" placeholder="New event" /></label>
+        <label>Start<input type="datetime-local" name="starts_at" /></label>
+        <label>End<input type="datetime-local" name="ends_at" /></label>
+        <label>Reminders, comma-separated minutes<input name="reminder_minutes" placeholder="60,15" /></label>
+        <label>Status<select name="status">
+          {% for status in choices.event_status %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+        </select></label>
+        <button>Add</button>
+      </form>
+    </details>
+  {% endif %}
+  {% set visible_events = ui.event_items if ui.page == "today" else ui.event_preview %}
+  {% if visible_events %}
+    <div class="card-list">
+      {% for event in visible_events %}
+        <article class="manage-card compact-card">
+          <div class="item-main">
+            <strong>{{ event.title }}</strong>
+            <div class="meta-line">
+              <span>{{ event.display_time or event.starts_at or "Unscheduled" }}</span>
+              <span>{{ event.status }}</span>
+              <span>reminders {{ event.reminder_minutes|join(", ") if event.reminder_minutes else "none" }}</span>
+            </div>
+          </div>
+          {% if ui.page == "today" %}
+            <div class="inline-actions">
+              <details class="edit-shell">
+                <summary>Edit</summary>
+                <form class="management-form" hx-post="/event/edit" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                  <input type="hidden" name="event_id" value="{{ event.id }}" />
+                  <label>Title<input name="title" value="{{ event.title }}" /></label>
+                  <label>Start<input name="starts_at" value="{{ event.starts_at }}" /></label>
+                  <label>End<input name="ends_at" value="{{ event.ends_at or '' }}" /></label>
+                  <label>Reminders, comma-separated minutes<input name="reminder_minutes" value="{{ event.reminder_minutes|join(', ') if event.reminder_minutes else '' }}" /></label>
+                  <label>Status<select name="status">
+                    {% for status in choices.event_status %}
+                      <option value="{{ status }}" {% if event.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <button>Save</button>
+                </form>
+              </details>
+              <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="event_id" value="{{ event.id }}" />
+                <input type="hidden" name="mode" value="archive" />
+                <button class="ghost">Archive</button>
+              </form>
+              <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                <input type="hidden" name="event_id" value="{{ event.id }}" />
+                <input type="hidden" name="mode" value="delete" />
+                <button class="danger">Delete</button>
+              </form>
+            </div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">No events scheduled. Add one anchor for the day.</p>
+  {% endif %}
 </section>

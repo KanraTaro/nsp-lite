@@ -1,19 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <div class="panel-head"><h1>Quests</h1><span>{{ quests|length }} tracked</span></div>
-  {% for quest in quests %}
-    <article class="quest-row">
-      <div>
-        <strong>{{ quest.title }}</strong>
-        <p>{{ quest.minimum_win }}</p>
-      </div>
-      <span class="badge">{{ quest.category }}</span>
-      <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
-        <input type="hidden" name="quest_id" value="{{ quest.id }}" />
-        <button>Start</button>
-      </form>
-    </article>
-  {% endfor %}
-</section>
+{% include "partials/quest_list.html" %}
+{% include "partials/active_session.html" %}
 {% endblock %}

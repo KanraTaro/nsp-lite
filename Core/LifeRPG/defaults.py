@@ -5,12 +5,28 @@ from Core.LifeRPG.models import Agent, Event, Habit, Mission, TokenLedger, to_re
 from Core.LifeRPG.time import today_key, utc_now_iso
 
 
+DEFAULT_SETTINGS = {
+    "display_name": "Operator",
+    "timezone": "UTC",
+    "default_scope": "Global",
+    "auto_sort_enabled": False,
+    "checkin_minutes": 90,
+    "reward_intensity": "normal",
+    "strictness_mode": "gentle",
+    "visual_mode": "command_center",
+}
+
+
 def ensure_defaults(store) -> None:
     profile = store.read_json("Config", "", "profile.json")
     if profile is None:
-        store.write_json("Config", "", "profile.json", {"display_name": "Operator", "timezone": "UTC", "default_scope": "Global"})
-    if store.read_json("Config", "", "settings.json") is None:
-        store.write_json("Config", "", "settings.json", {"checkin_minutes": 90, "scope": "Global"})
+        store.write_json("Config", "", "profile.json", {k: DEFAULT_SETTINGS[k] for k in ["display_name", "timezone", "default_scope"]})
+    settings = store.read_json("Config", "", "settings.json")
+    if settings is None:
+        store.write_json("Config", "", "settings.json", DEFAULT_SETTINGS)
+    elif isinstance(settings, dict):
+        merged = {**DEFAULT_SETTINGS, **settings}
+        store.write_json("Config", "", "settings.json", merged)
     if store.read_json("Data", "", "categories.json") is None:
         from Core.LifeRPG.categories import DEFAULT_CATEGORIES
 

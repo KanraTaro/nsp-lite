@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script src="/static/app.js" defer></script>
   </head>
-  <body>
+  <body class="{{ ui.body_class if ui else 'visual-command_center page-board' }}">
     <header class="topbar">
       <a class="brand" href="/">Life<span>RPG</span></a>
       <nav>
@@ -17,6 +17,7 @@
         <a href="/quests">Quests</a>
         <a href="/today">Today</a>
         <a href="/roh">Roh</a>
+        <a href="/settings">Settings</a>
       </nav>
       <div class="token-chip">XP {{ ledger.get("xp_total", 0) }} / Tokens {{ ledger.get("leisure_tokens", 0) }}</div>
     </header>
