@@ -176,6 +176,31 @@ Show final normalized history:
 
 python nspl.py skill RohTalk.tool_test --show-history -- "What's the weather in Orlando?"
 
+### RohTalk.shell
+
+Run an interactive shell against a persistent conversation.
+
+Supports:
+
+- creating or attaching to a conversation
+- optional `--tools`
+- named `--toolkit`
+- `--watch` read-only mode for external messages
+- `/note TEXT` injection without running a model turn
+- `/refresh`, `/recent`, and `/history`
+
+Usage:
+
+python nspl.py skill RohTalk.shell
+
+Attach with tools:
+
+python nspl.py skill RohTalk.shell --conversation 0 --tools --toolkit basic
+
+Watch an existing conversation:
+
+python nspl.py skill RohTalk.shell --conversation 0 --watch
+
 ---
 
 ## Tool Behavior
@@ -229,7 +254,7 @@ python nspl.py skill RohTalk.chat --tools 0 -- "What's the weather in New York?"
 
 All persistent RohTalk data is stored through NodeCTX:
 
-State/<Instance>/<Scope>/Workflow/RohTalk/Conversations/
+State/<Instance>/<Scope>/RohTalk/Workflow/Conversations/
 
 Each conversation has:
 
@@ -317,6 +342,7 @@ RohTalk Skills currently support:
 - conversation inspection
 - conversation deletion and cleanup
 - tool-loop proving via `RohTalk.tool_test`
+- interactive persistent shell/watch workflows via `RohTalk.shell`
 
 ---
 

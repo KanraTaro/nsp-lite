@@ -28,7 +28,7 @@ Each conversation is stored on disk via NodeCTX and can be:
 
 All state lives under:
 
-State/<Instance>/<Scope>/Workflow/RohTalk/Conversations/
+State/<Instance>/<Scope>/RohTalk/Workflow/Conversations/
 
 Each conversation includes:
 
@@ -149,23 +149,35 @@ Core/RohTalk/
 
 ### Responsibilities
 
-config.py  
+config.py
 Loads and merges configuration values
 
-messages.py  
+messages.py
 Builds system + user message payloads
 
-conversations.py  
+conversations.py
 Handles durable storage, retrieval, and updates
 
-runner.py  
+runner.py
 Single-turn orchestration (non-tool mode)
 
-tool_loop.py  
+orchestrator.py
+Shared `run_turn` seam for plain and tool-capable turns
+
+tool_loop.py
 Multi-step tool-capable reasoning loop
 
-tool_runner.py  
+tool_runner.py
 Execution seam for tool calls
+
+skillcli_tools.py
+SkillCLI bridge for model-facing tools
+
+toolkits.py
+Named model-facing toolkits
+
+tracing.py
+Optional console tracing callbacks
 
 ---
 
@@ -173,7 +185,7 @@ Execution seam for tool calls
 
 Each conversation is stored as:
 
-<conversation_id>.json  
+<conversation_id>.json
 <conversation_id>.events.jsonl
 
 Metadata includes:
@@ -194,8 +206,8 @@ Event logs provide append-only auditing and replay.
 
 Configuration is loaded from:
 
-1. State/<Instance>/<Scope>/Config/RohTalk/config.json  
-2. Config/RohTalk/config.json  
+1. State/<Instance>/<Scope>/RohTalk/Config/config.json
+2. Config/RohTalk/config.json
 
 Supported keys:
 
@@ -286,7 +298,9 @@ This gives one execution surface for:
 - no dynamic tool registry or capability profiles
 - no automatic context compression
 - no ChatOps orchestration
-- no GUI layer (CLI only)
+- no dedicated Web UI yet
+- no automatic long-conversation compaction yet
+- app-specific context layering is still integration work
 
 ---
 
@@ -299,6 +313,7 @@ RohTalk currently supports:
 - multi-step reasoning loops
 - normalized, inspectable history
 - CLI-based interaction
+- interactive `RohTalk.shell`, read-only watch mode, and `/note` injection
 
 This is the foundation for:
 

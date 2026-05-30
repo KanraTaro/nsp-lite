@@ -36,12 +36,20 @@ The current runtime is Ollama-first. Future model profiles should be
 backend-aware and validate model inventory and required capabilities before
 starting an agent workflow.
 
+## RohTalk Integration Gaps
+
+RohTalk has persistent conversations, tool-capable turns, toolkits, tracing,
+and shell/watch workflows, but it is not yet wired into LifeRPG as the app
+operator layer. RohTalk also needs a dedicated Web UI and better long
+conversation maintenance before it can serve as the default user-facing
+operator console.
+
 ## Web Security
 
 Web status and control surfaces are currently local/development oriented.
-Remote exposure needs authentication, authorization and capability policy, and
-safe network-binding defaults before it should be treated as a deployment
-surface.
+Remote exposure needs authentication, authorization/capability policy, CSRF
+protection, skill allowlists, audit logs, and safe network-binding defaults
+before it should be treated as a deployment surface.
 
 ## Demo And Product Surface
 

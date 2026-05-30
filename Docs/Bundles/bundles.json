@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "output_dir": "Docs/Bundles/generated",
+  "bundles": {
+    "nspl-full": {
+      "description": "Full NSPL architecture, workflow, developer, and known-issues context.",
+      "sources": [
+        "AGENTS.md",
+        "00_AGENT_HANDOFF.md",
+        "Docs/README.md",
+        "Docs/Agents/00_NSPL_AGENT_BRIEF.md",
+        "Docs/Agents/01_NSPL_ARCHITECTURE_AND_COMMANDS.md",
+        "Docs/Agents/02_PROJECT_CONTEXTS.md",
+        "Docs/Agents/03_AGENT_WORKFLOW_AND_STATUS.md",
+        "Docs/Agents/04_NSPL_VISION_AND_ROADMAP.md",
+        "Docs/Agents/05_NSPL_PROTOCOLS_AND_DESIGN_RULES.md",
+        "Docs/Agents/06_NSPL_WEB_APP_UX_CONTRACT.md",
+        "Docs/Agents/07_NSPL_RELEASE_AND_PUBLIC_DEMO_STRATEGY.md",
+        "Docs/Developer/README.md",
+        "Docs/Developer/Create-Skill.md",
+        "Docs/Developer/Create-Web-App.md",
+        "Docs/Developer/Entry-Surfaces.md",
+        "Docs/Developer/NodeCTX-State-Guide.md",
+        "Docs/Developer/Web-App-UX-Patterns.md",
+        "Docs/Developer/RohTalk-Integration-Guide.md",
+        "Docs/Developer/Testing-And-Validation.md",
+        "Docs/Developer/Agent-Pass-Reports.md",
+        "Docs/KNOWN_ISSUES.md"
+      ]
+    },
+    "nspl-public": {
+      "description": "Contributor-safe public overview and demo/readiness context.",
+      "sources": [
+        "Docs/README.md",
+        "Docs/Agents/00_NSPL_AGENT_BRIEF.md",
+        "Docs/Agents/01_NSPL_ARCHITECTURE_AND_COMMANDS.md",
+        "Docs/Agents/04_NSPL_VISION_AND_ROADMAP.md",
+        "Docs/Agents/05_NSPL_PROTOCOLS_AND_DESIGN_RULES.md",
+        "Docs/Agents/07_NSPL_RELEASE_AND_PUBLIC_DEMO_STRATEGY.md",
+        "Docs/Developer/README.md",
+        "Docs/Developer/Testing-And-Validation.md",
+        "Docs/KNOWN_ISSUES.md"
+      ]
+    },
+    "liferpg": {
+      "description": "LifeRPG implementation and UX context.",
+      "sources": [
+        "AGENTS.md",
+        "00_AGENT_HANDOFF.md",
+        "Docs/Agents/00_NSPL_AGENT_BRIEF.md",
+        "Docs/Agents/01_NSPL_ARCHITECTURE_AND_COMMANDS.md",
+        "Docs/Agents/02_PROJECT_CONTEXTS.md",
+        "Docs/Agents/06_NSPL_WEB_APP_UX_CONTRACT.md",
+        "Docs/Developer/Web-App-UX-Patterns.md",
+        "Docs/Plans/LifeRPG/LifeRPG-App-MVP-Design.md",
+        "Core/LifeRPG/README.md",
+        "Skills/LifeRPG/README.md",
+        "Web/LifeRPG/App/README.md"
+      ]
+    },
+    "rohtalk": {
+      "description": "RohTalk runtime, tooling, and integration context.",
+      "sources": [
+        "AGENTS.md",
+        "00_AGENT_HANDOFF.md",
+        "Docs/Agents/00_NSPL_AGENT_BRIEF.md",
+        "Docs/Agents/01_NSPL_ARCHITECTURE_AND_COMMANDS.md",
+        "Docs/Agents/02_PROJECT_CONTEXTS.md",
+        "Docs/Developer/RohTalk-Integration-Guide.md",
+        "Core/RohTalk/README.md",
+        "Skills/RohTalk/README.md",
+        "Core/LLMClient/README.md"
+      ]
+    }
+  },
+  "exclude_globs": [
+    "State/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "Docs/nsp-project-log-*.txt",
+    "nsp-project-log-*.txt"
+  ]
+}
