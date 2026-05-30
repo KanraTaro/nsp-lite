@@ -1,0 +1,6 @@
+{
+  "name": "NSPL.Docs.Bundle",
+  "version": "0.1.0",
+  "description": "Generate pasteable Markdown documentation context bundles",
+  "entry": "skill.py"
+}

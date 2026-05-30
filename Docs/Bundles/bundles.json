@@ -1,9 +1,11 @@
 {
   "version": 1,
-  "output_dir": "Docs/Bundles/generated",
+  "default": "nspl-full",
+  "output_dir": "Docs/Bundles",
   "bundles": {
     "nspl-full": {
       "description": "Full NSPL architecture, workflow, developer, and known-issues context.",
+      "output": "Docs/Bundles/NSPL_FULL_CONTEXT.md",
       "sources": [
         "AGENTS.md",
         "00_AGENT_HANDOFF.md",
@@ -20,16 +22,19 @@
         "Docs/Developer/Create-Skill.md",
         "Docs/Developer/Create-Web-App.md",
         "Docs/Developer/Entry-Surfaces.md",
+        "Docs/Developer/Docs-Bundling.md",
         "Docs/Developer/NodeCTX-State-Guide.md",
         "Docs/Developer/Web-App-UX-Patterns.md",
         "Docs/Developer/RohTalk-Integration-Guide.md",
         "Docs/Developer/Testing-And-Validation.md",
         "Docs/Developer/Agent-Pass-Reports.md",
+        "Docs/Plans/NSPL-Scanner-Domain.md",
         "Docs/KNOWN_ISSUES.md"
       ]
     },
     "nspl-public": {
       "description": "Contributor-safe public overview and demo/readiness context.",
+      "output": "Docs/Bundles/NSPL_PUBLIC_CONTEXT.md",
       "sources": [
         "Docs/README.md",
         "Docs/Agents/00_NSPL_AGENT_BRIEF.md",
@@ -38,12 +43,14 @@
         "Docs/Agents/05_NSPL_PROTOCOLS_AND_DESIGN_RULES.md",
         "Docs/Agents/07_NSPL_RELEASE_AND_PUBLIC_DEMO_STRATEGY.md",
         "Docs/Developer/README.md",
+        "Docs/Developer/Docs-Bundling.md",
         "Docs/Developer/Testing-And-Validation.md",
         "Docs/KNOWN_ISSUES.md"
       ]
     },
     "liferpg": {
       "description": "LifeRPG implementation and UX context.",
+      "output": "Docs/Bundles/LIFERPG_CONTEXT.md",
       "sources": [
         "AGENTS.md",
         "00_AGENT_HANDOFF.md",
@@ -60,6 +67,7 @@
     },
     "rohtalk": {
       "description": "RohTalk runtime, tooling, and integration context.",
+      "output": "Docs/Bundles/ROHTALK_CONTEXT.md",
       "sources": [
         "AGENTS.md",
         "00_AGENT_HANDOFF.md",
@@ -75,8 +83,15 @@
   },
   "exclude_globs": [
     "State/**",
+    ".git/**",
     "**/__pycache__/**",
     "**/*.pyc",
+    ".pytest_cache/**",
+    ".venv/**",
+    "venv/**",
+    "node_modules/**",
+    "Bundles/**",
+    "Docs/Bundles/generated/**",
     "Docs/nsp-project-log-*.txt",
     "nsp-project-log-*.txt"
   ]
