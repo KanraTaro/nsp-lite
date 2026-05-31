@@ -4,18 +4,26 @@ from Core.LifeRPG.categories import canonical_category
 from Core.LifeRPG.defaults import ensure_defaults
 from Core.LifeRPG.ids import make_id
 from Core.LifeRPG.models import Quest, QuestSession, to_record
-from Core.LifeRPG.services import expedition, inbox
+from Core.LifeRPG.projects import DEFAULT_PROJECT, canonical_project
+from Core.LifeRPG.services import expedition, inbox, settings
 from Core.LifeRPG.time import add_minutes, utc_now_iso
 
 
 def list_quests(store, *, status: str | None = None, include_archived: bool = False) -> list[dict]:
     ensure_defaults(store)
-    quests = store.list_records("Data", ["Quests"])
+    quests = [_normalize_quest(record) for record in store.list_records("Data", ["Quests"])]
     if not include_archived and status is None:
         quests = [quest for quest in quests if quest.get("status") not in {"archived", "deleted"}]
     if status:
         quests = [quest for quest in quests if quest.get("status") == status]
     return sorted(quests, key=lambda quest: (-int(quest.get("priority", 3) or 3), str(quest.get("created_at", ""))), reverse=True)
+
+
+def _normalize_quest(quest: dict) -> dict:
+    quest.setdefault("project", DEFAULT_PROJECT)
+    quest.setdefault("notes", [])
+    quest.setdefault("steps", [])
+    return quest
 
 
 def _quest_from_inbox(store, inbox_id: str) -> dict:
@@ -28,6 +36,7 @@ def _quest_from_inbox(store, inbox_id: str) -> dict:
         id=make_id("quest", item["id"], item.get("title") or item.get("original_text")),
         title=item.get("title") or item.get("original_text") or "Untitled Quest",
         original_text=item.get("original_text") or item.get("text") or "",
+        project=canonical_project(item.get("project"), text=item.get("original_text") or item.get("text") or ""),
         category=canonical_category(item.get("category"), text=item.get("original_text") or ""),
         status="open",
         created_at=utc_now_iso(),
@@ -50,6 +59,7 @@ def create_simple(
     title: str,
     *,
     category: str = "Build",
+    project: str = "General",
     minimum_win: str = "",
     priority: int | str = 3,
     energy_cost: int | str = 1,
@@ -60,6 +70,7 @@ def create_simple(
         id=make_id("quest", utc_now_iso(), title),
         title=clean_title,
         original_text=clean_title,
+        project=canonical_project(project, text=clean_title),
         category=canonical_category(category, text=clean_title),
         status="open",
         created_at=utc_now_iso(),
@@ -79,6 +90,7 @@ def edit_quest(
     *,
     title: str | None = None,
     category: str | None = None,
+    project: str | None = None,
     minimum_win: str | None = None,
     priority: int | str | None = None,
     energy_cost: int | str | None = None,
@@ -89,6 +101,8 @@ def edit_quest(
         quest["title"] = str(title).strip() or quest.get("title") or "Untitled Quest"
     if category is not None:
         quest["category"] = canonical_category(category, text=quest.get("title") or "")
+    if project is not None:
+        quest["project"] = canonical_project(project, text=quest.get("original_text") or quest.get("title") or "")
     if minimum_win is not None:
         quest["minimum_win"] = str(minimum_win).strip()
     if priority is not None and str(priority).strip():
@@ -150,6 +164,14 @@ def add_note(store, quest_id: str, note: str) -> dict:
     record = {"id": make_id("note", quest_id, utc_now_iso(), note), "created_at": utc_now_iso(), "text": note.strip()}
     if record["text"]:
         notes.append(record)
+        session_id = quest.get("active_session_id")
+        if session_id:
+            session = store.read_json("Workflow", ["Sessions", "active"], f"{session_id}.json")
+            if isinstance(session, dict):
+                session["latest_note"] = record["text"]
+                session.setdefault("notes", []).append(record)
+                session["last_checkin_at"] = record["created_at"]
+                store.write_json("Workflow", ["Sessions", "active"], f"{session_id}.json", session)
     quest["notes"] = notes
     quest["updated_at"] = utc_now_iso()
     store.write_json("Data", ["Quests"], f"{quest_id}.json", quest)
@@ -161,7 +183,28 @@ def get_quest(store, quest_id: str) -> dict:
     quest = store.read_json("Data", ["Quests"], f"{quest_id}.json")
     if not isinstance(quest, dict):
         raise ValueError(f"quest not found: {quest_id}")
-    return quest
+    return _normalize_quest(quest)
+
+
+def detail(store, quest_id: str) -> dict:
+    ensure_defaults(store)
+    quest = get_quest(store, quest_id)
+    active = None
+    session_id = quest.get("active_session_id")
+    if session_id:
+        session = store.read_json("Workflow", ["Sessions", "active"], f"{session_id}.json")
+        if isinstance(session, dict):
+            active = {"session": session, "expedition": expedition.get_active_for_session(store, session["id"])}
+    history = []
+    for session in store.list_records("Workflow", ["Sessions", "history"]):
+        if session.get("quest_id") == quest_id:
+            history.append(session)
+    history = sorted(history, key=lambda item: str(item.get("started_at") or item.get("id") or ""), reverse=True)
+    ledger = store.read_json("Workflow", ["Rewards"], "ledger.json", default={})
+    rewards = []
+    if isinstance(ledger, dict):
+        rewards = [entry for entry in ledger.get("entries", []) if isinstance(entry, dict) and entry.get("source_id") == quest_id]
+    return {"quest": quest, "active": active, "sessions": history, "rewards": rewards}
 
 
 def start(store, *, quest_id: str | None = None, inbox_id: str | None = None) -> dict:
@@ -172,12 +215,14 @@ def start(store, *, quest_id: str | None = None, inbox_id: str | None = None) ->
         if isinstance(active, dict) and active.get("status") == "active":
             return {"quest": quest, "session": active, "expedition": expedition.get_active_for_session(store, active["id"])}
     started_at = utc_now_iso()
+    checkin_minutes = int(settings.get_settings(store).get("checkin_minutes", 90) or 90)
     session = QuestSession(
         id=make_id("session", quest["id"], started_at),
         quest_id=quest["id"],
         started_at=started_at,
         last_checkin_at=started_at,
-        next_checkin_due_at=add_minutes(started_at, 90),
+        next_checkin_due_at=add_minutes(started_at, checkin_minutes),
+        stale_after_minutes=checkin_minutes,
     )
     session_record = to_record(session)
     exp = expedition.start_for_session(store, quest, session_record)
@@ -202,6 +247,8 @@ def pause(store, quest_id: str, *, note: str = "", reason: str = "") -> dict:
     session["ended_at"] = utc_now_iso()
     session["note"] = note
     session["pause_reason"] = reason
+    if note:
+        session.setdefault("notes", []).append({"id": make_id("note", quest_id, session_id, note), "created_at": session["ended_at"], "text": note})
     quest["status"] = "paused"
     quest["active_session_id"] = None
     store.write_json("Workflow", ["Sessions", "history"], f"{session_id}.json", session)
@@ -222,6 +269,8 @@ def complete(store, quest_id: str, *, note: str = "") -> dict:
             session["status"] = "completed"
             session["ended_at"] = utc_now_iso()
             session["note"] = note
+            if note:
+                session.setdefault("notes", []).append({"id": make_id("note", quest_id, session_id, note), "created_at": session["ended_at"], "text": note})
             exp = expedition.resolve_for_session(store, session_id, note=note)
             store.write_json("Workflow", ["Sessions", "history"], f"{session_id}.json", session)
             store.node_ctx.delete_file(store.path("Workflow", ["Sessions", "active"], f"{session_id}.json"), missing_ok=True)

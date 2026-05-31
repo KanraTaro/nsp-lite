@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+<section id="quest-detail-panel" class="panel quest-detail">
+  {% include "partials/action_notice.html" %}
+  {% set quest = quest_detail.quest %}
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Quest Detail</p>
+      <h1>{{ quest.title }}</h1>
+    </div>
+    <a class="button-link" href="/quests">Back to Quests</a>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-main">
+      {% if quest.original_text %}<p class="original-text">Original: {{ quest.original_text }}</p>{% endif %}
+      <div class="meta-line">
+        <span>{{ quest.project or "General" }}</span>
+        <span>{{ quest.category or "Survival" }}</span>
+        <span>{{ quest.status }}</span>
+        <span>priority {{ quest.priority or 3 }}</span>
+        <span>energy {{ quest.energy_cost or 1 }}</span>
+      </div>
+      <h2>Minimum Win</h2>
+      <p>{{ quest.minimum_win or "Define the first visible win before starting." }}</p>
+
+      <h2>Steps</h2>
+      {% if quest.steps %}
+        <ol class="step-list detail-list">
+          {% for step in quest.steps %}
+            <li>
+              <form action="/quest/check-step" method="post">
+                <input type="hidden" name="return" value="detail" />
+                <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+                <input type="hidden" name="step_id" value="{{ step.id }}" />
+                <button class="compact">{{ "Done" if step.status == "completed" else "Check" }}</button>
+                <span>{{ step.title }} · {{ step.status }}</span>
+              </form>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="empty">No steps yet. Add the next small move if this quest needs structure.</p>
+      {% endif %}
+
+      <h2>Notes</h2>
+      {% if quest.notes %}
+        <ul class="detail-list">
+          {% for note in quest.notes|reverse %}
+            <li><span>{{ note.created_at }}</span>{{ note.text }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty">No notes yet. Log progress, blockers, or next moves during a session.</p>
+      {% endif %}
+    </div>
+
+    <aside class="detail-side">
+      <h2>Actions</h2>
+      {% if quest.active_session_id %}
+        <form action="/quest/pause" method="post">
+          <input type="hidden" name="return" value="detail" />
+          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+          <input name="note" placeholder="Pause note" />
+          <button>Pause</button>
+        </form>
+        <form action="/quest/complete" method="post">
+          <input type="hidden" name="return" value="detail" />
+          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+          <input name="note" placeholder="Completion note" />
+          <button>Complete</button>
+        </form>
+      {% else %}
+        <form action="/quest/start" method="post">
+          <input type="hidden" name="return" value="detail" />
+          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+          <button>Start Session</button>
+        </form>
+      {% endif %}
+      <form action="/quest/add-note" method="post">
+        <input type="hidden" name="return" value="detail" />
+        <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+        <input name="note" placeholder="Progress note" />
+        <button>Add Note</button>
+      </form>
+      <form action="/quest/add-step" method="post">
+        <input type="hidden" name="return" value="detail" />
+        <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+        <input name="title" placeholder="Next step" />
+        <button>Add Step</button>
+      </form>
+
+      <details class="edit-shell">
+        <summary>Edit</summary>
+        <form class="management-form detail-form" action="/quest/edit" method="post">
+          <input type="hidden" name="return" value="detail" />
+          <input type="hidden" name="quest_id" value="{{ quest.id }}" />
+          <label>Title<input name="title" value="{{ quest.title }}" /></label>
+          <label>Project<select name="project">
+            {% for project in choices.projects %}
+              <option value="{{ project }}" {% if (quest.project or "General") == project %}selected{% endif %}>{{ project }}</option>
+            {% endfor %}
+          </select></label>
+          <label>Custom project<input name="project_custom" placeholder="Optional project" /></label>
+          <label>Category<select name="category">
+            {% for category in choices.categories %}
+              <option value="{{ category }}" {% if quest.category == category %}selected{% endif %}>{{ category }}</option>
+            {% endfor %}
+          </select></label>
+          <label>Minimum win<input name="minimum_win" value="{{ quest.minimum_win }}" /></label>
+          <button>Save</button>
+        </form>
+      </details>
+    </aside>
+  </div>
+
+  <div class="detail-grid">
+    <section>
+      <h2>Session History</h2>
+      {% if quest_detail.active %}
+        <p class="notice">Active now since {{ quest_detail.active.session.started_at }}. Next check-in: {{ quest_detail.active.session.next_checkin_due_at }}.</p>
+      {% endif %}
+      {% if quest_detail.sessions %}
+        <ul class="detail-list">
+          {% for session in quest_detail.sessions %}
+            <li>
+              <strong>{{ session.status }}</strong>
+              <span>{{ session.started_at }} → {{ session.ended_at or "active" }}</span>
+              {% if session.note %}<p>{{ session.note }}</p>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty">No completed time cards yet. Start, pause, or complete a session to build history.</p>
+      {% endif %}
+    </section>
+    <section>
+      <h2>Rewards</h2>
+      {% if quest_detail.rewards %}
+        <ul class="detail-list">
+          {% for reward in quest_detail.rewards %}
+            <li><strong>+{{ reward.xp }} XP / +{{ reward.tokens }} Tokens</strong><span>{{ reward.note }}</span></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty">Reward estimate: completion grants XP, tokens, and expedition resolution.</p>
+      {% endif %}
+    </section>
+  </div>
+</section>
+{% endblock %}

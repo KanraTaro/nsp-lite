@@ -37,7 +37,12 @@ def board_view_model(payload: dict[str, Any], *, page: str = "board") -> dict[st
     events = [event for event in _list(payload.get("events")) if event.get("status") != "archived"]
     settings = _settings(payload)
     open_quests = [quest for quest in quests if quest.get("status") in {"open", "active", "paused"}]
+    grouped_quests = sorted(quests, key=lambda quest: (str(quest.get("project") or "General").casefold(), str(quest.get("status") or ""), str(quest.get("title") or "")))
     upcoming_events = [event for event in events if event.get("status") in {"scheduled", "active"}]
+    projects = sorted({str(quest.get("project") or "General") for quest in quests} | {str(item.get("project") or "General") for item in inbox})
+    ledger = payload.get("ledger") if isinstance(payload.get("ledger"), dict) else {}
+    reward_entries = [entry for entry in ledger.get("entries", []) if isinstance(entry, dict)]
+    guidance = payload.get("roh_guidance") if isinstance(payload.get("roh_guidance"), dict) else {}
 
     return {
         "page": page,
@@ -46,8 +51,10 @@ def board_view_model(payload: dict[str, Any], *, page: str = "board") -> dict[st
         "body_class": f"visual-{settings.get('visual_mode', 'command_center')} page-{page}",
         "inbox_items": inbox,
         "inbox_preview": inbox[:4],
-        "quest_items": quests,
+        "quest_items": grouped_quests if page == "quests" else quests,
         "quest_preview": open_quests[:4],
+        "quest_projects": projects,
+        "quests_by_project": {project: [quest for quest in quests if str(quest.get("project") or "General") == project] for project in projects},
         "habit_items": habits,
         "habit_preview": habits[:5],
         "event_items": events,
@@ -56,4 +63,6 @@ def board_view_model(payload: dict[str, Any], *, page: str = "board") -> dict[st
         "has_more_quests": len(open_quests) > 4,
         "has_more_habits": len(habits) > 5,
         "has_more_events": len(upcoming_events) > 4,
+        "last_reward": reward_entries[-1] if reward_entries else None,
+        "roh_guidance": guidance,
     }

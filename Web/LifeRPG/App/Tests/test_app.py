@@ -51,12 +51,12 @@ class FakeContext:
                 "mission": {"title": "Test Mission", "date": "2026-05-27", "focus": "test"},
                 "habits": [{"id": "habit_1", "title": "Drink Water", "status": "open", "streak": 0, "tally": 0, "category": "Body", "cadence": "daily"}],
                 "events": [{"id": "event_1", "title": "Daily Reset", "starts_at": "2026-05-28T06:00:00Z", "status": "scheduled", "reminder_minutes": [60]}],
-                "quests": [{"id": "quest_1", "title": "Build Slice", "status": "open", "category": "Build", "minimum_win": "one step", "original_text": "build", "priority": 2, "energy_cost": 1, "steps": [{"id": "step_1", "title": "Open editor", "status": "open"}], "notes": []}],
-                "inbox": [{"id": "inbox_1", "title": "Fix Dad Page", "status": "sorted", "category": "Family", "minimum_win": "one step", "original_text": "fix dad page", "priority": 1, "energy_cost": 2, "previous_state": {"status": "raw"}}],
-                "ledger": {"xp_total": 10, "leisure_tokens": 2, "entries": []},
+                "quests": [{"id": "quest_1", "title": "Build Slice", "status": "open", "project": "Example Project", "category": "Build", "minimum_win": "one step", "original_text": "build", "priority": 2, "energy_cost": 1, "steps": [{"id": "step_1", "title": "Open editor", "status": "open"}], "notes": [{"id": "note_1", "created_at": "2026-05-28T06:10:00Z", "text": "progress"}]}],
+                "inbox": [{"id": "inbox_1", "title": "Fix Page", "status": "sorted", "project": "Example Project", "category": "Build", "minimum_win": "one step", "original_text": "fix example page", "priority": 1, "energy_cost": 2, "previous_state": {"status": "raw"}}],
+                "ledger": {"xp_total": 10, "leisure_tokens": 2, "entries": [{"id": "reward_1", "source": "quest", "source_id": "quest_1", "xp": 25, "tokens": 2, "note": "Quest completed"}]},
                 "settings": dict(self.settings),
                 "active": {
-                    "quest": {"id": "quest_1", "title": "Build Slice", "minimum_win": "one step"},
+                    "quest": {"id": "quest_1", "title": "Build Slice", "project": "Example Project", "category": "Build", "minimum_win": "one step"},
                     "session": {"id": "session_1", "status": "active", "started_at": "2026-05-28T06:00:00Z", "latest_note": "working"},
                     "expedition": {
                         "id": "exp_1",
@@ -68,6 +68,28 @@ class FakeContext:
                 },
                 "event_log": [],
                 "roh_log": [],
+                "roh_guidance": {"mode": "Template mode", "headline": "Stay on the active quest.", "detail": "Push the minimum win.", "action": "Add a progress note"},
+            }
+            return SkillInvocationResult(exit_code=0, stdout=json.dumps(payload), stderr="")
+        if name == "LifeRPG.Quest.Detail":
+            payload = {
+                "quest": {
+                    "id": "quest_1",
+                    "title": "Build Slice",
+                    "original_text": "build",
+                    "project": "Example Project",
+                    "category": "Build",
+                    "status": "active",
+                    "priority": 2,
+                    "energy_cost": 1,
+                    "minimum_win": "one step",
+                    "active_session_id": "session_1",
+                    "steps": [{"id": "step_1", "title": "Open editor", "status": "open"}],
+                    "notes": [{"id": "note_1", "created_at": "2026-05-28T06:10:00Z", "text": "progress"}],
+                },
+                "active": {"session": {"id": "session_1", "started_at": "2026-05-28T06:00:00Z", "next_checkin_due_at": "2026-05-28T07:30:00Z"}, "expedition": {"progress": 23}},
+                "sessions": [{"id": "session_old", "status": "paused", "started_at": "2026-05-27T06:00:00Z", "ended_at": "2026-05-27T06:30:00Z", "note": "paused"}],
+                "rewards": [{"id": "reward_1", "xp": 25, "tokens": 2, "note": "Quest completed"}],
             }
             return SkillInvocationResult(exit_code=0, stdout=json.dumps(payload), stderr="")
         if name == "LifeRPG.Settings.Update":
@@ -142,6 +164,14 @@ class LifeRPGWebTests(unittest.TestCase):
         self.assertNotIn('hx-post="/habit/edit"', html)
         self.assertNotIn('hx-post="/event/edit"', html)
 
+    def test_board_shows_project_chips_guidance_and_reward_feedback(self) -> None:
+        html = self._render(asyncio.run(self._endpoint("/")(_FakeRequest({}))))
+
+        self.assertIn("Example Project", html)
+        self.assertIn("Stay on the active quest.", html)
+        self.assertIn("+25 XP", html)
+        self.assertIn("Add Note", html)
+
     def test_management_pages_use_selects_for_choice_fields(self) -> None:
         inbox_html = self._render(asyncio.run(self._endpoint("/inbox")(_FakeRequest({}))))
         quests_html = self._render(asyncio.run(self._endpoint("/quests")(_FakeRequest({}))))
@@ -150,6 +180,8 @@ class LifeRPGWebTests(unittest.TestCase):
 
         self.assertIn('<select name="category"', inbox_html)
         self.assertIn('<select name="category"', quests_html)
+        self.assertIn('<select name="project"', inbox_html)
+        self.assertIn('<select name="project"', quests_html)
         self.assertIn('<select name="status"', quests_html)
         self.assertIn('<select name="cadence"', today_html)
         self.assertIn('<select name="status"', today_html)
@@ -194,6 +226,19 @@ class LifeRPGWebTests(unittest.TestCase):
         self.assertIn('id="quest-panel" class="panel" hx-swap-oob="outerHTML"', start)
         self.assertIn("Quest completed. Rewards resolved.", complete)
         self.assertIn('id="reward-panel" class="panel rewards" hx-swap-oob="outerHTML"', complete)
+
+    def test_quest_detail_page_shows_notes_sessions_and_actions(self) -> None:
+        response = asyncio.run(self._endpoint("/quests/{quest_id}")(_FakeRequest({}), "quest_1"))
+        html = self._render(response)
+
+        self.assertIn('id="quest-detail-panel"', html)
+        self.assertIn("Original: build", html)
+        self.assertIn("Example Project", html)
+        self.assertIn("progress", html)
+        self.assertIn("Session History", html)
+        self.assertIn("paused", html)
+        self.assertIn("Quest completed", html)
+        self.assertIn('action="/quest/add-note"', html)
 
     def test_habit_partial_uses_outer_panel_swap(self) -> None:
         response = asyncio.run(self._endpoint("/habit/check", "POST")(_FakeRequest({"habit_id": "habit_1"})))
@@ -254,7 +299,7 @@ class LifeRPGWebTests(unittest.TestCase):
     def test_quest_management_routes_use_stable_panel(self) -> None:
         routes = (
             ("/quest/create", {"title": "New Quest"}, "LifeRPG.Quest.Create --title New Quest"),
-            ("/quest/edit", {"quest_id": "quest_1", "title": "Build Slice"}, "LifeRPG.Quest.Edit --quest-id quest_1"),
+            ("/quest/edit", {"quest_id": "quest_1", "title": "Build Slice", "project": "Example Project"}, "LifeRPG.Quest.Edit --quest-id quest_1"),
             ("/quest/add-step", {"quest_id": "quest_1", "title": "Write test"}, "LifeRPG.Quest.AddStep --quest-id quest_1"),
             ("/quest/check-step", {"quest_id": "quest_1", "step_id": "step_1"}, "LifeRPG.Quest.CheckStep --quest-id quest_1"),
             ("/quest/add-note", {"quest_id": "quest_1", "note": "note"}, "LifeRPG.Quest.AddNote --quest-id quest_1"),
@@ -268,6 +313,14 @@ class LifeRPGWebTests(unittest.TestCase):
             self.assertIn('hx-swap="outerHTML"', html)
             self.assertIn("notice success", html)
             self.assertTrue(any(expected in " ".join(call) for call in self.context.calls))
+
+    def test_active_progress_note_returns_session_panel(self) -> None:
+        response = asyncio.run(self._endpoint("/quest/progress-note", "POST")(_FakeRequest({"quest_id": "quest_1", "note": "progress note"})))
+        html = self._render(response)
+
+        self.assertIn('id="active-session-panel"', html)
+        self.assertIn("Progress note added.", html)
+        self.assertTrue(any("LifeRPG.Quest.AddNote --quest-id quest_1 --note progress note" in " ".join(call) for call in self.context.calls))
 
     def test_habit_event_and_settings_management_routes(self) -> None:
         routes = (

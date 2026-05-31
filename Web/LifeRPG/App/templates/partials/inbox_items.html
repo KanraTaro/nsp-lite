@@ -18,6 +18,7 @@
             {% endif %}
             <strong>{{ item.title or item.text or item.original_text }}</strong>
             <div class="meta-line">
+              <span>{{ item.project or "General" }}</span>
               <span>{{ item.category or "Unsorted" }}</span>
               <span>win: {{ item.minimum_win or "Awaiting sort" }}</span>
               <span>priority {{ item.priority or 3 }}</span>
@@ -41,6 +42,12 @@
                       <option value="{{ category }}" {% if item.category == category %}selected{% endif %}>{{ category }}</option>
                     {% endfor %}
                   </select></label>
+                  <label>Project<select name="project">
+                    {% for project in choices.projects %}
+                      <option value="{{ project }}" {% if (item.project or "General") == project %}selected{% endif %}>{{ project }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Custom project<input name="project_custom" placeholder="Optional project" /></label>
                   <label>Minimum win<input name="minimum_win" value="{{ item.minimum_win or '' }}" /></label>
                   <label>Priority<select name="priority">
                     {% for rating in choices.ratings %}
@@ -80,6 +87,6 @@
       <p class="panel-foot"><a href="/inbox">View all inbox items</a></p>
     {% endif %}
   {% else %}
-    <p class="empty">No inbox items. Capture a quick dump to feed the command board.</p>
+    <p class="empty">Inbox clear. Capture whatever is taking up headspace, then sort it into quests.</p>
   {% endif %}
 </section>

@@ -52,3 +52,7 @@ NSPLDev.zip
 # Generated documentation context bundles
 Docs/Bundles/*_CONTEXT.md
 Docs/Bundles/PROJECT_CONTEXT.md
+
+# Local agent/browser automation artifacts
+.playwright-mcp/
+.claude

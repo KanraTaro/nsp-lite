@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from Core.LifeRPG.projects import DEFAULT_PROJECTS
+
 
 CATEGORIES = (
     "Survival",
@@ -21,11 +23,13 @@ REWARD_INTENSITY = ("low", "normal", "high")
 STRICTNESS_MODE = ("gentle", "balanced", "hard", "custom")
 VISUAL_MODE = ("command_center", "compact", "mobile")
 RATING_1_TO_5 = tuple(str(value) for value in range(1, 6))
+PROJECTS = tuple(DEFAULT_PROJECTS)
 
 
 def all_choices() -> dict[str, tuple[str, ...]]:
     return {
         "categories": CATEGORIES,
+        "projects": PROJECTS,
         "habit_cadence": HABIT_CADENCE,
         "quest_status": QUEST_STATUS,
         "event_status": EVENT_STATUS,

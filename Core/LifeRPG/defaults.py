@@ -31,6 +31,10 @@ def ensure_defaults(store) -> None:
         from Core.LifeRPG.categories import DEFAULT_CATEGORIES
 
         store.write_json("Data", "", "categories.json", {"categories": DEFAULT_CATEGORIES})
+    if store.read_json("Data", "", "projects.json") is None:
+        from Core.LifeRPG.projects import DEFAULT_PROJECTS
+
+        store.write_json("Data", "", "projects.json", {"projects": DEFAULT_PROJECTS})
     if store.read_json("Workflow", ["Rewards"], "ledger.json") is None:
         store.write_json("Workflow", ["Rewards"], "ledger.json", to_record(TokenLedger()))
     _ensure_agents(store)

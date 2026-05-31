@@ -3,13 +3,20 @@
   {% include "partials/action_notice.html" %}
   {% if active and active.quest %}
     <h2>{{ active.quest.title }}</h2>
-    <p>{{ active.quest.minimum_win }}</p>
+    <p class="active-win">{{ active.quest.minimum_win }}</p>
     <div class="meta-line">
+      <span>{{ active.quest.project or "General" }}</span>
+      <span>{{ active.quest.category or "Survival" }}</span>
       <span>started {{ active.session.started_at or active.session.started or "unknown" }}</span>
       {% if active.session.latest_note %}<span>latest note: {{ active.session.latest_note }}</span>{% endif %}
       {% if active.expedition %}<span>expedition {{ active.expedition.progress }}%</span>{% endif %}
       <span>check-in {{ ui.settings.checkin_minutes }} min</span>
     </div>
+    <form class="progress-note-form" hx-post="/quest/progress-note" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
+      <input type="hidden" name="quest_id" value="{{ active.quest.id }}" />
+      <input name="note" placeholder="Log progress, blocker, or next move" />
+      <button>Add Note</button>
+    </form>
     <div class="session-actions">
       <form hx-post="/quest/pause" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
         <input type="hidden" name="quest_id" value="{{ active.quest.id }}" />
@@ -22,8 +29,14 @@
         <button>Complete</button>
       </form>
     </div>
+    <p class="panel-foot"><a href="/quests/{{ active.quest.id }}">Open Quest Detail</a></p>
   {% else %}
     <h2>No active quest</h2>
-    <p>Capture a quick dump, run Roh Sort, then start a quest to clock in and launch an expedition.</p>
+    <ol class="command-steps">
+      <li>Dump tasks into Quick Dump.</li>
+      <li>Run Roh Sort on the inbox.</li>
+      <li>Pick a quest with a clear minimum win.</li>
+      <li>Start a session to clock in and launch the expedition.</li>
+    </ol>
   {% endif %}
 </section>

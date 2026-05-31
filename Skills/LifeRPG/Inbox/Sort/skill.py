@@ -19,5 +19,5 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
     else:
         print(f"Roh sorted {len(result['items'])} item(s).")
         for item in result["items"]:
-            print(f"- [{item['category']}] {item['title']} | win: {item['minimum_win']}")
+            print(f"- [{item.get('project', 'General')} / {item['category']}] {item['title']} | win: {item['minimum_win']}")
     return 0

@@ -65,19 +65,21 @@ class QuestSkillTests(unittest.TestCase):
     def test_quest_management_skills(self) -> None:
         code, created = self._run(
             "Skills/LifeRPG/Quest/Create",
-            ["--title", "Write pass", "--category", "Build", "--minimum-win", "one test"],
+            ["--title", "Write pass", "--category", "Build", "--project", "Project Alpha", "--minimum-win", "one test"],
             json_flag=True,
         )
         self.assertEqual(code, 0)
         quest = json.loads(created)["quest"]
+        self.assertEqual(quest["project"], "Project Alpha")
 
         code, edited = self._run(
             "Skills/LifeRPG/Quest/Edit",
-            ["--quest-id", quest["id"], "--title", "Write Pass 2A", "--priority", "1"],
+            ["--quest-id", quest["id"], "--title", "Write Pass 2A", "--project", "Example Project", "--priority", "1"],
             json_flag=True,
         )
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(edited)["quest"]["title"], "Write Pass 2A")
+        self.assertEqual(json.loads(edited)["quest"]["project"], "Example Project")
 
         code, stepped = self._run(
             "Skills/LifeRPG/Quest/AddStep",
@@ -102,6 +104,10 @@ class QuestSkillTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(noted)["quest"]["notes"][-1]["text"], "Need review")
+
+        code, detail = self._run("Skills/LifeRPG/Quest/Detail", ["--quest-id", quest["id"]], json_flag=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(detail)["quest"]["project"], "Example Project")
 
         code, archived = self._run("Skills/LifeRPG/Quest/Archive", ["--quest-id", quest["id"]], json_flag=True)
         self.assertEqual(code, 0)

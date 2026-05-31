@@ -78,6 +78,14 @@ def _board_payload(context) -> dict:
     return _decorate_board_payload(payload)
 
 
+def _quest_detail_payload(context, quest_id: str) -> dict:
+    payload = _skill(context, ["LifeRPG.Quest.Detail", "--quest-id", quest_id])
+    if not payload.get("ok"):
+        return {"quest": {"id": quest_id, "title": "Quest not found"}, "active": None, "sessions": [], "rewards": [], "error": payload.get("error")}
+    payload.pop("ok", None)
+    return payload
+
+
 def create_app(context):
     app_dir = Path(context.app_dir)
     templates = Jinja2Templates(directory=str(app_dir / "templates"))
@@ -111,6 +119,21 @@ def create_app(context):
             data.update(extra)
         return templates.TemplateResponse(request, template, data)
 
+    def render_quest_detail(request: Request, quest_id: str, extra: dict | None = None):
+        payload = _board_payload(context)
+        detail = _quest_detail_payload(context, quest_id)
+        page = (extra or {}).get("page") or "quest-detail"
+        data = {
+            "request": request,
+            "choices": all_choices(),
+            "ui": board_view_model(payload, page=page),
+            "quest_detail": detail,
+            **payload,
+        }
+        if extra:
+            data.update(extra)
+        return templates.TemplateResponse(request, "quest_detail.html", data)
+
     def render_fragment(
         request: Request,
         main_template: str,
@@ -140,6 +163,13 @@ def create_app(context):
     async def form_value(request: Request, name: str) -> str:
         return (await form_values(request)).get(name, "")
 
+    def _form_project(values: dict[str, str]) -> str:
+        if values.get("project_custom"):
+            return values["project_custom"]
+        if values.get("project"):
+            return values["project"]
+        return ""
+
     @app.get("/health")
     async def health():
         return {"ok": True, "app": context.metadata.get("name", "LifeRPG.App")}
@@ -159,6 +189,10 @@ def create_app(context):
     @app.get("/quests", response_class=HTMLResponse)
     async def quests_page(request: Request):
         return render(request, "quests.html", {"page": "quests"})
+
+    @app.get("/quests/{quest_id}", response_class=HTMLResponse)
+    async def quest_detail_page(request: Request, quest_id: str):
+        return render_quest_detail(request, quest_id)
 
     @app.get("/today", response_class=HTMLResponse)
     async def today_page(request: Request):
@@ -220,6 +254,9 @@ def create_app(context):
             ):
                 if values.get(field):
                     argv.extend([flag, values[field]])
+            project = _form_project(values)
+            if project:
+                argv.extend(["--project", project])
             _skill(context, argv)
             return render(request, "partials/inbox_items.html", {"notice": "Inbox item updated.", "page": "inbox"})
         return render(request, "partials/inbox_items.html", {"notice": "Inbox item missing.", "page": "inbox"})
@@ -259,6 +296,9 @@ def create_app(context):
             ):
                 if values.get(field):
                     argv.extend([flag, values[field]])
+            project = _form_project(values)
+            if project:
+                argv.extend(["--project", project])
             _skill(context, argv)
             return render(request, "partials/quest_list.html", {"notice": "Quest created.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest title required.", "page": "quests"})
@@ -279,7 +319,12 @@ def create_app(context):
             ):
                 if values.get(field):
                     argv.extend([flag, values[field]])
+            project = _form_project(values)
+            if project:
+                argv.extend(["--project", project])
             _skill(context, argv)
+            if values.get("return") == "detail":
+                return render_quest_detail(request, quest_id, {"notice": "Quest updated."})
             return render(request, "partials/quest_list.html", {"notice": "Quest updated.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest missing.", "page": "quests"})
 
@@ -303,6 +348,8 @@ def create_app(context):
         title = values.get("title", "")
         if quest_id and title:
             _skill(context, ["LifeRPG.Quest.AddStep", "--quest-id", quest_id, "--title", title])
+            if values.get("return") == "detail":
+                return render_quest_detail(request, quest_id, {"notice": "Quest step added."})
             return render(request, "partials/quest_list.html", {"notice": "Quest step added.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest step needs text.", "page": "quests"})
 
@@ -313,6 +360,8 @@ def create_app(context):
         step_id = values.get("step_id", "")
         if quest_id and step_id:
             _skill(context, ["LifeRPG.Quest.CheckStep", "--quest-id", quest_id, "--step-id", step_id])
+            if values.get("return") == "detail":
+                return render_quest_detail(request, quest_id, {"notice": "Quest step updated."})
             return render(request, "partials/quest_list.html", {"notice": "Quest step updated.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest step missing.", "page": "quests"})
 
@@ -323,8 +372,25 @@ def create_app(context):
         note = values.get("note", "")
         if quest_id and note:
             _skill(context, ["LifeRPG.Quest.AddNote", "--quest-id", quest_id, "--note", note])
+            if values.get("return") == "detail":
+                return render_quest_detail(request, quest_id, {"notice": "Quest note added."})
             return render(request, "partials/quest_list.html", {"notice": "Quest note added.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest note needs text.", "page": "quests"})
+
+    @app.post("/quest/progress-note", response_class=HTMLResponse)
+    async def add_progress_note(request: Request):
+        values = await form_values(request)
+        quest_id = values.get("quest_id", "")
+        note = values.get("note", "")
+        if quest_id and note:
+            _skill(context, ["LifeRPG.Quest.AddNote", "--quest-id", quest_id, "--note", note])
+            return render_fragment(
+                request,
+                "partials/active_session.html",
+                extra={"notice": "Progress note added."},
+                oob_templates=["partials/quest_list.html", "partials/roh_proposals.html"],
+            )
+        return render(request, "partials/active_session.html", {"notice": "Progress note needs text."})
 
     @app.post("/quest/start", response_class=HTMLResponse)
     async def start_quest(request: Request):
@@ -334,6 +400,8 @@ def create_app(context):
             _skill(context, ["LifeRPG.Quest.Start", "--inbox-id", inbox_id])
         elif quest_id:
             _skill(context, ["LifeRPG.Quest.Start", "--quest-id", quest_id])
+        if (await form_values(request)).get("return") == "detail" and quest_id:
+            return render_quest_detail(request, quest_id, {"notice": "Quest session started."})
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -352,6 +420,9 @@ def create_app(context):
         note = await form_value(request, "note")
         if quest_id:
             _skill(context, ["LifeRPG.Quest.Pause", "--quest-id", quest_id, "--note", clean_text(note)])
+        values = await form_values(request)
+        if values.get("return") == "detail" and quest_id:
+            return render_quest_detail(request, quest_id, {"notice": "Quest session paused."})
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -365,6 +436,9 @@ def create_app(context):
         note = await form_value(request, "note")
         if quest_id:
             _skill(context, ["LifeRPG.Quest.Complete", "--quest-id", quest_id, "--note", clean_text(note)])
+        values = await form_values(request)
+        if values.get("return") == "detail" and quest_id:
+            return render_quest_detail(request, quest_id, {"notice": "Quest completed. Rewards resolved."})
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -421,7 +495,12 @@ def create_app(context):
         habit_id = await form_value(request, "habit_id")
         if habit_id:
             _skill(context, ["LifeRPG.Habit.Check", "--habit-id", habit_id])
-        return render(request, "partials/habit_list.html", {"notice": "Habit checked.", "page": "today"})
+        return render_fragment(
+            request,
+            "partials/habit_list.html",
+            extra={"notice": "Habit checked. Reward granted.", "page": "today"},
+            oob_templates=["partials/reward_panel.html", "partials/roh_proposals.html"],
+        )
 
     @app.post("/event/create", response_class=HTMLResponse)
     async def create_event(request: Request):

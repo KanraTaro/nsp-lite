@@ -6,6 +6,7 @@ from Core.LifeRPG.defaults import ensure_defaults
 from Core.LifeRPG.categories import canonical_category
 from Core.LifeRPG.ids import make_id
 from Core.LifeRPG.models import InboxItem, to_record
+from Core.LifeRPG.projects import canonical_project
 from Core.LifeRPG.time import utc_now_iso
 
 
@@ -62,6 +63,7 @@ def edit_item(
     title: str | None = None,
     text: str | None = None,
     category: str | None = None,
+    project: str | None = None,
     minimum_win: str | None = None,
     priority: int | str | None = None,
     energy_cost: int | str | None = None,
@@ -74,6 +76,8 @@ def edit_item(
         item["text"] = str(text).strip()
     if category is not None:
         item["category"] = canonical_category(category, text=item.get("original_text") or item.get("text") or "")
+    if project is not None:
+        item["project"] = canonical_project(project, text=item.get("original_text") or item.get("text") or "")
     if minimum_win is not None:
         item["minimum_win"] = str(minimum_win).strip()
     if priority is not None and str(priority).strip():

@@ -1,0 +1,6 @@
+{
+  "name": "LifeRPG.Quest.Detail",
+  "version": "0.1.0",
+  "description": "Show quest details, notes, sessions, and rewards",
+  "entry": "skill.py"
+}

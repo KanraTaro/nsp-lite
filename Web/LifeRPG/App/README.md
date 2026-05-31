@@ -24,5 +24,10 @@ management pages use progressive disclosure for create/edit controls, select
 inputs for app choice fields, and HTMX out-of-band swaps for related panels.
 The app remains server-rendered and does not require frontend build tooling.
 
+Pass 2B makes the main loop clearer: Quick Dump, Roh Sort, project-aware quest
+cards, quest detail pages, active progress notes, pause/complete session
+history, reward feedback, and deterministic Roh guidance. This remains template
+mode; live RohTalk integration is still deferred.
+
 Deferred: live RohTalk integration, ClickUp, node targeting, conflict strategy,
 browser notifications, production auth, background daemons, and advanced combat.

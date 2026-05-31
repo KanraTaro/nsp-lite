@@ -24,6 +24,10 @@ settings. Settings are persisted under `Config/settings.json` and
 `Config/profile.json`; object state remains under the existing LifeRPG NodeCTX
 layout.
 
+Pass 2B adds project-aware quest metadata, quest detail payloads, deterministic
+Roh next-action guidance, visible quest notes, and session history helpers.
+`project` is additive and defaults to `General` for older quest records.
+
 Deferred: live RohTalk, ClickUp, node targeting, conflict resolution,
 notifications, advanced party management, Signal Gate/gacha, and Dice/Alea
 combat. Early multi-user testing should use separate NSPL instances and ports.

@@ -11,7 +11,9 @@ class SortingTests(LifeRPGTempCase):
         self.assertEqual(len(result["items"]), 2)
         by_text = {item["original_text"]: item for item in result["items"]}
         self.assertEqual(by_text["fix NSPL pass"]["category"], "Build")
+        self.assertEqual(by_text["fix NSPL pass"]["project"], "NSPL")
         self.assertEqual(by_text["drink water"]["category"], "Body")
+        self.assertEqual(by_text["drink water"]["project"], "Personal")
         self.assertTrue(by_text["fix NSPL pass"]["minimum_win"])
 
     def test_item_and_batch_revert_restore_raw_state(self) -> None:

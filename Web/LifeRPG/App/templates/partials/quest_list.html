@@ -15,6 +15,10 @@
         <label>Category<select name="category">
           {% for category in choices.categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
         </select></label>
+        <label>Project<select name="project">
+          {% for project in choices.projects %}<option value="{{ project }}">{{ project }}</option>{% endfor %}
+        </select></label>
+        <label>Custom project<input name="project_custom" placeholder="Optional project" /></label>
         <label>Minimum win<input name="minimum_win" placeholder="Visible first win" /></label>
         <label>Priority<select name="priority">
           {% for rating in choices.ratings %}<option value="{{ rating }}" {% if rating == "3" %}selected{% endif %}>{{ rating }}</option>{% endfor %}
@@ -27,13 +31,26 @@
     </details>
   {% endif %}
   {% set visible_quests = ui.quest_items if ui.page == "quests" else ui.quest_preview %}
+  {% if ui.page == "quests" and ui.quest_projects %}
+    <div class="project-filter-row">
+      {% for project in ui.quest_projects %}
+        <a class="project-chip" href="#project-{{ project|replace(' ', '-') }}">{{ project }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
   {% if visible_quests %}
     <div class="card-list">
+      {% set group = namespace(last="") %}
       {% for quest in visible_quests %}
+        {% if ui.page == "quests" and group.last != (quest.project or "General") %}
+          <h3 id="project-{{ (quest.project or 'General')|replace(' ', '-') }}" class="project-heading">{{ quest.project or "General" }}</h3>
+          {% set group.last = quest.project or "General" %}
+        {% endif %}
         <article class="manage-card compact-card">
           <div class="item-main">
             <strong>{{ quest.title }}</strong>
             <div class="meta-line">
+              <span>{{ quest.project or "General" }}</span>
               <span>{{ quest.category or "Survival" }}</span>
               <span>{{ quest.status }}</span>
               <span>win: {{ quest.minimum_win or "Define next step" }}</span>
@@ -59,6 +76,7 @@
             </details>
           {% endif %}
           <div class="inline-actions">
+            <a class="button-link" href="/quests/{{ quest.id }}">Detail</a>
             <form hx-post="/quest/start" hx-target="#active-session-panel" hx-swap="outerHTML" method="post">
               <input type="hidden" name="quest_id" value="{{ quest.id }}" />
               <button>Start</button>
@@ -74,6 +92,12 @@
                       <option value="{{ category }}" {% if quest.category == category %}selected{% endif %}>{{ category }}</option>
                     {% endfor %}
                   </select></label>
+                  <label>Project<select name="project">
+                    {% for project in choices.projects %}
+                      <option value="{{ project }}" {% if (quest.project or "General") == project %}selected{% endif %}>{{ project }}</option>
+                    {% endfor %}
+                  </select></label>
+                  <label>Custom project<input name="project_custom" placeholder="Optional project" /></label>
                   <label>Minimum win<input name="minimum_win" value="{{ quest.minimum_win }}" /></label>
                   <label>Priority<select name="priority">
                     {% for rating in choices.ratings %}
@@ -128,6 +152,6 @@
       <p class="panel-foot"><a href="/quests">View all quests</a></p>
     {% endif %}
   {% else %}
-    <p class="empty">No open quests. Add one manually or sort inbox items into quests.</p>
+    <p class="empty">No quests ready. Quick Dump a task, run Roh Sort, or add one manual quest with a minimum win.</p>
   {% endif %}
 </section>

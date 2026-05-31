@@ -18,5 +18,5 @@ def run(args: argparse.Namespace, ctx: Any) -> int:
         print(json.dumps({"quests": items}, separators=(",", ":"), sort_keys=True))
     else:
         for quest in items:
-            print(f"{quest['id']}\t{quest.get('status')}\t[{quest.get('category')}] {quest.get('title')}")
+            print(f"{quest['id']}\t{quest.get('status')}\t[{quest.get('project', 'General')} / {quest.get('category')}] {quest.get('title')}")
     return 0

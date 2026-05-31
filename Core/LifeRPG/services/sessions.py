@@ -18,3 +18,8 @@ def active_session_detail(store) -> dict | None:
     if session.get("expedition_id"):
         expedition = store.read_json("Workflow", ["Expeditions", "active"], f"{session['expedition_id']}.json")
     return {"session": session, "quest": quest if isinstance(quest, dict) else None, "expedition": expedition if isinstance(expedition, dict) else None}
+
+
+def history_for_quest(store, quest_id: str) -> list[dict]:
+    history = [session for session in store.list_records("Workflow", ["Sessions", "history"]) if session.get("quest_id") == quest_id]
+    return sorted(history, key=lambda session: str(session.get("started_at") or session.get("id") or ""), reverse=True)

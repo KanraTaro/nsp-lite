@@ -27,6 +27,7 @@ class InboxItem:
     created_at: str
     status: str = "raw"
     title: str = ""
+    project: str = "General"
     category: str = "Survival"
     minimum_win: str = ""
     energy_cost: int = 1
@@ -43,6 +44,7 @@ class SortProposal:
     inbox_id: str
     original_text: str
     title: str
+    project: str
     category: str
     minimum_win: str
     energy_cost: int
@@ -70,6 +72,7 @@ class Quest:
     id: str
     title: str
     original_text: str
+    project: str
     category: str
     status: str
     created_at: str

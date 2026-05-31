@@ -28,13 +28,16 @@ class QuestTests(LifeRPGTempCase):
             self.store,
             "Draft pass",
             category="Build",
+            project="Project Alpha",
             minimum_win="outline",
             priority=2,
             energy_cost=3,
         )
         self.assertEqual(quest["title"], "Draft pass")
-        edited = quests.edit_quest(self.store, quest["id"], title="Draft implementation pass", status="open")
+        self.assertEqual(quest["project"], "Project Alpha")
+        edited = quests.edit_quest(self.store, quest["id"], title="Draft implementation pass", project="Example Project", status="open")
         self.assertEqual(edited["title"], "Draft implementation pass")
+        self.assertEqual(edited["project"], "Example Project")
 
         stepped = quests.add_step(self.store, quest["id"], "Write test")
         self.assertEqual(stepped["quest"]["steps"][0]["title"], "Write test")
@@ -46,3 +49,28 @@ class QuestTests(LifeRPGTempCase):
         archived = quests.archive_quest(self.store, quest["id"])
         self.assertEqual(archived["status"], "archived")
         self.assertEqual(quests.list_quests(self.store), [])
+
+    def test_quest_detail_includes_notes_session_history_and_rewards(self) -> None:
+        quest = quests.create_simple(self.store, "Build Example", project="Example Project")
+        started = quests.start(self.store, quest_id=quest["id"])
+        quests.add_note(self.store, quest["id"], "Progress note")
+        paused = quests.pause(self.store, quest["id"], note="Paused after first pass")
+
+        detail = quests.detail(self.store, quest["id"])
+
+        self.assertEqual(detail["quest"]["project"], "Example Project")
+        self.assertEqual(detail["quest"]["notes"][-1]["text"], "Progress note")
+        self.assertEqual(detail["sessions"][0]["id"], paused["session"]["id"])
+        self.assertEqual(detail["sessions"][0]["note"], "Paused after first pass")
+        self.assertIsNone(detail["active"])
+        self.assertEqual(started["session"]["quest_id"], quest["id"])
+
+    def test_legacy_quest_without_project_defaults_to_general(self) -> None:
+        quest = quests.create_simple(self.store, "Legacy quest")
+        stored = quests.get_quest(self.store, quest["id"])
+        stored.pop("project", None)
+        self.store.write_json("Data", ["Quests"], f"{quest['id']}.json", stored)
+
+        loaded = quests.get_quest(self.store, quest["id"])
+
+        self.assertEqual(loaded["project"], "General")

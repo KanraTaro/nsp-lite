@@ -5,4 +5,13 @@
     <div><strong>{{ ledger.get("leisure_tokens", 0) }}</strong><span>Leisure</span></div>
     <div><strong>{{ ledger.get("entries", [])|length }}</strong><span>Claims</span></div>
   </div>
+  {% if ui.last_reward %}
+    <div class="reward-flash">
+      <strong>+{{ ui.last_reward.xp }} XP</strong>
+      <span>+{{ ui.last_reward.tokens }} Tokens</span>
+      <p>{{ ui.last_reward.note }}</p>
+    </div>
+  {% else %}
+    <p class="empty">Complete a quest or check a habit to claim the next reward.</p>
+  {% endif %}
 </section>

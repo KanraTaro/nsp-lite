@@ -6,6 +6,7 @@ from Core.LifeRPG.categories import canonical_category
 from Core.LifeRPG.defaults import ensure_defaults
 from Core.LifeRPG.ids import make_id
 from Core.LifeRPG.models import SortBatch, SortProposal, to_record
+from Core.LifeRPG.projects import canonical_project
 from Core.LifeRPG.services import inbox
 from Core.LifeRPG.time import utc_now_iso
 
@@ -58,21 +59,24 @@ def sort_inbox(store, *, status: str = "raw") -> dict:
         original = item.get("original_text") or item.get("text") or ""
         title = _title(original)
         category = canonical_category(None, text=original)
+        project = canonical_project(None, text=original)
         proposal = SortProposal(
             id=make_id("proposal", batch_id, item["id"]),
             inbox_id=item["id"],
             original_text=original,
             title=title,
+            project=project,
             category=category,
             minimum_win=_minimum_win(original, title),
             energy_cost=_energy(original),
             priority=_priority(original, category),
         )
-        item["previous_state"] = {k: item.get(k) for k in ["status", "title", "category", "minimum_win", "energy_cost", "priority", "quest_id"]}
+        item["previous_state"] = {k: item.get(k) for k in ["status", "title", "project", "category", "minimum_win", "energy_cost", "priority", "quest_id"]}
         item.update(
             {
                 "status": "sorted",
                 "title": proposal.title,
+                "project": proposal.project,
                 "category": proposal.category,
                 "minimum_win": proposal.minimum_win,
                 "energy_cost": proposal.energy_cost,
