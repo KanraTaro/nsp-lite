@@ -37,32 +37,37 @@
           </div>
           {% if ui.page == "today" %}
             <div class="inline-actions">
-              <details class="edit-shell">
-                <summary>Edit</summary>
-                <form class="management-form" hx-post="/event/edit" hx-target="#event-panel" hx-swap="outerHTML" method="post">
-                  <input type="hidden" name="event_id" value="{{ event.id }}" />
-                  <label>Title<input name="title" value="{{ event.title }}" /></label>
-                  <label>Start<input name="starts_at" value="{{ event.starts_at }}" /></label>
-                  <label>End<input name="ends_at" value="{{ event.ends_at or '' }}" /></label>
-                  <label>Reminders, comma-separated minutes<input name="reminder_minutes" value="{{ event.reminder_minutes|join(', ') if event.reminder_minutes else '' }}" /></label>
-                  <label>Status<select name="status">
-                    {% for status in choices.event_status %}
-                      <option value="{{ status }}" {% if event.status == status %}selected{% endif %}>{{ status }}</option>
-                    {% endfor %}
-                  </select></label>
-                  <button>Save</button>
-                </form>
+              <details class="management-more">
+                <summary>More</summary>
+                <div class="more-actions">
+                  <details class="edit-shell">
+                    <summary>Edit</summary>
+                    <form class="management-form" hx-post="/event/edit" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                      <input type="hidden" name="event_id" value="{{ event.id }}" />
+                      <label>Title<input name="title" value="{{ event.title }}" /></label>
+                      <label>Start<input name="starts_at" value="{{ event.starts_at }}" /></label>
+                      <label>End<input name="ends_at" value="{{ event.ends_at or '' }}" /></label>
+                      <label>Reminders, comma-separated minutes<input name="reminder_minutes" value="{{ event.reminder_minutes|join(', ') if event.reminder_minutes else '' }}" /></label>
+                      <label>Status<select name="status">
+                        {% for status in choices.event_status %}
+                          <option value="{{ status }}" {% if event.status == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                      </select></label>
+                      <button>Save</button>
+                    </form>
+                  </details>
+                  <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="event_id" value="{{ event.id }}" />
+                    <input type="hidden" name="mode" value="archive" />
+                    <button class="ghost">Archive</button>
+                  </form>
+                  <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="event_id" value="{{ event.id }}" />
+                    <input type="hidden" name="mode" value="delete" />
+                    <button class="danger">Delete</button>
+                  </form>
+                </div>
               </details>
-              <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="event_id" value="{{ event.id }}" />
-                <input type="hidden" name="mode" value="archive" />
-                <button class="ghost">Archive</button>
-              </form>
-              <form hx-post="/event/archive" hx-target="#event-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="event_id" value="{{ event.id }}" />
-                <input type="hidden" name="mode" value="delete" />
-                <button class="danger">Delete</button>
-              </form>
             </div>
           {% endif %}
         </article>

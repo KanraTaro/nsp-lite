@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LifeRPG Command Center</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script src="/static/app.js" defer></script>
   </head>
@@ -19,7 +20,7 @@
         <a href="/roh">Roh</a>
         <a href="/settings">Settings</a>
       </nav>
-      <div class="token-chip">XP {{ ledger.get("xp_total", 0) }} / Tokens {{ ledger.get("leisure_tokens", 0) }}</div>
+      {% include "partials/topbar_rewards.html" %}
     </header>
     <main class="page">
       {% block content %}{% endblock %}

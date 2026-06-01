@@ -42,34 +42,39 @@
               <button>{{ "Done" if habit.status == "checked" else "Check" }}</button>
             </form>
             {% if ui.page == "today" %}
-              <details class="edit-shell">
-                <summary>Edit</summary>
-                <form class="management-form" hx-post="/habit/edit" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
-                  <input type="hidden" name="habit_id" value="{{ habit.id }}" />
-                  <label>Title<input name="title" value="{{ habit.title }}" /></label>
-                  <label>Category<select name="category">
-                    {% for category in choices.categories %}
-                      <option value="{{ category }}" {% if habit.category == category %}selected{% endif %}>{{ category }}</option>
-                    {% endfor %}
-                  </select></label>
-                  <label>Cadence<select name="cadence">
-                    {% for cadence in choices.habit_cadence %}
-                      <option value="{{ cadence }}" {% if habit.cadence == cadence %}selected{% endif %}>{{ cadence }}</option>
-                    {% endfor %}
-                  </select></label>
-                  <button>Save</button>
-                </form>
+              <details class="management-more">
+                <summary>More</summary>
+                <div class="more-actions">
+                  <details class="edit-shell">
+                    <summary>Edit</summary>
+                    <form class="management-form" hx-post="/habit/edit" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
+                      <input type="hidden" name="habit_id" value="{{ habit.id }}" />
+                      <label>Title<input name="title" value="{{ habit.title }}" /></label>
+                      <label>Category<select name="category">
+                        {% for category in choices.categories %}
+                          <option value="{{ category }}" {% if habit.category == category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                      </select></label>
+                      <label>Cadence<select name="cadence">
+                        {% for cadence in choices.habit_cadence %}
+                          <option value="{{ cadence }}" {% if habit.cadence == cadence %}selected{% endif %}>{{ cadence }}</option>
+                        {% endfor %}
+                      </select></label>
+                      <button>Save</button>
+                    </form>
+                  </details>
+                  <form hx-post="/habit/archive" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="habit_id" value="{{ habit.id }}" />
+                    <input type="hidden" name="mode" value="archive" />
+                    <button class="ghost">Archive</button>
+                  </form>
+                  <form hx-post="/habit/archive" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="habit_id" value="{{ habit.id }}" />
+                    <input type="hidden" name="mode" value="delete" />
+                    <button class="danger">Delete</button>
+                  </form>
+                </div>
               </details>
-              <form hx-post="/habit/archive" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="habit_id" value="{{ habit.id }}" />
-                <input type="hidden" name="mode" value="archive" />
-                <button class="ghost">Archive</button>
-              </form>
-              <form hx-post="/habit/archive" hx-target="#habit-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="habit_id" value="{{ habit.id }}" />
-                <input type="hidden" name="mode" value="delete" />
-                <button class="danger">Delete</button>
-              </form>
             {% endif %}
           </div>
         </article>

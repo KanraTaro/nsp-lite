@@ -1,13 +1,8 @@
 <section id="roh-actions-panel" class="panel"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
-  <div class="panel-head"><p class="eyebrow">Roh Guidance</p><span>{{ ui.roh_guidance.mode or "Template mode" }}</span></div>
+  <div class="panel-head"><p class="eyebrow">Roh Guidance</p><span>{{ ui.roh_guidance.mode or "Template mode" }}: deterministic guidance, not live RohTalk yet.</span></div>
   <div class="guidance-card">
     <strong>{{ ui.roh_guidance.headline or "Quick Dump what is in your head." }}</strong>
     <p>{{ ui.roh_guidance.detail or "Capture the next loose thought, then sort it into a playable quest." }}</p>
     <span class="guidance-action">{{ ui.roh_guidance.action or "Quick Dump" }}</span>
   </div>
-  {% for event in roh_log %}
-    <p class="log-line">{{ event.kind }} · {{ event.get("count", event.get("batch_id", "")) }}</p>
-  {% else %}
-    <p class="empty">This is deterministic guidance, not live RohTalk yet.</p>
-  {% endfor %}
 </section>

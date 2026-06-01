@@ -62,22 +62,27 @@
                   <button>Save</button>
                 </form>
               </details>
-              {% if item.previous_state %}
-                <form hx-post="/inbox/revert" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
-                  <input type="hidden" name="inbox_id" value="{{ item.id }}" />
-                  <button class="ghost">Revert</button>
-                </form>
-              {% endif %}
-              <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="inbox_id" value="{{ item.id }}" />
-                <input type="hidden" name="mode" value="archive" />
-                <button class="ghost">Archive</button>
-              </form>
-              <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
-                <input type="hidden" name="inbox_id" value="{{ item.id }}" />
-                <input type="hidden" name="mode" value="delete" />
-                <button class="danger">Delete</button>
-              </form>
+              <details class="management-more">
+                <summary>More</summary>
+                <div class="more-actions">
+                  {% if item.previous_state %}
+                    <form hx-post="/inbox/revert" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                      <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                      <button class="ghost">Revert</button>
+                    </form>
+                  {% endif %}
+                  <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                    <input type="hidden" name="mode" value="archive" />
+                    <button class="ghost">Archive</button>
+                  </form>
+                  <form hx-post="/inbox/archive" hx-target="#inbox-panel" hx-swap="outerHTML" method="post">
+                    <input type="hidden" name="inbox_id" value="{{ item.id }}" />
+                    <input type="hidden" name="mode" value="delete" />
+                    <button class="danger">Delete</button>
+                  </form>
+                </div>
+              </details>
             {% endif %}
           </div>
         </article>

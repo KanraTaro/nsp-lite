@@ -134,6 +134,9 @@ def create_app(context):
             data.update(extra)
         return templates.TemplateResponse(request, "quest_detail.html", data)
 
+    def redirect_quest_detail(quest_id: str) -> RedirectResponse:
+        return RedirectResponse(f"/quests/{quest_id}", status_code=303)
+
     def render_fragment(
         request: Request,
         main_template: str,
@@ -324,7 +327,7 @@ def create_app(context):
                 argv.extend(["--project", project])
             _skill(context, argv)
             if values.get("return") == "detail":
-                return render_quest_detail(request, quest_id, {"notice": "Quest updated."})
+                return redirect_quest_detail(quest_id)
             return render(request, "partials/quest_list.html", {"notice": "Quest updated.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest missing.", "page": "quests"})
 
@@ -349,7 +352,7 @@ def create_app(context):
         if quest_id and title:
             _skill(context, ["LifeRPG.Quest.AddStep", "--quest-id", quest_id, "--title", title])
             if values.get("return") == "detail":
-                return render_quest_detail(request, quest_id, {"notice": "Quest step added."})
+                return redirect_quest_detail(quest_id)
             return render(request, "partials/quest_list.html", {"notice": "Quest step added.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest step needs text.", "page": "quests"})
 
@@ -361,7 +364,7 @@ def create_app(context):
         if quest_id and step_id:
             _skill(context, ["LifeRPG.Quest.CheckStep", "--quest-id", quest_id, "--step-id", step_id])
             if values.get("return") == "detail":
-                return render_quest_detail(request, quest_id, {"notice": "Quest step updated."})
+                return redirect_quest_detail(quest_id)
             return render(request, "partials/quest_list.html", {"notice": "Quest step updated.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest step missing.", "page": "quests"})
 
@@ -373,7 +376,7 @@ def create_app(context):
         if quest_id and note:
             _skill(context, ["LifeRPG.Quest.AddNote", "--quest-id", quest_id, "--note", note])
             if values.get("return") == "detail":
-                return render_quest_detail(request, quest_id, {"notice": "Quest note added."})
+                return redirect_quest_detail(quest_id)
             return render(request, "partials/quest_list.html", {"notice": "Quest note added.", "page": "quests"})
         return render(request, "partials/quest_list.html", {"notice": "Quest note needs text.", "page": "quests"})
 
@@ -394,14 +397,15 @@ def create_app(context):
 
     @app.post("/quest/start", response_class=HTMLResponse)
     async def start_quest(request: Request):
-        inbox_id = await form_value(request, "inbox_id")
-        quest_id = await form_value(request, "quest_id")
+        values = await form_values(request)
+        inbox_id = values.get("inbox_id", "")
+        quest_id = values.get("quest_id", "")
         if inbox_id:
             _skill(context, ["LifeRPG.Quest.Start", "--inbox-id", inbox_id])
         elif quest_id:
             _skill(context, ["LifeRPG.Quest.Start", "--quest-id", quest_id])
-        if (await form_values(request)).get("return") == "detail" and quest_id:
-            return render_quest_detail(request, quest_id, {"notice": "Quest session started."})
+        if values.get("return") == "detail" and quest_id:
+            return redirect_quest_detail(quest_id)
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -416,13 +420,13 @@ def create_app(context):
 
     @app.post("/quest/pause", response_class=HTMLResponse)
     async def pause_quest(request: Request):
-        quest_id = await form_value(request, "quest_id")
-        note = await form_value(request, "note")
+        values = await form_values(request)
+        quest_id = values.get("quest_id", "")
+        note = values.get("note", "")
         if quest_id:
             _skill(context, ["LifeRPG.Quest.Pause", "--quest-id", quest_id, "--note", clean_text(note)])
-        values = await form_values(request)
         if values.get("return") == "detail" and quest_id:
-            return render_quest_detail(request, quest_id, {"notice": "Quest session paused."})
+            return redirect_quest_detail(quest_id)
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -432,13 +436,13 @@ def create_app(context):
 
     @app.post("/quest/complete", response_class=HTMLResponse)
     async def complete_quest(request: Request):
-        quest_id = await form_value(request, "quest_id")
-        note = await form_value(request, "note")
+        values = await form_values(request)
+        quest_id = values.get("quest_id", "")
+        note = values.get("note", "")
         if quest_id:
             _skill(context, ["LifeRPG.Quest.Complete", "--quest-id", quest_id, "--note", clean_text(note)])
-        values = await form_values(request)
         if values.get("return") == "detail" and quest_id:
-            return render_quest_detail(request, quest_id, {"notice": "Quest completed. Rewards resolved."})
+            return redirect_quest_detail(quest_id)
         return render_fragment(
             request,
             "partials/active_session.html",
@@ -446,6 +450,7 @@ def create_app(context):
             oob_templates=[
                 "partials/expedition.html",
                 "partials/reward_panel.html",
+                "partials/topbar_rewards.html",
                 "partials/quest_list.html",
                 "partials/roh_proposals.html",
             ],
@@ -499,7 +504,7 @@ def create_app(context):
             request,
             "partials/habit_list.html",
             extra={"notice": "Habit checked. Reward granted.", "page": "today"},
-            oob_templates=["partials/reward_panel.html", "partials/roh_proposals.html"],
+            oob_templates=["partials/reward_panel.html", "partials/topbar_rewards.html", "partials/roh_proposals.html"],
         )
 
     @app.post("/event/create", response_class=HTMLResponse)

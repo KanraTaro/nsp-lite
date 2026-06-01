@@ -186,6 +186,14 @@ label small { color: #7f93aa; }
 }
 .inline-actions form { display: flex; gap: 8px; align-items: center; }
 .inline-actions input { min-width: 160px; }
+.management-more > summary { min-width: 68px; }
+.more-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.more-actions form { display: flex; gap: 8px; align-items: center; }
 .card-list { display: grid; gap: 4px; }
 .item-main { min-width: 0; }
 .create-shell, .edit-shell, .detail-shell, .mini-form-shell {
@@ -261,6 +269,14 @@ details[open] summary { margin-bottom: 10px; }
   background: rgba(53, 255, 195, 0.12);
 }
 .reward-flash strong { color: #35ffc3; margin-right: 10px; }
+.reward-feedback {
+  animation: rewardPulse 680ms ease-out;
+}
+@keyframes rewardPulse {
+  0% { box-shadow: 0 0 0 rgba(53, 255, 195, 0); transform: scale(1); }
+  35% { box-shadow: 0 0 24px rgba(53, 255, 195, 0.34); transform: scale(1.015); }
+  100% { box-shadow: 0 0 0 rgba(53, 255, 195, 0); transform: scale(1); }
+}
 .quest-detail h2 { margin-top: 18px; font-size: 1rem; color: #f4f8ff; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr); gap: 14px; align-items: start; }
 .detail-side { display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); }
@@ -295,8 +311,12 @@ details[open] summary { margin-bottom: 10px; }
   nav { flex-wrap: wrap; }
   .page { padding: 12px; }
   .operator-body, .battle-grid, .quest-row, .habit-row, .event-row, .management-form, .detail-grid, .progress-note-form { grid-template-columns: 1fr; }
-  .inline-actions, .inline-actions form { align-items: stretch; flex-direction: column; }
+  .inline-actions, .inline-actions form, .more-actions, .more-actions form { align-items: stretch; flex-direction: column; }
   .token-chip { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reward-feedback { animation: none; }
 }
 
 .visual-compact .panel { padding: 12px; }

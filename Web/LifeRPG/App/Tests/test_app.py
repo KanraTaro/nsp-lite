@@ -67,7 +67,7 @@ class FakeContext:
                     },
                 },
                 "event_log": [],
-                "roh_log": [],
+                "roh_log": [{"kind": "roh_sort_completed", "count": 2}],
                 "roh_guidance": {"mode": "Template mode", "headline": "Stay on the active quest.", "detail": "Push the minimum win.", "action": "Add a progress note"},
             }
             return SkillInvocationResult(exit_code=0, stdout=json.dumps(payload), stderr="")
@@ -103,6 +103,10 @@ class FakeContext:
                 if token == "--visual-mode" and index + 1 < len(argv):
                     self.settings["visual_mode"] = argv[index + 1]
             return SkillInvocationResult(exit_code=0, stdout=json.dumps({"ok": True, "settings": self.settings}), stderr="")
+        if name == "LifeRPG.Habit.Check":
+            return SkillInvocationResult(exit_code=0, stdout=json.dumps({"ok": True, "xp": 10, "tokens": 1}), stderr="")
+        if name == "LifeRPG.Quest.Complete":
+            return SkillInvocationResult(exit_code=0, stdout=json.dumps({"ok": True, "xp": 25, "tokens": 2}), stderr="")
         return SkillInvocationResult(exit_code=0, stdout=json.dumps({"ok": True}), stderr="")
 
 
@@ -171,6 +175,8 @@ class LifeRPGWebTests(unittest.TestCase):
         self.assertIn("Stay on the active quest.", html)
         self.assertIn("+25 XP", html)
         self.assertIn("Add Note", html)
+        self.assertIn('id="topbar-rewards"', html)
+        self.assertIn("reward-feedback", html)
 
     def test_management_pages_use_selects_for_choice_fields(self) -> None:
         inbox_html = self._render(asyncio.run(self._endpoint("/inbox")(_FakeRequest({}))))
@@ -196,7 +202,7 @@ class LifeRPGWebTests(unittest.TestCase):
             self._endpoint("/settings/save", "POST")(
                 _FakeRequest(
                     {
-                        "display_name": "Sara",
+                        "display_name": "Operator Two",
                         "timezone": "UTC",
                         "auto_sort_enabled": "true",
                         "checkin_minutes": "45",
@@ -207,25 +213,38 @@ class LifeRPGWebTests(unittest.TestCase):
         )
         html = self._render(asyncio.run(self._endpoint("/")(_FakeRequest({}))))
 
-        self.assertIn("Sara command profile", html)
+        self.assertIn("Operator Two command profile", html)
         self.assertIn('class="visual-compact page-board"', html)
 
     def test_quick_dump_auto_sort_uses_sort_path(self) -> None:
-        asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix dad page"})))
+        asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix sample page"})))
         flat_calls = [" ".join(call) for call in self.context.calls]
 
-        self.assertTrue(any("LifeRPG.Inbox.Add --text fix dad page --json" in call for call in flat_calls))
+        self.assertTrue(any("LifeRPG.Inbox.Add --text fix sample page --json" in call for call in flat_calls))
         self.assertTrue(any("LifeRPG.Inbox.Sort --json" in call for call in flat_calls))
 
-    def test_start_and_complete_return_cross_panel_updates(self) -> None:
+    def test_start_complete_and_habit_check_return_cross_panel_updates(self) -> None:
         start = self._render(asyncio.run(self._endpoint("/quest/start", "POST")(_FakeRequest({"quest_id": "quest_1"}))))
         complete = self._render(asyncio.run(self._endpoint("/quest/complete", "POST")(_FakeRequest({"quest_id": "quest_1"}))))
+        habit = self._render(asyncio.run(self._endpoint("/habit/check", "POST")(_FakeRequest({"habit_id": "habit_1"}))))
 
         self.assertIn('id="active-session-panel"', start)
         self.assertIn('id="expedition-panel" class="panel expedition" hx-swap-oob="outerHTML"', start)
         self.assertIn('id="quest-panel" class="panel" hx-swap-oob="outerHTML"', start)
         self.assertIn("Quest completed. Rewards resolved.", complete)
-        self.assertIn('id="reward-panel" class="panel rewards" hx-swap-oob="outerHTML"', complete)
+        self.assertIn('id="reward-panel"', complete)
+        self.assertIn('hx-swap-oob="outerHTML"', complete)
+        self.assertIn('id="topbar-rewards"', complete)
+        self.assertIn('id="topbar-rewards"', habit)
+        self.assertIn("reward-feedback", complete)
+
+    def test_raw_roh_event_keys_do_not_render(self) -> None:
+        board_html = self._render(asyncio.run(self._endpoint("/")(_FakeRequest({}))))
+        roh_html = self._render(asyncio.run(self._endpoint("/roh")(_FakeRequest({}))))
+
+        self.assertNotIn("roh_sort_completed", board_html)
+        self.assertNotIn("roh_sort_completed", roh_html)
+        self.assertIn("Template mode: deterministic guidance, not live RohTalk yet.", board_html)
 
     def test_quest_detail_page_shows_notes_sessions_and_actions(self) -> None:
         response = asyncio.run(self._endpoint("/quests/{quest_id}")(_FakeRequest({}), "quest_1"))
@@ -258,7 +277,7 @@ class LifeRPGWebTests(unittest.TestCase):
         self.assertIn('hx-swap="outerHTML"', html)
 
     def test_inbox_partial_uses_outer_panel_swap_targets(self) -> None:
-        dump_response = asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix dad page"})))
+        dump_response = asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix sample page"})))
         dump_html = self._render(dump_response)
         sort_response = asyncio.run(self._endpoint("/sort", "POST")(_FakeRequest({})))
         sort_html = self._render(sort_response)
@@ -270,13 +289,13 @@ class LifeRPGWebTests(unittest.TestCase):
         self.assertIn('hx-swap="outerHTML"', board_html)
 
     def test_quick_dump_sort_start_tick_and_habit_routes_call_skills(self) -> None:
-        asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix dad page"})))
+        asyncio.run(self._endpoint("/quick-dump", "POST")(_FakeRequest({"text": "fix sample page"})))
         asyncio.run(self._endpoint("/sort", "POST")(_FakeRequest({})))
         asyncio.run(self._endpoint("/quest/start", "POST")(_FakeRequest({"inbox_id": "inbox_1", "quest_id": ""})))
         asyncio.run(self._endpoint("/expedition/tick", "POST")(_FakeRequest({})))
         asyncio.run(self._endpoint("/habit/check", "POST")(_FakeRequest({"habit_id": "habit_1"})))
         flat_calls = [" ".join(call) for call in self.context.calls]
-        self.assertTrue(any("LifeRPG.Inbox.Add --text fix dad page --json" in call for call in flat_calls))
+        self.assertTrue(any("LifeRPG.Inbox.Add --text fix sample page --json" in call for call in flat_calls))
         self.assertTrue(any("LifeRPG.Inbox.Sort --json" in call for call in flat_calls))
         self.assertTrue(any("LifeRPG.Quest.Start --inbox-id inbox_1 --json" in call for call in flat_calls))
         self.assertTrue(any("LifeRPG.Expedition.Tick --expedition-id exp_1 --json" in call for call in flat_calls))
@@ -314,6 +333,31 @@ class LifeRPGWebTests(unittest.TestCase):
             self.assertIn("notice success", html)
             self.assertTrue(any(expected in " ".join(call) for call in self.context.calls))
 
+    def test_quest_detail_post_actions_redirect_to_detail_url(self) -> None:
+        routes = (
+            ("/quest/add-note", {"quest_id": "quest_1", "note": "detail note", "return": "detail"}, "LifeRPG.Quest.AddNote --quest-id quest_1"),
+            ("/quest/start", {"quest_id": "quest_1", "return": "detail"}, "LifeRPG.Quest.Start --quest-id quest_1"),
+            ("/quest/pause", {"quest_id": "quest_1", "note": "paused", "return": "detail"}, "LifeRPG.Quest.Pause --quest-id quest_1"),
+            ("/quest/complete", {"quest_id": "quest_1", "note": "done", "return": "detail"}, "LifeRPG.Quest.Complete --quest-id quest_1"),
+        )
+        for path, data, expected in routes:
+            response = asyncio.run(self._endpoint(path, "POST")(_FakeRequest(data)))
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["location"], "/quests/quest_1")
+            self.assertTrue(any(expected in " ".join(call) for call in self.context.calls))
+
+    def test_management_pages_collapse_secondary_actions(self) -> None:
+        inbox_html = self._render(asyncio.run(self._endpoint("/inbox")(_FakeRequest({}))))
+        quests_html = self._render(asyncio.run(self._endpoint("/quests")(_FakeRequest({}))))
+        today_html = self._render(asyncio.run(self._endpoint("/today")(_FakeRequest({}))))
+
+        for html in (inbox_html, quests_html, today_html):
+            self.assertIn('class="management-more"', html)
+            self.assertIn("<summary>More</summary>", html)
+        self.assertLess(inbox_html.find("More"), inbox_html.find("Archive"))
+        self.assertLess(quests_html.find("More"), quests_html.find("Archive"))
+        self.assertLess(today_html.find("More"), today_html.find("Archive"))
+
     def test_active_progress_note_returns_session_panel(self) -> None:
         response = asyncio.run(self._endpoint("/quest/progress-note", "POST")(_FakeRequest({"quest_id": "quest_1", "note": "progress note"})))
         html = self._render(response)
@@ -330,7 +374,7 @@ class LifeRPGWebTests(unittest.TestCase):
             ("/event/create", {"title": "Reset", "starts_at": "2026-05-28T06:00"}, 'id="event-panel"', "LifeRPG.Event.Create --title Reset"),
             ("/event/edit", {"event_id": "event_1", "title": "Daily Reset"}, 'id="event-panel"', "LifeRPG.Event.Edit --event-id event_1"),
             ("/event/archive", {"event_id": "event_1"}, 'id="event-panel"', "LifeRPG.Event.Archive --event-id event_1"),
-            ("/settings/save", {"display_name": "Sara", "timezone": "UTC", "auto_sort_enabled": "true", "checkin_minutes": "45"}, 'id="settings-panel"', "LifeRPG.Settings.Update --display-name Sara"),
+            ("/settings/save", {"display_name": "Operator Two", "timezone": "UTC", "auto_sort_enabled": "true", "checkin_minutes": "45"}, 'id="settings-panel"', "LifeRPG.Settings.Update --display-name Operator Two"),
         )
         for path, data, panel_id, expected in routes:
             response = asyncio.run(self._endpoint(path, "POST")(_FakeRequest(data)))
