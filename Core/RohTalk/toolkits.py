@@ -29,6 +29,7 @@ class ToolKit:
     name: str
     tools: List[ToolDef]
     skill_name_map: Dict[str, str]
+    system_guidance: str = ""
 
 
 BASIC_SKILL_NAMES: List[str] = [
@@ -127,7 +128,8 @@ def _dst_announce_text_tool() -> ToolDef:
         name=canonical_skill_name_to_tool_name("Game.DST.Announce.text"),
         description=(
             "Send a short Don't Starve Together in-game director message to players. "
-            "Use this for brief warnings, nudges, or acknowledgements. Do not spam."
+            "Use this for brief warnings, nudges, or acknowledgements. Do not spam. "
+            'Example arguments: {"text":"Hi from Roh."}'
         ),
         parameters={
             "type": "object",
@@ -138,6 +140,7 @@ def _dst_announce_text_tool() -> ToolDef:
                 },
             },
             "required": ["text"],
+            "additionalProperties": False,
         },
     )
 
@@ -194,15 +197,21 @@ def _dst_chaos_set_tier_tool() -> ToolDef:
         name="chaos_set_tier",
         description=(
             "Set the Don't Starve Together RohBridge chaos tier. "
-            "Use tier 3 before any deerclops boss workflow."
+            "Call this when the user asks to set chaos tier or chaos level. "
+            "Use tier 3 before any deerclops boss workflow. "
+            'Use exactly one argument. Example arguments: {"chaos_tier":3}'
         ),
         parameters={
             "type": "object",
             "properties": {
-                "chaos_tier": {"type": "integer", "enum": [0, 1, 2, 3]},
-                "announce": {"type": "string"},
+                "chaos_tier": {
+                    "type": "integer",
+                    "enum": [0, 1, 2, 3],
+                    "description": "Chaos tier number. Use 3 for maximum chaos.",
+                },
             },
             "required": ["chaos_tier"],
+            "additionalProperties": False,
         },
     )
 
@@ -234,22 +243,28 @@ def _dst_enemy_spawn_tool() -> ToolDef:
         description=(
             "Spawn an allowlisted Don't Starve Together enemy near a selected player. "
             "Only deerclops is allowed as a boss; use deerclops only after setting chaos tier 3 "
-            "and pass force_boss=true explicitly."
+            "and pass force_boss=true explicitly. "
+            'For Deerclops, use arguments: {"prefab":"deerclops","force_boss":true}'
         ),
         parameters={
             "type": "object",
             "properties": {
-                "prefab": {"type": "string", "enum": list(SAFE_ENEMY_PREFABS)},
+                "prefab": {
+                    "type": "string",
+                    "enum": list(SAFE_ENEMY_PREFABS),
+                    "description": "Enemy prefab. Use deerclops only when the user explicitly requests Deerclops.",
+                },
                 "count": {"type": "integer", "minimum": 1, "maximum": 10},
                 "target_mode": _target_mode_property(),
                 "radius": {"type": "integer", "minimum": 1, "maximum": 30},
                 "announce": {"type": "string"},
                 "force_boss": {
                     "type": "boolean",
-                    "description": "Required only for deerclops after chaos tier 3 has been set.",
+                    "description": "Required true for deerclops after chaos tier 3 has been set. Use false or omit for non-boss enemies.",
                 },
             },
             "required": ["prefab"],
+            "additionalProperties": False,
         },
     )
 
@@ -384,6 +399,18 @@ def _dst_director_skill_name_map() -> Dict[str, str]:
     return mapping
 
 
+def _dst_director_system_guidance() -> str:
+    return (
+        "DST director tool instructions:\n"
+        '- To set chaos tier or chaos level, call exactly chaos_set_tier with arguments like {"chaos_tier":3}. '
+        "Do not include announce text in chaos_set_tier.\n"
+        '- To say something in DST, call exactly announce_text with arguments like {"text":"Hi from Roh."}.\n'
+        '- To summon Deerclops, first call chaos_set_tier with {"chaos_tier":3}, then call enemy_spawn with '
+        '{"prefab":"deerclops","force_boss":true}.\n'
+        "- Tool arguments must be one complete valid JSON object with no trailing comma."
+    )
+
+
 def resolve_toolkit(name: str = "basic") -> ToolKit:
     """Resolve a named RohTalk tool kit.
 
@@ -405,6 +432,7 @@ def resolve_toolkit(name: str = "basic") -> ToolKit:
             name="dst_director",
             tools=_dst_director_tools(),
             skill_name_map=_dst_director_skill_name_map(),
+            system_guidance=_dst_director_system_guidance(),
         )
 
     raise ValueError(f"Unknown RohTalk toolkit: {name}")

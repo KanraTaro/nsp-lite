@@ -55,6 +55,8 @@ class RohTalkToolkitTests(unittest.TestCase):
         announce_tool = next(tool for tool in toolkit.tools if tool.name == "announce_text")
 
         self.assertEqual(announce_tool.parameters["required"], ["text"])
+        self.assertFalse(announce_tool.parameters["additionalProperties"])
+        self.assertIn('{"text":"Hi from Roh."}', announce_tool.description)
 
     def test_dst_objective_collect_prefab_enums_use_safe_prefabs(self) -> None:
         toolkit = resolve_toolkit("dst_director")
@@ -93,6 +95,14 @@ class RohTalkToolkitTests(unittest.TestCase):
         self.assertEqual(toolkit.skill_name_map["player_objective_clear"], "Game.DST.Objective.clear_player")
         self.assertEqual(toolkit.skill_name_map["objective_status"], "Game.DST.Objective.status")
 
+    def test_dst_director_guidance_includes_clip_critical_tool_examples(self) -> None:
+        toolkit = resolve_toolkit("dst_director")
+
+        self.assertIn('chaos_set_tier with arguments like {"chaos_tier":3}', toolkit.system_guidance)
+        self.assertIn('announce_text with arguments like {"text":"Hi from Roh."}', toolkit.system_guidance)
+        self.assertIn('enemy_spawn with {"prefab":"deerclops","force_boss":true}', toolkit.system_guidance)
+        self.assertIn("no trailing comma", toolkit.system_guidance)
+
     def test_dst_chaos_tool_schemas_use_allowlisted_enums(self) -> None:
         toolkit = resolve_toolkit("dst_director")
         tools = {tool.name: tool for tool in toolkit.tools}
@@ -101,6 +111,13 @@ class RohTalkToolkitTests(unittest.TestCase):
             tools["chaos_set_tier"].parameters["properties"]["chaos_tier"]["enum"],
             [0, 1, 2, 3],
         )
+        self.assertEqual(tools["chaos_set_tier"].parameters["required"], ["chaos_tier"])
+        self.assertEqual(
+            set(tools["chaos_set_tier"].parameters["properties"]),
+            {"chaos_tier"},
+        )
+        self.assertFalse(tools["chaos_set_tier"].parameters["additionalProperties"])
+        self.assertIn('{"chaos_tier":3}', tools["chaos_set_tier"].description)
         self.assertEqual(
             tools["supplies_spawn"].parameters["properties"]["prefab"]["enum"],
             list(SAFE_SUPPLY_PREFABS),
@@ -125,6 +142,8 @@ class RohTalkToolkitTests(unittest.TestCase):
         self.assertIn("deerclops", enemy_tool.parameters["properties"]["prefab"]["enum"])
         self.assertIn("force_boss", enemy_tool.parameters["properties"])
         self.assertIn("chaos tier 3", enemy_tool.description)
+        self.assertIn('{"prefab":"deerclops","force_boss":true}', enemy_tool.description)
+        self.assertFalse(enemy_tool.parameters["additionalProperties"])
         self.assertIn(
             "deerclops",
             enemy_tool.parameters["properties"]["force_boss"]["description"],

@@ -20,6 +20,7 @@ from Core.LLMClient.types import ChatResult, ToolCall, ToolDef
 import Core.NSPL.NodeCTX as NodeCTX
 from Core.NSPL.SkillCLI.ctx import SkillContext
 from Core.RohTalk.conversations import append_message, create_conversation, list_conversations
+from Core.RohTalk.orchestrator import _with_toolkit_guidance
 from Core.RohTalk.tracing import print_step, print_tool_call, print_tool_result
 from Core.RohTalk.tool_loop import run_tool_loop
 from Core.RohTalk.tool_runner import execute_tool_call
@@ -750,6 +751,21 @@ class RohTalkCoreTests(unittest.TestCase):
         self.assertNotIn("on_step", kwargs)
         self.assertNotIn("on_tool_call", kwargs)
         self.assertNotIn("on_tool_result", kwargs)
+
+    def test_toolkit_guidance_is_inserted_once_after_system_identity(self) -> None:
+        messages = [
+            {"role": "system", "content": "You are Roh."},
+            {"role": "user", "content": "Set chaos tier to 3."},
+        ]
+        guidance = 'DST director tool instructions: chaos_set_tier {"chaos_tier":3}'
+
+        first = _with_toolkit_guidance(messages, guidance)
+        second = _with_toolkit_guidance(first, guidance)
+
+        self.assertEqual(first[0], messages[0])
+        self.assertEqual(first[1], {"role": "system", "content": guidance})
+        self.assertEqual(first[2], messages[1])
+        self.assertEqual(second, first)
 
     def test_tool_test_quiet_suppresses_trace_callbacks(self) -> None:
         args = SimpleNamespace(

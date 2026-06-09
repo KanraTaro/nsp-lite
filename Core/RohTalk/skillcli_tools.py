@@ -146,21 +146,28 @@ def execute_skill(ctx: Any, skill_name: str, arguments: Dict[str, Any]) -> Any:
         skill_arguments.setdefault("result_timeout", DST_DIRECTOR_RESULT_TIMEOUT_SECONDS)
         skill_arguments.setdefault("result_interval", DST_DIRECTOR_RESULT_INTERVAL_SECONDS)
 
-    argv = ["--json"]
-    argv.extend(_dict_to_argv(skill_arguments))
-
-    parsed_args = parser.parse_args(argv)
-
-    exec_ctx = replace(
-        ctx,
-        debug=bool(getattr(parsed_args, "debug", False)),
-        json=True,
-    )
-
     stdout_buffer = StringIO()
     stderr_buffer = StringIO()
 
     with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+        argv = ["--json"]
+        argv.extend(_dict_to_argv(skill_arguments))
+
+        try:
+            parsed_args = parser.parse_args(argv)
+        except SystemExit as exc:
+            code = int(getattr(exc, "code", 2) or 2)
+            raise RuntimeError(
+                f"Skill '{skill_name}' argument parsing failed with exit_code={code}"
+                + (f": {stderr_buffer.getvalue().strip()}" if stderr_buffer.getvalue().strip() else "")
+            ) from exc
+
+        exec_ctx = replace(
+            ctx,
+            debug=bool(getattr(parsed_args, "debug", False)),
+            json=True,
+        )
+
         result = module.run(parsed_args, exec_ctx)
 
     exit_code = int(result) if isinstance(result, int) else 0

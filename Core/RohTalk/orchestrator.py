@@ -63,6 +63,24 @@ def _load_or_create_messages(
     return conversation_id, messages, metadata
 
 
+def _with_toolkit_guidance(messages: List[Dict[str, Any]], guidance: str) -> List[Dict[str, Any]]:
+    clean_guidance = str(guidance or "").strip()
+    if clean_guidance == "":
+        return list(messages)
+
+    for message in messages:
+        if message.get("role") == "system" and str(message.get("content", "") or "").strip() == clean_guidance:
+            return list(messages)
+
+    guided_messages = list(messages)
+    guidance_message = {"role": "system", "content": clean_guidance}
+    for index, message in enumerate(guided_messages):
+        if message.get("role") == "system":
+            return guided_messages[: index + 1] + [guidance_message] + guided_messages[index + 1 :]
+
+    return [guidance_message] + guided_messages
+
+
 def run_turn(
     ctx: Any,
     user_message: str,
@@ -172,7 +190,7 @@ def run_turn(
     elif tool_backend == "skillcli":
         resolved_toolkit = resolve_toolkit(toolkit)
         final_text, final_messages = run_tool_loop(
-            messages,
+            _with_toolkit_guidance(messages, resolved_toolkit.system_guidance),
             model=model_to_use,
             host=host_to_use,
             model_options=options_to_use,

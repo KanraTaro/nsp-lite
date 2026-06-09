@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import Core.NSPL.NodeCTX as NodeCTX
 from Core.NSPL.SkillCLI.ctx import SkillContext
+from Core.LLMClient.types import ToolCall
 from Core.RohTalk.skillcli_tools import (
     DST_DIRECTOR_RESULT_INTERVAL_SECONDS,
     DST_DIRECTOR_RESULT_TIMEOUT_SECONDS,
@@ -19,6 +20,7 @@ from Core.RohTalk.skillcli_tools import (
     canonical_skill_name_to_tool_name,
     execute_skill,
 )
+from Core.RohTalk.tool_runner import execute_tool_call
 
 
 class SkillCLIToolsTests(unittest.TestCase):
@@ -210,6 +212,27 @@ class SkillCLIToolsTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(result["queued"])
         self.assertEqual(result["bridge_result"], bridge_result)
+
+    def test_dst_tool_missing_required_args_returns_clear_tool_error(self) -> None:
+        tool_call = ToolCall(
+            id="call-missing-chaos-tier",
+            name="chaos_set_tier",
+            arguments={},
+            arguments_json="{}",
+        )
+
+        result = execute_tool_call(
+            tool_call,
+            execution_mode="skillcli",
+            ctx=self.ctx,
+            skill_name_map={"chaos_set_tier": "Game.DST.Chaos.set_tier"},
+            skill_executor=execute_skill,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["tool_name"], "chaos_set_tier")
+        self.assertIn("argument parsing failed", result["error"])
+        self.assertIn("--chaos-tier", result["error"])
 
     def test_execute_skill_uses_longer_dst_director_result_wait_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
