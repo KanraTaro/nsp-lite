@@ -1,0 +1,9 @@
+{
+  "name": "Roh.OperatorStation",
+  "version": "0.1.0",
+  "description": "Roh Operator Station local cockpit",
+  "entry": "app.py",
+  "factory": "create_app",
+  "default_host": "127.0.0.1",
+  "default_port": 8780
+}

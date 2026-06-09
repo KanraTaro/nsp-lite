@@ -1,0 +1,5 @@
+{
+  "name": "Voice.Listen",
+  "version": "0.1.0",
+  "description": "Listen through a local voice provider and return a transcript"
+}

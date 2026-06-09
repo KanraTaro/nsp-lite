@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roh Operator Station</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="station-header">
+        <div>
+          <p class="eyebrow">{{ ui.mode }}</p>
+          <h1>Roh Operator Station</h1>
+        </div>
+        <div class="header-actions">
+          <a class="refresh" href="/">Refresh</a>
+          <span class="status-chip status-{{ ui.overall_status | lower }}">{{ ui.overall_status }}</span>
+        </div>
+      </header>
+
+      <section class="status-grid" aria-label="System Status">
+        {% for card in ui.cards %}
+          <article class="status-card">
+            <div class="card-top">
+              <p class="label">{{ card.label }}</p>
+              <span class="mini-chip status-{{ card.status | lower }}">{{ card.status }}</span>
+            </div>
+            <strong>{{ card.value }}</strong>
+            <p>{{ card.detail }}</p>
+          </article>
+        {% endfor %}
+      </section>
+
+      <section class="cockpit-grid">
+        <section id="roh-command-panel" class="panel command-panel">
+          <div class="panel-heading">
+            <p class="label">Roh Command</p>
+            <span class="mini-chip status-online">READY</span>
+          </div>
+          <form id="command-form" method="post" action="/send" class="command-form">
+            <input type="hidden" name="latest_prompt" value="{{ ui.chat.latest_prompt }}" />
+            <input type="hidden" name="response_text" value="{{ ui.chat.latest_response }}" />
+            <input type="hidden" name="conversation_id" value="{{ ui.chat.conversation_id }}" />
+            <textarea id="roh-command-textarea" name="prompt" placeholder="Type to Roh.">{{ ui.command_text }}</textarea>
+            <div id="pending-indicator" class="pending-indicator" hidden>Roh is thinking...</div>
+            <div class="command-actions">
+              <button type="submit" class="primary-action">Send</button>
+              <button type="submit" formaction="/listen" formmethod="post">Listen</button>
+            </div>
+            <p class="prompt-hint">Send now prompts</p>
+            <div class="prompt-row">
+              {% for prompt in ui.prompts %}
+                <button type="submit" name="demo_prompt" value="{{ prompt }}">{{ prompt }}</button>
+              {% endfor %}
+            </div>
+          </form>
+          {% if ui.listen_result %}
+            <p class="voice-message {{ 'ok' if ui.listen_result.get('ok') else 'error-text' }}">
+              {{ "Transcript ready." if ui.listen_result.get("ok") else ui.listen_result.get("error") or "Listen failed." }}
+            </p>
+          {% endif %}
+        </section>
+
+        <section id="roh-response-panel" class="panel response-panel {% if ui.chat.latest_response %}response-updated{% endif %}">
+          <div class="panel-heading">
+            <p class="label">Roh Response</p>
+            {% if ui.chat.short_id %}
+              <span class="mini-chip status-online">{{ ui.chat.short_id }}</span>
+            {% else %}
+              <span class="mini-chip status-degraded">NO THREAD</span>
+            {% endif %}
+          </div>
+          <div class="conversation-meta">
+            <strong>{{ ui.chat.title }}</strong>
+            <span>{{ ui.chat.conversation_id or "No persistent conversation yet." }}</span>
+          </div>
+          {% if ui.chat.error %}
+            <p class="error">{{ ui.chat.error }}</p>
+          {% endif %}
+          {% if ui.chat.latest_response %}
+            <div class="latest-exchange">
+              <p class="label">Latest Prompt</p>
+              <p>{{ ui.chat.latest_prompt }}</p>
+              <div class="response-label-row">
+                <p class="label">Latest Roh Response</p>
+                <span class="updated-chip">{{ ui.chat.updated_label or "Updated just now" }}</span>
+              </div>
+              <div class="response-text">{{ ui.chat.latest_response }}</div>
+            </div>
+            <form method="post" action="/speak" class="speak-form">
+              <input type="hidden" name="response_text" value="{{ ui.chat.latest_response }}" />
+              <input type="hidden" name="latest_prompt" value="{{ ui.chat.latest_prompt }}" />
+              <input type="hidden" name="conversation_id" value="{{ ui.chat.conversation_id }}" />
+              <button type="submit">Speak</button>
+              {% if ui.voice_result %}
+                <span class="voice-message {{ 'ok' if ui.voice_result.get('ok') else 'error-text' }}">
+                  {{ "Speech sent." if ui.voice_result.get("ok") else ui.voice_result.get("stderr") or "Speech failed." }}
+                </span>
+              {% endif %}
+            </form>
+          {% else %}
+            <div class="empty-state">
+              <strong>Standing by.</strong>
+              <p>Roh responses will appear here.</p>
+            </div>
+          {% endif %}
+          <label class="toggle-row">
+            <input type="checkbox" name="auto_speak" form="command-form" {% if ui.auto_speak %}checked{% endif %} />
+            <span>Auto-speak Roh responses</span>
+          </label>
+          {% if ui.voice_result and not ui.chat.latest_response %}
+            <p class="voice-message {{ 'ok' if ui.voice_result.get('ok') else 'error-text' }}">
+              {{ "Speech sent." if ui.voice_result.get("ok") else ui.voice_result.get("stderr") or "Speech failed." }}
+            </p>
+          {% endif %}
+        </section>
+
+        <section id="action-trace-panel" class="panel trace-panel {% if ui.action_trace.skill %}trace-updated{% endif %}">
+          <p class="label">Action Trace</p>
+          {% if ui.action_trace.skill %}
+            <div class="trace-grid">
+              <div><span>Skill</span><strong>{{ ui.action_trace.skill }}</strong></div>
+              <div><span>Conversation</span><strong>{{ ui.action_trace.conversation or "none" }}</strong></div>
+              <div><span>Toolkit</span><strong>{{ ui.action_trace.toolkit }}</strong></div>
+              <div><span>Tools</span><strong>{{ "yes" if ui.action_trace.tools_enabled else "no" }}</strong></div>
+              <div><span>Exit</span><strong>{{ ui.action_trace.exit_code }}</strong></div>
+            </div>
+            <p class="trace-args">{{ ui.action_trace.arguments }}</p>
+            {% if ui.action_trace.stderr %}
+              <pre>{{ ui.action_trace.stderr }}</pre>
+            {% endif %}
+            {% if ui.action_trace.stdout %}
+              <pre>{{ ui.action_trace.stdout }}</pre>
+            {% endif %}
+          {% else %}
+            <div class="empty-state">
+              <strong>No tool calls yet.</strong>
+              <p>Tool calls and skill results will appear here.</p>
+            </div>
+          {% endif %}
+          <div class="runtime-strip">
+            <span>Toolkit: {{ ui.diagnostics.get("toolkit", "dst_director") }}</span>
+            <span>Tools: {{ "enabled" if ui.diagnostics.get("tools_enabled", True) else "off" }}</span>
+            <span>Timeout: {{ ui.diagnostics.get("chat_timeout", 180) }}s</span>
+            {% if ui.diagnostics.get("profile") %}
+              <span>Profile: {{ ui.diagnostics.get("profile") }}</span>
+            {% endif %}
+            {% if ui.diagnostics.get("model") %}
+              <span>Model: {{ ui.diagnostics.get("model") }}</span>
+            {% endif %}
+          </div>
+        </section>
+
+        <section id="dst-bridge-panel" class="panel dst-panel">
+          <div class="panel-heading">
+            <p class="label">DST / RohBridge</p>
+            <span class="status-chip status-{{ ui.dst.status | lower }}">{{ ui.dst.status }}</span>
+          </div>
+          <div class="dst-summary">
+            <div>
+              <span>Snapshot</span>
+              <strong>{{ "found" if ui.dst.snapshot_found else "missing" }}</strong>
+            </div>
+            <div>
+              <span>Age</span>
+              <strong>{{ ui.dst.snapshot_age }}</strong>
+            </div>
+            <div>
+              <span>World</span>
+              <strong>{{ ui.dst.summary }}</strong>
+            </div>
+          </div>
+          {% if ui.dst.players %}
+            <p class="note">Players: {{ ", ".join(ui.dst.players) }}</p>
+          {% endif %}
+          <p class="note">{{ ui.dst.detail }}</p>
+          <button type="button" disabled>Send DST action next pass</button>
+        </section>
+      </section>
+    </main>
+    <script>
+      document.querySelectorAll("form[method='post']").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          const submitter = event.submitter;
+          const target = submitter?.getAttribute("formaction") || form.getAttribute("action") || "";
+          const pending = document.getElementById("pending-indicator");
+          if (pending) {
+            if (target.includes("/listen")) {
+              pending.textContent = "Listening for SpeechNote...";
+            } else if (target.includes("/speak")) {
+              pending.textContent = "Sending voice...";
+            } else {
+              pending.textContent = "Roh is thinking...";
+            }
+            pending.hidden = false;
+          }
+          document.body.classList.add("is-busy");
+          window.setTimeout(() => {
+            document.querySelectorAll("button[type='submit']").forEach((button) => {
+              button.disabled = true;
+            });
+            form.classList.add("is-running");
+          }, 0);
+        });
+      });
+    </script>
+  </body>
+</html>

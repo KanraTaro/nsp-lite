@@ -1,0 +1,5 @@
+{
+  "name": "Voice.Speak",
+  "version": "0.1.0",
+  "description": "Speak text through a local voice provider"
+}
