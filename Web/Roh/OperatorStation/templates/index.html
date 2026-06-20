@@ -43,6 +43,9 @@
             <input type="hidden" name="response_text" value="{{ ui.chat.latest_response }}" />
             <input type="hidden" name="conversation_id" value="{{ ui.chat.conversation_id }}" />
             <textarea id="roh-command-textarea" name="prompt" placeholder="Type to Roh.">{{ ui.command_text }}</textarea>
+            {% if ui.submitted or (ui.action_trace.skill in ["RohTalk.start", "RohTalk.chat"] and ui.chat.latest_prompt and not ui.chat.error and not ui.command_text) %}
+              <div class="submitted-indicator">Prompt submitted.</div>
+            {% endif %}
             <div id="pending-indicator" class="pending-indicator" hidden>Roh is thinking...</div>
             <div class="command-actions">
               <button type="submit" class="primary-action">Send</button>

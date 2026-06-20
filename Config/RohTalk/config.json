@@ -15,6 +15,24 @@
       "options": {
         "think": "low"
       }
+    },
+    "roh_demo_cloud": {
+      "model": "gemma4:31b-cloud",
+      "options": {
+        "think": false
+      }
+    },
+    "roh_local_daily": {
+      "model": "gemma4:e2b",
+      "options": {
+        "think": false
+      }
+    },
+    "roh_local_heavy": {
+      "model": "gpt-oss:20b",
+      "options": {
+        "think": "low"
+      }
     }
   }
 }

@@ -38,6 +38,7 @@ class FakeContext:
     operator_conversation_id: str = ""
     listen_ok: bool = True
     listen_transcript: str = "Roh, give me a status report."
+    rohtalk_ok: bool = True
 
     def run_skill(self, argv, timeout=30.0):
         self.calls.append((list(argv), float(timeout)))
@@ -91,6 +92,8 @@ class FakeContext:
                 return SkillInvocationResult(exit_code=0, stdout=line, stderr="")
             return SkillInvocationResult(exit_code=0, stdout="", stderr="")
         if name == "RohTalk.start":
+            if not self.rohtalk_ok:
+                return SkillInvocationResult(exit_code=1, stdout="", stderr="RohTalk send failed.")
             self.operator_conversation_id = "abc123def456"
             return SkillInvocationResult(
                 exit_code=0,
@@ -98,6 +101,8 @@ class FakeContext:
                 stderr="",
             )
         if name == "RohTalk.chat":
+            if not self.rohtalk_ok:
+                return SkillInvocationResult(exit_code=1, stdout="", stderr="RohTalk send failed.")
             return SkillInvocationResult(exit_code=0, stdout="Still here on the same thread.", stderr="[step 1]\n")
         if name == "Game.DST.Snapshot.read":
             if not self.snapshot_ok:
@@ -213,7 +218,8 @@ class RohOperatorStationTests(unittest.TestCase):
         self.assertIn("response-updated", first_html)
         self.assertIn("trace-updated", first_html)
         self.assertIn("Updated just now", first_html)
-        self.assertNotIn(">Roh, are you online?</textarea>", first_html)
+        self.assertIn("Prompt submitted.", first_html)
+        self.assertIn('placeholder="Type to Roh."></textarea>', first_html)
 
         second_html = self._render(asyncio.run(send_endpoint(_FakeRequest({"prompt": "Check DST bridge"}))))
         self.assertIn("Still here on the same thread.", second_html)
@@ -225,6 +231,23 @@ class RohOperatorStationTests(unittest.TestCase):
         chat_call = [call for call in self.context.calls if call[0][0] == "RohTalk.chat"][-1][0]
         self.assertEqual(chat_call[:6], ["RohTalk.chat", "--tools", "--toolkit", "dst_director", "--tool-trace", "abc123def456"])
 
+    def test_send_failure_preserves_command_textarea_for_retry(self) -> None:
+        context = FakeContext(snapshot_path=Path(self.temp_dir.name) / "roh_dst_snapshot.json", rohtalk_ok=False)
+        app = self.module.create_app(context)
+        send_endpoint = None
+        for route in app.routes:
+            if getattr(route, "path", None) == "/send":
+                send_endpoint = route.endpoint
+                break
+        if send_endpoint is None:
+            raise AssertionError("send route not found")
+
+        html = self._render(asyncio.run(send_endpoint(_FakeRequest({"prompt": "Retry this command"}))))
+
+        self.assertIn("RohTalk send failed.", html)
+        self.assertIn(">Retry this command</textarea>", html)
+        self.assertNotIn("Prompt submitted.", html)
+
     def test_demo_prompt_sends_immediately(self) -> None:
         html = self._render(
             asyncio.run(
@@ -235,6 +258,8 @@ class RohOperatorStationTests(unittest.TestCase):
         )
 
         self.assertIn("Roh is online.", html)
+        self.assertIn("Prompt submitted.", html)
+        self.assertIn('placeholder="Type to Roh."></textarea>', html)
         start_call = [call for call in self.context.calls if call[0][0] == "RohTalk.start"][-1][0]
         self.assertEqual(start_call[-1], "Warn us before night")
 

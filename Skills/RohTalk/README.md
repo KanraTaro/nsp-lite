@@ -176,6 +176,40 @@ Show final normalized history:
 
 python nspl.py skill RohTalk.tool_test --show-history -- "What's the weather in Orlando?"
 
+### RohTalk.benchmark
+
+Run repeatable benchmark smoke cases for comparing RohTalk model and profile
+options without changing default config or Operator Station behavior.
+
+Supports:
+
+- optional `--model`, `--model-profile`, and `--host`
+- repeatable `--model-option key=value`
+- optional `--toolkit`, repeatable `--case`, and explicit `--tools`/`--no-tools`
+- modes: `no-tools`, `tool-dry`, `dst-director-dry`, and `dst-director-live`
+- JSON output with `--json`
+- JSONL and markdown save under RohTalk Logs with `--save`
+
+Safe defaults:
+
+python nspl.py skill RohTalk.benchmark --mode no-tools --suite smoke --iterations 1
+
+Model comparison examples:
+
+python nspl.py skill RohTalk.benchmark --model gpt-oss:20b --mode no-tools --json
+
+python nspl.py skill RohTalk.benchmark --model gemma4:e2b --mode no-tools --json
+
+python nspl.py skill RohTalk.benchmark --model gemma4:12b --mode dst-director-dry --toolkit dst_director --json
+
+python nspl.py skill RohTalk.benchmark --model-profile dst_director_fast --mode dst-director-dry --toolkit dst_director --json
+
+python nspl.py skill RohTalk.benchmark --model-profile dst_director_quality --mode dst-director-dry --toolkit dst_director --json
+
+Live DST actions are blocked unless explicitly enabled:
+
+python nspl.py skill RohTalk.benchmark --mode dst-director-live --allow-live-dst-actions
+
 ### RohTalk.shell
 
 Run an interactive shell against a persistent conversation.

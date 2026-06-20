@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 
 LIVE_SNAPSHOT_MAX_AGE_SECONDS = 60
-OPERATOR_CONVERSATION_TITLE = "Roh Operator Station"
+OPERATOR_CONVERSATION_TITLE = "Roh Operator Station Clip 1"
 
 
 def _status_rank(value: str) -> int:
@@ -165,6 +165,7 @@ def build_operator_view(payload: Dict[str, Any]) -> Dict[str, Any]:
         "auto_speak": bool(payload.get("auto_speak", False)),
         "listen_result": payload.get("listen_result"),
         "voice_result": payload.get("voice_result"),
+        "submitted": bool(payload.get("submitted", False)),
         "action_trace": payload.get("action_trace", default_action_trace()),
         "diagnostics": payload.get("diagnostics", {}),
         "prompts": [

@@ -241,6 +241,7 @@ def _load_operator_payload(
     chat: Dict[str, Any] | None = None,
     action_trace: Dict[str, Any] | None = None,
     voice_result: Dict[str, Any] | None = None,
+    submitted: bool = False,
 ) -> Dict[str, Any]:
     time_result = context.run_skill(["NSPL.Tools.Time.now", "--json"], timeout=4.0)
     _time_payload, time_error = _parse_json_result(time_result)
@@ -299,6 +300,7 @@ def _load_operator_payload(
         "listen_result": (chat_state or {}).get("listen_result"),
         "action_trace": action_trace or default_action_trace(),
         "voice_result": voice_result,
+        "submitted": bool(submitted),
         "diagnostics": _load_rohtalk_diagnostics(context),
     }
     payload["ui"] = build_operator_view(payload)
@@ -355,6 +357,7 @@ def create_app(context: Any) -> FastAPI:
                 context,
                 chat=turn["chat"],
                 action_trace=turn["action_trace"],
+                submitted=not bool(turn["chat"].get("error")),
             )
             if auto_speak and turn["chat"].get("latest_response") and not turn["chat"].get("error"):
                 voice_result, _voice_trace = _run_voice_speak(
@@ -367,6 +370,7 @@ def create_app(context: Any) -> FastAPI:
                     chat=turn["chat"],
                     action_trace=turn["action_trace"],
                     voice_result=voice_result,
+                    submitted=True,
                 )
         return templates.TemplateResponse(request, "index.html", {**payload})
 

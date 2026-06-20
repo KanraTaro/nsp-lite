@@ -1,0 +1,6 @@
+{
+  "name": "RohTalk.benchmark",
+  "version": "0.1.0",
+  "description": "Run repeatable RohTalk benchmark smoke cases for model and profile comparison",
+  "entry": "skill.py"
+}
